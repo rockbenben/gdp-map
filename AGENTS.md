@@ -15,16 +15,18 @@
 ## 2. 现状
 
 已经跑起来了：数据管线、2D 地图、3D 地球、搜索、URL 分享、PNG 导出全部可用，
-浏览器级验收 47 项全过。
+浏览器级验收 48 项全过，CI（typecheck / 单测 / 构建 / 浏览器验收）已接上。
 
 ```
 046/
 ├── AGENTS.md / README.md / LICENSE
 ├── package.json / tsconfig.json / vite.config.ts / vitest.config.ts
+├── .github/workflows/ci.yml     # CI：typecheck · 单测 · 构建 · 浏览器验收
 ├── scripts/
 │   ├── fetch-sources.mjs   # 抓原始数据源 → data/raw/
 │   ├── build-data.mjs      # 合并 → public/data/regions.json + public/geo/*
-│   └── acceptance.mjs      # Playwright 验收（用本机 Chrome）
+│   ├── static-server.mjs   # 验收用的静态服务器（伺服 dist/）
+│   └── acceptance.mjs      # Playwright 验收（自带服务器 + 浏览器）
 ├── data/
 │   ├── provincial-gdp-2024.json   # 年鉴表 3-9 读数（含出处 URL）
 │   ├── us-states.json             # 美国 51 州中英文名对照
@@ -107,6 +109,14 @@
   路径就会变成 `MNaN,NaN...`（剪影对照踩过这个坑）。
 - **面积剪影对照必须用等积投影**（geoEqualEarth）。用 Mercator 的话高纬度国家会被放大，
   比出来的「谁大」就是假的。
+- **发布的数据要按真实精度收口。** 源几何给到 14~15 位小数（约 0.1 毫米），
+  而地图上一个像素约等于 8 公里；WEO 的十亿美元小数乘 1e9 后会留下浮点尾巴
+  （8577.549999999999 × 1e9 = 8577549999999.999）。`build-data.mjs` 里的
+  `money / people / perCapita / roundGeometry` 负责收口：钱到元、人到人、人均到分、
+  坐标到 5 位小数（≈1.1 米）。
+  ⚠️ **只裁「写到前端的那一份」**：面积仍用原始几何算，已校验过的面积数字不会漂。
+  ⚠️ 改收口规则后要重跑 `npm run data:build`，产物是提交进仓库的，改完不重建
+  就是「管线和产物对不上」。
 
 ## 5. 下一步可以做什么
 
@@ -124,6 +134,11 @@
 
 - `npm run typecheck` 无错
 - `npm run test` 全绿（核心算法单测）
-- `node scripts/acceptance.mjs` 47 项全过（需先起 dev server）
+- `npm run acceptance` 48 项全过（**自带服务器**，不用先起 dev server；
+  想对着 dev server 跑就 `node scripts/acceptance.mjs http://localhost:5183`）
 - `npm run build` 成功产出 `dist/`
 - 页脚数据来源与官方原表链接可点、可见
+
+CI（`.github/workflows/ci.yml`）跑的就是上面这四条，外加浏览器验收。
+⚠️ **CI 里不要跑 `npm run data`**：抓数据要访问三个外部源，任何一个挂了都会让 CI
+变红，而红的原因跟代码无关；产物是提交进仓库的，CI 直接用提交里那份。

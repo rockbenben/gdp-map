@@ -83,8 +83,11 @@ npm run dev       # http://localhost:5173
 npm run build     # 类型检查 + 打包到 dist/
 npm run test      # 核心算法单元测试
 npm run preview   # 预览打包结果
-node scripts/acceptance.mjs   # 浏览器级验收（需先起 dev server）
+npm run acceptance # 浏览器级验收（自带服务器，不用先起 dev server）
 ```
+
+想对着 dev server 跑验收：`node scripts/acceptance.mjs http://localhost:5173`。
+CI（`.github/workflows/ci.yml`）跑的就是 typecheck → 单测 → 构建 → 浏览器验收。
 
 ## 数据从哪来
 
@@ -129,6 +132,8 @@ node scripts/acceptance.mjs   # 浏览器级验收（需先起 dev server）
 - d3-geo（投影 / 路径）、d3-scale / d3-scale-chromatic（配色）
 - 地图与地球都是**纯 SVG**：没有 WebGL，低端设备与截图导出都能跑
 - 数据管线是 Node 脚本（`scripts/`），产物落在 `public/data` 与 `public/geo`
+- 发布的 JSON 按真实精度收口：钱到元、人到人、人均到分、坐标到 5 位小数（约 1.1 米）——
+  源数据多给的那几位精度只是白下载
 
 ## 目录
 
@@ -137,6 +142,7 @@ node scripts/acceptance.mjs   # 浏览器级验收（需先起 dev server）
 ├─ scripts/
 │  ├─ fetch-sources.mjs      # 抓原始数据源到 data/raw/
 │  ├─ build-data.mjs         # 合并成 public/data/regions.json + public/geo/*
+│  ├─ static-server.mjs      # 验收用的静态服务器（伺服 dist/）
 │  └─ acceptance.mjs         # Playwright 浏览器级验收
 ├─ data/
 │  ├─ provincial-gdp-2024.json  # 年鉴表格读数（带出处）
