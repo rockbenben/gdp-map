@@ -296,11 +296,13 @@ try {
   await download2.saveAs(png2);
   check('导出地球 PNG 成功', (await stat(png2)).size > 20000);
 
-  // 10.6 年份回溯：换一个年份，世界与排名都跟着变
+  // 10.6 年份回溯：换一个年份，对照的世界跟着变；
+  //     但名次要按参照物**自己那一年**算（省的数据是 2024，拿它跟 2010 的经济体比是假的）
   await page.goto(`${BASE}/?sel=CN-410000&y=2010`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  await page.waitForTimeout(400);
   const rank2010 = (await page.locator('.result-strategy').innerText()).replace(/\s+/g, ' ');
-  check('年份进入排名说明', /2010\s*年/.test(rank2010), rank2010);
+  check('名次按参照物自己的年份算', /2024\s*年/.test(rank2010), rank2010);
   const count2010 = await page.locator('.result-item').count();
   check('换一个年份匹配结果不同', count2010 > 0, `2010 年：${count2010} 件`);
   await page.locator('.more > summary').click();
@@ -413,6 +415,63 @@ try {
   check('反向模式给出等价省/州', /≈\s*\d+\s*个/.test(headline2), headline2);
   const subHighlights = await page.locator('.map-holder svg .subdivisions path[fill]:not([fill="none"])').count();
   check('世界地图高亮匹配的省/州', subHighlights > 0, `${subHighlights} 个`);
+
+  // 11.1 换方向要保留上下文：选的是省就换成它所属的国家
+  await page.goto(`${BASE}/?sel=CN-410000`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  await page.locator('.segmented button', { hasText: '世界 → 地方' }).first().click();
+  await page.waitForTimeout(600);
+  const afterSwitch = await page.locator('.result-headline h1').innerText().catch(() => '');
+  check('换方向不换题（省 → 它的国家）', /中国/.test(afterSwitch), afterSwitch);
+  await page.locator('.segmented button', { hasText: '地方 → 世界' }).first().click();
+  await page.waitForTimeout(600);
+  const backSwitch = await page.locator('.result-headline h1').innerText().catch(() => '');
+  check('换回来也是满的', /≈\s*\d+\s*个/.test(backSwitch), backSwitch);
+
+  // 12. 几处曾经漏掉的坑（这四条当初都逃过了验收）
+  // 12.1 平价口径：新来的 141 个地区也得有 PPP，否则选中就是一片空白
+  await page.goto(`${BASE}/?sel=JP-13&m=pppGdp`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  await page.waitForTimeout(600);
+  const pppTitle = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  check('平价口径对新地区也有效', /≈\s*\d+\s*个/.test(pppTitle), pppTitle);
+
+  // 12.2 面积剪影：新地区也要画得出来（对照物没有边界就会整块消失）
+  await page.goto(`${BASE}/?sel=JP-13&m=area&st=nearest`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1600);
+  const jpSilhouette = await page.locator('.silhouette svg path').count();
+  check('新地区的面积剪影能画出来', jpSilhouette === 2, `${jpSilhouette} 个剪影`);
+
+  // 12.3 排行视图：名次要自洽（不能既显示「第 61 行」又显示「第 223 位」）
+  await page.goto(`${BASE}/?sel=JP-31&view=rank`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.rank-row', { timeout: 15000 });
+  await page.waitForTimeout(400);
+  const rankRow = (await page.locator('.rank-row').last().innerText()).replace(/\s+/g, ' ');
+  check('排行的名次自洽', !/第\s*\d+\s*位/.test(rankRow), rankRow);
+
+  // 12.4 排行视图：导出不能报「地图未就绪」
+  await page.locator('.primary-btn', { hasText: '分享' }).click();
+  const [rankDownload] = await Promise.all([
+    page.waitForEvent('download', { timeout: 60000 }),
+    page.locator('.share-menu button', { hasText: '下载高清图' }).click()
+  ]);
+  check('排行视图下也能导出', Boolean(rankDownload), rankDownload.suggestedFilename());
+
+  // 12.5 选中的省/州要在地图上标出来（不然看不出自己选的是哪个）
+  await page.goto(`${BASE}/?sel=JP-13`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1600);
+  const jpMarked = await page.locator('.map-holder svg .subdivisions path[fill]:not([fill="none"])').count();
+  check('选中的地区在地图上标出来', jpMarked > 0, `${jpMarked} 个`);
+
+  // 12.6 选择器要能搜到国名（搜「德国」要能搜到巴伐利亚）
+  await page.goto(`${BASE}/?sel=CN-410000`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.picker-item', { timeout: 15000 });
+  await page.locator('.search').fill('德国');
+  await page.waitForTimeout(300);
+  const byCountry = await page.locator('.picker-item').allInnerTexts();
+  check('搜国名能找到省/州', byCountry.length > 0, byCountry.map((t) => t.split('\n')[0]).slice(0, 4).join('、'));
+  await page.locator('.search').fill('');
+
   const seaBox = await page.locator('.sea-label').count();
   check('附南海诸岛小图', seaBox > 0, `${seaBox} 个标注`);
   await page.screenshot({ path: resolve(SHOTS, 'map-china.png'), fullPage: false });
