@@ -772,17 +772,32 @@ body {
 }
 
 .ranking {
+  /* 一行的高度：行高写死，行才能用 translateY 精确落位（排行追逐靠它） */
+  --row-h: 30px;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
+/* 排行追逐：每行绝对定位，位置由 transform 决定。
+   换指标/换年份时名次变了，transform 变 → 浏览器把行滑到新位置，
+   条形同时滑到新长度，一眼能看出「谁追上了谁」。 */
+.rank-rows {
+  position: relative;
+  width: 100%;
+}
+
 .rank-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--row-h);
   display: grid;
   grid-template-columns: 30px minmax(90px, 150px) 1fr auto auto;
   align-items: center;
   gap: 10px;
-  padding: 5px 8px;
+  padding: 0 8px;
   font: inherit;
   font-size: 13px;
   color: var(--text-dim);
@@ -792,6 +807,7 @@ body {
   border-radius: 8px;
   cursor: pointer;
   transition:
+    transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1),
     background 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease;
@@ -1666,6 +1682,10 @@ body {
 
   /* 排行条形在窄屏会被挤成 0 宽——榜就只剩一列数字，没意义了。
      改成两行：上面是名次 / 名字 / 数值 / 备注，下面整行是条形。 */
+  .ranking {
+    --row-h: 48px;
+  }
+
   .rank-row {
     grid-template-columns: 26px minmax(0, 1fr) auto auto;
     grid-template-areas:
@@ -1673,6 +1693,7 @@ body {
       'idx bar  bar  bar';
     row-gap: 5px;
     column-gap: 8px;
+    padding: 7px 8px;
   }
 
   .rank-idx {

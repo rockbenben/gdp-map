@@ -114,34 +114,38 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
         </p>
       ) : null}
 
-      {rows.map((e, i) => {
-        const ratio = e.value / max;
-        // 显示真正的名次，不是它在榜上的位置——选中的那条可能排在 limit 之外
-        const rank = rankOf.get(e.id) ?? i + 1;
-        return (
-          <button
-            key={e.id}
-            type="button"
-            className={['rank-row', e.selected ? 'is-selected' : '', e.matched ? 'is-matched' : '']
-              .filter(Boolean)
-              .join(' ')}
-            onClick={() => onSelect?.(e.id)}
-            title={`${e.zh} · ${format(e.value)}`}
-          >
-            <span className="rank-idx">{rank}</span>
-            <span className="rank-name">
-              {/* 只看国家时不用每行都挂个「国家」标签；省/州始终带着所属国家 */}
-              {(scope === 'all' || e.kind === 'region') && e.group ? <em>{e.group}</em> : null}
-              {e.zh}
-            </span>
-            <span className="rank-bar">
-              <span className="rank-fill" style={{ width: `${(ratio * 100).toFixed(2)}%` }} />
-            </span>
-            <span className="rank-value">{format(e.value)}</span>
-            <span className="rank-note">{noteFor?.(e, rank) ?? ''}</span>
-          </button>
-        );
-      })}
+      <div className="rank-rows" style={{ height: `calc(var(--row-h) * ${rows.length})` }}>
+        {rows.map((e, i) => {
+          const ratio = e.value / max;
+          // 显示真正的名次，不是它在榜上的位置——选中的那条可能排在 limit 之外
+          const rank = rankOf.get(e.id) ?? i + 1;
+          return (
+            <button
+              key={e.id}
+              type="button"
+              // 位置由 transform 决定：名次变了就滑到新位置（排行追逐）
+              style={{ transform: `translateY(calc(var(--row-h) * ${i}))` }}
+              className={['rank-row', e.selected ? 'is-selected' : '', e.matched ? 'is-matched' : '']
+                .filter(Boolean)
+                .join(' ')}
+              onClick={() => onSelect?.(e.id)}
+              title={`${e.zh} · ${format(e.value)}`}
+            >
+              <span className="rank-idx">{rank}</span>
+              <span className="rank-name">
+                {/* 只看国家时不用每行都挂个「国家」标签；省/州始终带着所属国家 */}
+                {(scope === 'all' || e.kind === 'region') && e.group ? <em>{e.group}</em> : null}
+                {e.zh}
+              </span>
+              <span className="rank-bar">
+                <span className="rank-fill" style={{ width: `${(ratio * 100).toFixed(2)}%` }} />
+              </span>
+              <span className="rank-value">{format(e.value)}</span>
+              <span className="rank-note">{noteFor?.(e, rank) ?? ''}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {shown < total ? (
         <button type="button" className="rank-more" onClick={() => setShown((n) => n + limit)}>

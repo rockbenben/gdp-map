@@ -557,6 +557,30 @@ try {
     bigFractionHeadline
   );
 
+  // 19. 排行追逐：行按名次绝对定位，换指标后重新排序
+  await page.goto(`${BASE}/?sel=CN-440000&view=rank`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.rank-row', { timeout: 15000 });
+  await page.waitForTimeout(500);
+  const readRows = () =>
+    page.$$eval('.rank-row', (rows) =>
+      rows.slice(0, 5).map((r) => ({
+        name: r.querySelector('.rank-name')?.textContent?.trim() ?? '',
+        pos: getComputedStyle(r).position,
+        y: getComputedStyle(r).transform
+      }))
+    );
+  const raceBefore = await readRows();
+  await page.locator('.metric-options button', { hasText: '人均 GDP' }).click();
+  await page.waitForTimeout(1200);
+  const raceAfter = await readRows();
+  check(
+    '排行追逐：换指标时行滑到新位置',
+    raceAfter.every((r) => r.pos === 'absolute') &&
+      raceAfter[0].y !== raceAfter[1].y &&
+      raceAfter[0].name !== raceBefore[0].name,
+    `${raceBefore[0].name} → ${raceAfter[0].name}`
+  );
+
   check('无运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   check('验收脚本执行', false, String(e).slice(0, 200));
