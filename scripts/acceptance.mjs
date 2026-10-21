@@ -8,6 +8,7 @@
 // 不给就伺服 dist/（测的是真正要上线的那份产物，CI 里必须走这条）。
 import { chromium } from 'playwright';
 import { mkdir, stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
@@ -240,6 +241,26 @@ try {
   const cardPath = resolve(SHOTS, 'export-card.png');
   await card.saveAs(cardPath);
   check('导出分享卡成功', (await stat(cardPath)).size > 20000, `${(await stat(cardPath)).size / 1024} KB`);
+
+  // 动图：1990→2025 一帧一年。得真下载下来验它是动图，
+  // 只看「文件存在」不算——一张静态图也叫 GIF。
+  const [gif] = await Promise.all([
+    page.waitForEvent('download', { timeout: 120000 }),
+    page.locator('.primary-btn', { hasText: '分享' }).click().then(() => page.locator('.share-menu button', { hasText: '下载动图' }).click())
+  ]);
+  const gifPath = resolve(SHOTS, 'export.gif');
+  await gif.saveAs(gifPath);
+  const gifBuf = await readFile(gifPath);
+  // 每一帧前面都有一个 Graphic Control Extension：0x21 0xF9 0x04
+  let gifFrames = 0;
+  for (let i = 0; i < gifBuf.length - 3; i++) {
+    if (gifBuf[i] === 0x21 && gifBuf[i + 1] === 0xf9 && gifBuf[i + 2] === 0x04) gifFrames++;
+  }
+  check(
+    '导出动图成功（多帧）',
+    gifFrames >= 10 && gifBuf.length > 50000,
+    `${gifFrames} 帧 · ${(gifBuf.length / 1024).toFixed(0)} KB`
+  );
 
   // 首屏就有结果（新用户不用做任何操作）
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
