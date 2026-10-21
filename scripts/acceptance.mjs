@@ -579,6 +579,15 @@ try {
     `${raceBefore[0].name} → ${raceAfter[0].name}`
   );
 
+  // 20.1 排行板要是「GDP 追赶」的样子：数值挂在条形末端，条形自己会长
+  const rides = await page.$eval('.rank-fill', (el) => el.querySelector('.rank-value') !== null);
+  const barTransition = await page.$eval('.rank-fill', (el) => getComputedStyle(el).transitionDuration);
+  check(
+    '数值挂在条形末端、条形会生长',
+    rides && parseFloat(barTransition) > 0.1,
+    `过渡 ${barTransition}`
+  );
+
   // 20. 关键控件不用展开就能看见（以前「▶ 播放」藏在「更多选项」里，找不到）
   await page.goto(`${BASE}/?sel=CN-440000`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.play-btn', { timeout: 15000 });

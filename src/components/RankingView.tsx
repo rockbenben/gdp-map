@@ -179,10 +179,12 @@ export function RankingView({ entries, format, noteFor, limit = 60, equivCount, 
                 {(scope === 'all' || e.kind === 'region') && e.group ? <em>{e.group}</em> : null}
                 {e.zh}
               </span>
+              {/* 条形 + 挂在末端的数值：数值跟着条形走，是「追赶」最认得出的那个动作 */}
               <span className="rank-bar">
-                <span className="rank-fill" style={{ width: `${(ratio * 100).toFixed(2)}%` }} />
+                <span className="rank-fill" style={{ width: `${(ratio * 100).toFixed(2)}%` }}>
+                  <span className="rank-value">{format(e.value)}</span>
+                </span>
               </span>
-              <span className="rank-value">{format(e.value)}</span>
               {/* 永远占位：有的行没有这个数，空着也不能少一个格子，
                   否则后面的「备注」列会在各行之间错位 */}
               <span className="rank-equiv" title={equiv ? '这个省/州相当于多少个国家加起来' : undefined}>

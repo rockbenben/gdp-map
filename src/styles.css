@@ -829,7 +829,7 @@ body {
 
 .ranking {
   /* 一行的高度：行高写死，行才能用 translateY 精确落位（排行追逐靠它） */
-  --row-h: 30px;
+  --row-h: 34px;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -850,7 +850,8 @@ body {
   right: 0;
   height: var(--row-h);
   display: grid;
-  grid-template-columns: 46px minmax(90px, 150px) 1fr auto auto auto;
+  /* 名次 | 名字 | 条形（末端挂着数值）| ≈ N 国 | 备注 */
+  grid-template-columns: 40px minmax(84px, 140px) 1fr auto auto;
   align-items: center;
   gap: 10px;
   padding: 0 8px;
@@ -935,6 +936,9 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* 右对齐：名字贴着条形起点，这是「追赶图」的老规矩，
+     眼睛从名字扫到条形，不用在中间找缝 */
+  text-align: right;
 }
 
 .rank-name em {
@@ -948,39 +952,61 @@ body {
   border-radius: 999px;
 }
 
+/* 条形：数值挂在末端，所以右边要留出一段空位给它 */
 .rank-bar {
-  height: 8px;
+  position: relative;
+  height: 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  overflow: hidden;
+  background: rgba(255, 255, 255, 0.055);
+  padding-right: 104px;
 }
 
 .rank-fill {
+  position: relative;
   display: block;
   height: 100%;
   border-radius: 999px;
   /* 条形也做成有体积的：上面受光、下面压暗，再加一道底部投影 */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 48%),
-    linear-gradient(90deg, var(--accent), var(--accent-2));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0) 46%),
+    linear-gradient(90deg, #3a5f9e, #5d8fd8);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 2px 5px rgba(0, 0, 0, 0.45);
-  opacity: 0.85;
+  opacity: 0.9;
+  /* ⚠️ 这个过渡是「追赶」的一半：条形不长动画，数字滚动就没人看得出在变 */
+  transition:
+    width 0.55s cubic-bezier(0.22, 0.61, 0.36, 1),
+    background 0.3s ease;
 }
 
+/* 这次对照出来的对象 = 地图上的「等价对象」配色 */
 .rank-row.is-matched .rank-fill {
   opacity: 1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 46%),
+    linear-gradient(90deg, var(--accent), #d59a2c);
 }
 
+/* 当前选中的那个 = 地图上的「参照物」配色 */
 .rank-row.is-selected .rank-fill {
   opacity: 1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 46%),
+    linear-gradient(90deg, #2aa39d, var(--teal));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 2px 8px rgba(246, 196, 83, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 2px 8px rgba(63, 208, 201, 0.32);
 }
 
+/* 数值挂在条形末端：条形长长，它就跟着往右走 */
 .rank-value {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 9px;
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   white-space: nowrap;
@@ -1816,14 +1842,14 @@ body {
   /* 排行条形在窄屏会被挤成 0 宽——榜就只剩一列数字，没意义了。
      改成两行：上面是名次 / 名字 / 数值 / 备注，下面整行是条形。 */
   .ranking {
-    --row-h: 48px;
+    --row-h: 52px;
   }
 
   .rank-row {
-    grid-template-columns: 36px minmax(0, 1fr) auto auto auto;
+    grid-template-columns: 36px minmax(0, 1fr) auto auto;
     grid-template-areas:
-      'idx name value equiv note'
-      'idx bar  bar  bar  bar';
+      'idx name equiv note'
+      'idx bar  bar  bar';
     row-gap: 5px;
     column-gap: 8px;
     padding: 7px 8px;
@@ -1835,10 +1861,8 @@ body {
 
   .rank-name {
     grid-area: name;
-  }
-
-  .rank-value {
-    grid-area: value;
+    /* 手机上名字独占一行，不必再右对齐去贴条形 */
+    text-align: left;
   }
 
   .rank-equiv {
@@ -1851,6 +1875,13 @@ body {
 
   .rank-bar {
     grid-area: bar;
+    height: 12px;
+    padding-right: 88px;
+  }
+
+  .rank-value {
+    font-size: 12px;
+    margin-left: 7px;
   }
 }
 

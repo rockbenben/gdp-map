@@ -653,6 +653,48 @@ export default function App() {
     return m;
   }, [countries, regions, metric, additive, effectiveStrategy]);
 
+  /**
+   * 图例按视图走。
+   *
+   * 之前一套图例挂所有视图——在排行榜里「等价对象（由小到大）」是没意义的，
+   * 在擂台里也没用。每个视图讲自己的颜色，读者才不用猜。
+   */
+  const legendItems = useMemo(() => {
+    const twoSources = sourceSelected.length >= 2;
+    if (view === 'rank') {
+      return [
+        { label: '这次对照出来的', color: PALETTE.matchedLow },
+        { label: '当前选中的', color: PALETTE.source },
+        { label: '其余对象', color: '#3a5f9e' }
+      ];
+    }
+    if (view === 'square') {
+      return [
+        { label: '这次对照出来的对象', color: PALETTE.matchedLow },
+        { label: '其余国家与地区', color: '#3b4e79' }
+      ];
+    }
+    if (view === 'bracket') {
+      return twoSources
+        ? [
+            { label: sourceSelected[0].zh, color: PALETTE.source },
+            { label: sourceSelected[1].zh, color: PALETTE.source2 }
+          ]
+        : [];
+    }
+    // 地图 / 地球
+    return [
+      { label: '等价对象（由小到大）', color: PALETTE.matchedLow },
+      { label: '其中最大的几个', color: PALETTE.matchedHigh },
+      ...(twoSources
+        ? [
+            { label: sourceSelected[0].zh, color: PALETTE.source },
+            { label: sourceSelected[1].zh, color: PALETTE.source2 }
+          ]
+        : [{ label: '参照地区', color: PALETTE.source }])
+    ];
+  }, [view, sourceSelected]);
+
   /** 排行榜：把对象按当前指标排开，选中的那条高亮。
       它给的是名次卡给不了的东西——前后邻居到底有多大。 */
   const rankingEntries = useMemo<RankEntry[]>(
@@ -1450,29 +1492,12 @@ export default function App() {
 
           <footer className="stage-footer">
             <div className="legend">
-              <span className="legend-item">
-                <i className="swatch" style={{ background: PALETTE.matchedLow }} /> 等价对象（由小到大）
-              </span>
-              <span className="legend-item">
-                <i className="swatch" style={{ background: PALETTE.matchedHigh }} /> 其中最大的几个
-              </span>
-              {sourceSelected.length >= 2 ? (
-                <>
-                  <span className="legend-item">
-                    <i className="swatch" style={{ background: PALETTE.source }} /> {sourceSelected[0].zh}
-                  </span>
-                  <span className="legend-item">
-                    <i className="swatch" style={{ background: PALETTE.source2 }} /> {sourceSelected[1].zh}
-                  </span>
-                  {sourceSelected.length > 2 ? (
-                    <span className="legend-item">共 {sourceSelected.length} 个参照地区</span>
-                  ) : null}
-                </>
-              ) : (
-                <span className="legend-item">
-                  <i className="swatch" style={{ background: PALETTE.source }} /> 参照地区
+              {legendItems.map((item) => (
+                <span className="legend-item" key={item.label}>
+                  {item.color ? <i className="swatch" style={{ background: item.color }} /> : null}
+                  {item.label}
                 </span>
-              )}
+              ))}
               <span className="legend-item motion-item">
                 <label className="toggle">
                   <input
