@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { geoPath } from 'd3-geo';
 import { GlobeView } from './components/GlobeView';
 import { RegionPicker } from './components/RegionPicker';
@@ -14,7 +14,7 @@ import {
   metricValue,
   splitDataset
 } from './lib/data';
-import { copyText, exportPng } from './lib/export';
+import { copyText, exportPng, exportShareCard } from './lib/export';
 import { createChinaProjection, featureMainCentroid, mixColor, PALETTE } from './lib/geo';
 import {
   BIG_POOL_SIZE,
@@ -47,7 +47,10 @@ export default function App() {
   const [initial] = useState(loadState);
   const [mode, setMode] = useState<CompareMode>(initial.mode);
   const [view, setView] = useState<ViewMode>(initial.view);
-  const [selected, setSelected] = useState<string[]>(initial.selected);
+  // 首次进来别给一片空地图：默认就有一个现成的结论看
+  const [selected, setSelected] = useState<string[]>(
+    initial.selected.length ? initial.selected : ['CN-440000']
+  );
   const [metric, setMetric] = useState<MetricId>(initial.metric);
   const [strategy, setStrategy] = useState<MatchStrategy>(initial.strategy);
   const [ignoreMicro, setIgnoreMicro] = useState(initial.ignoreMicro);
@@ -59,6 +62,9 @@ export default function App() {
     picked: string[];
     done: boolean;
   } | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  /** 用户是否已经动过选择（用于区分「第一次点击」和「继续多选」） */
+  const touchedRef = useRef(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const metricDef = METRICS[metric];
@@ -321,12 +327,26 @@ export default function App() {
   };
 
   const toggle = (id: string) => {
-    setSelected((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      // 人均这类不可叠加的指标：选新的就替换旧的
-      if (!additive || !isRegionMode) return [id];
-      return [...prev, id];
-    });
+    // 注意：不要在 setState 的 updater 里改 ref —— StrictMode 会把 updater 跑两遍，
+    // 第一遍就把「已经动过了」置真，第二遍就会把选中的当成追加。
+    if (selected.includes(id)) {
+      touchedRef.current = true;
+      setSelected(selected.filter((x) => x !== id));
+      return;
+    }
+    // 人均这类不可叠加的指标：选新的就替换旧的
+    if (!additive || !isRegionMode) {
+      touchedRef.current = true;
+      setSelected([id]);
+      return;
+    }
+    // 第一次点击算「换地方」，把预选的默认值替掉；之后才是多选加总
+    if (!touchedRef.current) {
+      touchedRef.current = true;
+      setSelected([id]);
+      return;
+    }
+    setSelected([...selected, id]);
   };
 
   /** 地图上的点击：拼图时是「选上/取消」，平时是反向查这个国家 */
@@ -463,47 +483,65 @@ export default function App() {
     return out;
   }, [match, isRegionMode, world, china, sourceSelected, regionById, featureById]);
 
-  // ---------- 导出 ----------
-  const handleExport = async () => {
-    try {
-      const title = sourceSelected.length
-        ? (headline ??
-          metricDef.title(
-            sourceSelected.map((r) => r.zh).join(' + '),
-            match?.count ?? 0,
-            match?.items[0]?.zh ?? '',
-            isRegionMode ? '国家' : '省/州'
-          ))
-        : 'GDP 等价地图';
-      const subtitle = sourceSelected.length
-        ? `${metricDef.format(target)} · ${metricDef.valueLabel} · 数据年份 ${year}`
-        : '选择一个地区开始';
-      const footnote = dataset
-        ? `国家：${dataset.meta.countrySource}｜省级：${dataset.meta.provinceSource}`
-        : '';
-
-      const svg = document.querySelector<SVGSVGElement>(view === 'globe' ? '.globe-wrap svg' : '.map-holder svg');
-      if (!svg) throw new Error('地图未就绪');
-      setToast('正在生成图片…');
-      await exportPng({
-        svg,
-        title,
-        subtitle,
-        footnote,
-        fileName: view === 'globe' ? 'gdp-equivalence-globe.png' : 'gdp-equivalence-map.png'
-      });
-      setToast('图片已导出');
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : '导出失败');
-    }
-  };
-
   const handleCopyLink = () => {
     setToast('正在复制链接…');
     copyText(shareUrl({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro, worldYear })).then(
       (ok) => setToast(ok ? '链接已复制到剪贴板' : '复制失败，请手动复制地址栏'),
       () => setToast('复制失败，请手动复制地址栏')
     );
+  };
+
+  const handleExportCard = async () => {
+    try {
+      const svg = document.querySelector<SVGSVGElement>(view === 'globe' ? '.globe-wrap svg' : '.map-holder svg');
+      if (!svg) throw new Error('地图未就绪');
+      setToast('正在生成分享卡…');
+      const facts = (counterfactual?.rows ?? []).map((r) => ({
+        label: r.label,
+        value: r.value,
+        note: `世界第 ${r.rank} 位`
+      }));
+      await exportShareCard({
+        svg,
+        title: `假如 ${sourceLabel} 是一个国家`,
+        subtitle:
+          headline ??
+          (match ? `相当于 ${match.count} 个${isRegionMode ? '国家' : '省/州'}之和` : ''),
+        facts,
+        footnote: dataset
+          ? `数据：${dataset.meta.countrySource.split('（')[0]}｜${dataset.meta.provinceSource.split('（')[0]}`
+          : '',
+        fileName: 'gdp-equivalence-card.png'
+      });
+      setToast('分享卡已导出');
+      setShareOpen(false);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : '导出失败');
+    }
+  };
+
+  const handleExportHires = async () => {
+    try {
+      const svg = document.querySelector<SVGSVGElement>(view === 'globe' ? '.globe-wrap svg' : '.map-holder svg');
+      if (!svg) throw new Error('地图未就绪');
+      setToast('正在生成高清图…');
+      await exportPng({
+        svg,
+        title: headline ?? (sourceSelected.length ? sourceLabel : 'GDP 等价地图'),
+        subtitle: sourceSelected.length
+          ? `${metricDef.format(target)} · ${metricDef.valueLabel} · 数据年份 ${year}`
+          : '选择一个地区开始',
+        footnote: dataset
+          ? `国家：${dataset.meta.countrySource}｜省级：${dataset.meta.provinceSource}`
+          : '',
+        fileName: 'gdp-equivalence-map@3x.png',
+        scale: 3
+      });
+      setToast('高清图已导出');
+      setShareOpen(false);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : '导出失败');
+    }
   };
 
   if (error) {
@@ -585,9 +623,32 @@ export default function App() {
           <button type="button" className="ghost-btn" onClick={handleCopyLink}>
             复制链接
           </button>
-          <button type="button" className="primary-btn" onClick={handleExport}>
-            导出图片
-          </button>
+          <div className="share-wrap">
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={() => setShareOpen((v) => !v)}
+              aria-expanded={shareOpen}
+            >
+              分享 ▾
+            </button>
+            {shareOpen ? (
+              <div className="share-menu">
+                <button type="button" onClick={handleCopyLink}>
+                  <b>复制链接</b>
+                  <span>对方打开就是同一张图</span>
+                </button>
+                <button type="button" onClick={handleExportCard}>
+                  <b>下载分享卡</b>
+                  <span>竖版 2400×3200，适合发群</span>
+                </button>
+                <button type="button" onClick={handleExportHires}>
+                  <b>下载高清图</b>
+                  <span>横版 3600px 宽</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -612,8 +673,10 @@ export default function App() {
               ))}
             </div>
             <p className="picker-hint">{METRIC_HINT[metric]}</p>
+          </section>
 
-            <div className="picker-head" style={{ marginTop: 14 }}>
+          <section className="compare-panel">
+            <div className="picker-head">
               <h2>{isRegionMode ? '拿哪些国家来凑' : '拿哪些省/州来凑'}</h2>
             </div>
             {additive ? (
@@ -646,49 +709,52 @@ export default function App() {
                 </div>
               </div>
             )}
-            {isRegionMode ? (
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={ignoreMicro}
-                  onChange={(e) => setIgnoreMicro(e.target.checked)}
-                />
-                <span>忽略微型经济体（人口不足 100 万）</span>
-              </label>
-            ) : null}
+            <details className="more">
+              <summary>更多选项</summary>
+              {isRegionMode ? (
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={ignoreMicro}
+                    onChange={(e) => setIgnoreMicro(e.target.checked)}
+                  />
+                  <span>忽略微型经济体（人口不足 100 万）</span>
+                </label>
+              ) : null}
 
-            <div className="picker-head" style={{ marginTop: 14 }}>
-              <h2>拿哪一年的世界来比</h2>
-              <span className="year-now">{worldYear}</span>
-            </div>
-            <input
-              className="year-slider"
-              type="range"
-              min={1990}
-              max={2025}
-              step={1}
-              value={worldYear}
-              onChange={(e) => setWorldYear(Number(e.target.value))}
-              aria-label="国家数据年份"
-            />
-            <div className="year-ticks">
-              <button type="button" onClick={() => setWorldYear(1990)}>
-                1990
-              </button>
-              <button type="button" onClick={() => setWorldYear(2000)}>
-                2000
-              </button>
-              <button type="button" onClick={() => setWorldYear(2010)}>
-                2010
-              </button>
-              <button type="button" onClick={() => setWorldYear(2024)}>
-                2024
-              </button>
-            </div>
-            <p className="picker-hint">
-              国家数据可回溯到 1990 年（2025 为 IMF 预测值），省级数据固定 {year} 年。
-              往后拨，能看出「今天这个地方放在当年是什么水平」。
-            </p>
+              <div className="picker-head" style={{ marginTop: 12 }}>
+                <h2>拿哪一年的世界来比</h2>
+                <span className="year-now">{worldYear}</span>
+              </div>
+              <input
+                className="year-slider"
+                type="range"
+                min={1990}
+                max={2025}
+                step={1}
+                value={worldYear}
+                onChange={(e) => setWorldYear(Number(e.target.value))}
+                aria-label="国家数据年份"
+              />
+              <div className="year-ticks">
+                <button type="button" onClick={() => setWorldYear(1990)}>
+                  1990
+                </button>
+                <button type="button" onClick={() => setWorldYear(2000)}>
+                  2000
+                </button>
+                <button type="button" onClick={() => setWorldYear(2010)}>
+                  2010
+                </button>
+                <button type="button" onClick={() => setWorldYear(2024)}>
+                  2024
+                </button>
+              </div>
+              <p className="picker-hint">
+                国家数据可回溯到 1990 年（2025 为 IMF 预测值），省级数据固定 {year} 年。
+                往后拨，能看出「今天这个地方放在当年是什么水平」。
+              </p>
+            </details>
           </section>
 
           <RegionPicker

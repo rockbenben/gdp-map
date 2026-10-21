@@ -75,7 +75,8 @@ try {
   const overSub = await page.locator('.result-sub').innerText();
   check('宁可超出：合计不低于参照物', /超出/.test(overSub), overSub.replace(/\s+/g, ' '));
 
-  // 6. 微型经济体开关
+  // 6. 微型经济体开关（在「更多选项」里）
+  await page.locator('.more > summary').click();
   await page.locator('.choice', { hasText: '尽量多凑' }).click();
   await page.waitForTimeout(300);
   const manyCount = await page.locator('.result-item').count();
@@ -122,12 +123,27 @@ try {
   await page.screenshot({ path: resolve(SHOTS, 'map-2d.png'), fullPage: false });
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 30000 }),
-    page.locator('.primary-btn').click()
+    page.locator('.primary-btn', { hasText: '分享' }).click().then(() => page.locator('.share-menu button', { hasText: '下载高清图' }).click())
   ]);
   const pngPath = resolve(SHOTS, 'export-map.png');
   await download.saveAs(pngPath);
   const size = (await stat(pngPath)).size;
-  check('导出 PNG 成功', size > 20000, `${download.suggestedFilename()} · ${(size / 1024).toFixed(0)} KB`);
+  check('导出高清 PNG 成功', size > 20000, `${download.suggestedFilename()} · ${(size / 1024).toFixed(0)} KB`);
+
+  // 分享卡（竖版）
+  const [card] = await Promise.all([
+    page.waitForEvent('download', { timeout: 30000 }),
+    page.locator('.primary-btn', { hasText: '分享' }).click().then(() => page.locator('.share-menu button', { hasText: '下载分享卡' }).click())
+  ]);
+  const cardPath = resolve(SHOTS, 'export-card.png');
+  await card.saveAs(cardPath);
+  check('导出分享卡成功', (await stat(cardPath)).size > 20000, `${(await stat(cardPath)).size / 1024} KB`);
+
+  // 首屏就有结果（新用户不用做任何操作）
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 20000 });
+  const firstTitle = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  check('首屏直接给结论', /≈/.test(firstTitle), firstTitle);
 
   // 10. 3D 地球
   await page.locator('.segmented button', { hasText: '3D 地球' }).click();
@@ -148,7 +164,10 @@ try {
 
   const [download2] = await Promise.all([
     page.waitForEvent('download', { timeout: 30000 }),
-    page.locator('.primary-btn').click()
+    page
+      .locator('.primary-btn', { hasText: '分享' })
+      .click()
+      .then(() => page.locator('.share-menu button', { hasText: '下载高清图' }).click())
   ]);
   const png2 = resolve(SHOTS, 'export-globe.png');
   await download2.saveAs(png2);
@@ -161,6 +180,7 @@ try {
   check('年份进入排名说明', /2010\s*年/.test(rank2010), rank2010);
   const count2010 = await page.locator('.result-item').count();
   check('换一个年份匹配结果不同', count2010 > 0, `2010 年：${count2010} 件`);
+  await page.locator('.more > summary').click();
   await page.locator('.year-ticks button', { hasText: '1990' }).click();
   await page.waitForTimeout(400);
   check('滑块可切到 1990', (await page.url()).includes('y=1990'), await page.url());

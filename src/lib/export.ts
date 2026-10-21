@@ -14,6 +14,8 @@ export interface ExportOptions {
   footnote?: string;
   fileName: string;
   background?: string;
+  /** 导出倍率，2 = 2400px 宽，3 = 3600px 宽 */
+  scale?: number;
 }
 
 async function svgToImage(svg: SVGSVGElement, width: number, height: number): Promise<HTMLImageElement> {
@@ -97,7 +99,7 @@ export async function exportPng(opts: ExportOptions): Promise<void> {
   const { svg, canvas: sourceCanvas, title, subtitle, footnote, fileName } = opts;
   const background = opts.background ?? '#080c16';
 
-  const scale = 2;
+  const scale = opts.scale ?? 2;
   const headerHeight = 132;
   const padding = 28;
   const footnoteFont = '400 15px "PingFang SC", "Microsoft YaHei", system-ui, sans-serif';
@@ -160,6 +162,101 @@ export async function exportPng(opts: ExportOptions): Promise<void> {
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export interface ShareCardOptions {
+  svg: SVGSVGElement;
+  /** 主标题，例如「假如 河南省 是一个国家」 */
+  title: string;
+  /** 副标题，例如「≈ 52 个国家之和」 */
+  subtitle?: string;
+  /** 事实行，例如「总 GDP 8,835 亿美元 · 世界第 22 位」 */
+  facts: Array<{ label: string; value: string; note?: string }>;
+  footnote?: string;
+  fileName: string;
+  scale?: number;
+}
+
+/**
+ * 竖版分享卡：标题 + 关键数字 + 地图 + 出处。
+ * 比例接近 3:4，适合发朋友圈 / 微博 / 群。
+ */
+export async function exportShareCard(opts: ShareCardOptions): Promise<void> {
+  const scale = opts.scale ?? 2;
+  const W = 1200;
+  const pad = 56;
+  const headerH = 196;
+  const factsH = opts.facts.length * 62;
+  const footerH = 108;
+
+  const vb = opts.svg.viewBox.baseVal;
+  const mapW = W - pad * 2;
+  const mapH = Math.round(mapW * ((vb.height || 520) / (vb.width || 1000)));
+  const H = headerH + factsH + mapH + footerH;
+
+  const img = await svgToImage(opts.svg, mapW, mapH);
+
+  const out = document.createElement('canvas');
+  out.width = W * scale;
+  out.height = H * scale;
+  const ctx = out.getContext('2d');
+  if (!ctx) throw new Error('无法创建画布');
+  ctx.scale(scale, scale);
+
+  // 背景
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0b1224');
+  bg.addColorStop(0.5, '#080c16');
+  bg.addColorStop(1, '#0a1020');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // 标题
+  drawText(ctx, opts.title, pad, 84, '700 44px "PingFang SC", "Microsoft YaHei", system-ui, sans-serif', '#f2f5ff');
+  if (opts.subtitle) {
+    drawText(ctx, opts.subtitle, pad, 136, '400 26px "PingFang SC", "Microsoft YaHei", system-ui, sans-serif', '#f6c453');
+  }
+  ctx.strokeStyle = 'rgba(120,150,220,0.22)';
+  ctx.beginPath();
+  ctx.moveTo(pad, headerH - 28);
+  ctx.lineTo(W - pad, headerH - 28);
+  ctx.stroke();
+
+  // 事实行
+  opts.facts.forEach((f, i) => {
+    const y = headerH + 18 + i * 62;
+    drawText(ctx, f.label, pad, y, '400 24px "PingFang SC", "Microsoft YaHei", system-ui, sans-serif', '#8f9cbb');
+    drawText(ctx, f.value, pad + 150, y, '700 26px "PingFang SC", "Microsoft YaHei", system-ui, sans-serif', '#e9eefc');
+    if (f.note) {
+      drawText(ctx, f.note, W - pad - 210, y, '400 24px "PingFang SC", "Microsoft YaHei", system-ui, sans-serif', '#6b7896');
+    }
+  });
+
+  // 地图
+  ctx.drawImage(img, pad, headerH + factsH - 10, mapW, mapH);
+
+  // 页脚
+  if (opts.footnote) {
+    drawText(
+      ctx,
+      opts.footnote,
+      pad,
+      H - 46,
+      '400 19px "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+      '#6b7896'
+    );
+  }
+
+  const blob = await new Promise<Blob | null>((resolve) => out.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('导出分享卡失败');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = opts.fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();

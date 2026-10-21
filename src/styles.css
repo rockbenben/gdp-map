@@ -153,6 +153,56 @@ body {
   transform: translateY(0);
 }
 
+/* ---------- 分享菜单 ---------- */
+.share-wrap {
+  position: relative;
+}
+
+.share-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 40;
+  width: 230px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(13, 20, 36, 0.98);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.share-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.share-menu button:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.share-menu b {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.share-menu span {
+  font-size: 11.5px;
+  color: var(--text-mute);
+}
+
 /* ---------- 布局 ---------- */
 .layout {
   flex: 1;
@@ -170,6 +220,56 @@ body {
   gap: 16px;
   overflow-y: auto;
   max-height: calc(100vh - 63px);
+}
+
+/* 侧栏顺序：先选指标 → 直接给结论 → 再换地方 → 最后才是微调口径 */
+.sidebar > .strategy {
+  order: 0;
+}
+.sidebar > .result,
+.sidebar > .puzzle {
+  order: 1;
+}
+.sidebar > .picker {
+  order: 2;
+}
+.sidebar > .compare-panel {
+  order: 3;
+}
+.sidebar > .quick-row {
+  order: 4;
+}
+
+/* 折叠的进阶选项 */
+.more {
+  margin-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 10px;
+}
+
+.more > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-mute);
+  list-style: none;
+  user-select: none;
+}
+
+.more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.more > summary::before {
+  content: '▸ ';
+  color: var(--text-mute);
+}
+
+.more[open] > summary::before {
+  content: '▾ ';
+}
+
+.more > summary:hover {
+  color: var(--text);
 }
 
 .stage {
@@ -229,7 +329,8 @@ body {
 }
 
 /* ---------- 对照方式 ---------- */
-.strategy {
+.strategy,
+.compare-panel {
   background: var(--bg-panel);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius);
