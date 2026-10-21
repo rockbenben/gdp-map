@@ -17,7 +17,12 @@ const SOURCES = {
   // 国家统计局《中国统计年鉴2025》表 3-9 地区生产总值(2024年)
   'nbs-yearbook-2025-C03-09.jpg': 'https://www.stats.gov.cn/sj/ndsj/2025/html/C03-09.jpg',
   // 国家面积表（Natural Earth 口径 + 修正），用于「面积对比」
-  'countries-area.json': 'https://raw.githubusercontent.com/mledoze/countries/master/countries.json'
+  'countries-area.json': 'https://raw.githubusercontent.com/mledoze/countries/master/countries.json',
+  // 美国各州边界（TopoJSON，us-atlas）
+  'us-states-10m.json': 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json',
+  // 美国各州 GDP / 人均 / 人口（BEA + Census 口径，经维基百科转录）
+  'us-states-gdp.wiki.json':
+    'https://en.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&titles=List_of_U.S._states_and_territories_by_GDP&format=json&formatversion=2'
 };
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126' };

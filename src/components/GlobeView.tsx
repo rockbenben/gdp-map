@@ -107,24 +107,28 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
 
       const segments: string[][] = [];
       let current: string[] = [];
+      const sinD = Math.sin(d);
+      // 对跖点时 sin(d)=0，球面插值会算出 NaN，退化成经纬度线性插值
+      const useSlerp = Math.abs(sinD) > 1e-6;
       for (let s = 0; s <= 48; s += 1) {
         const t = s / 48;
         let lon: number;
         let lat: number;
-        if (d < 1e-6) {
-          lon = lon1;
-          lat = lat1;
+        if (!useSlerp) {
+          lon = lon1 + (lon2 - lon1) * t;
+          lat = lat1 + (lat2 - lat1) * t;
         } else {
-          const A = Math.sin((1 - t) * d) / Math.sin(d);
-          const B = Math.sin(t * d) / Math.sin(d);
+          const A = Math.sin((1 - t) * d) / sinD;
+          const B = Math.sin(t * d) / sinD;
           const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2);
           const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2);
           const z = A * Math.sin(φ1) + B * Math.sin(φ2);
           lon = (Math.atan2(y, x) * 180) / Math.PI;
           lat = (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI;
         }
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
         const p = projection([lon, lat]);
-        if (!p) {
+        if (!p || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) {
           // 背面不可见：断开，别把两段直线连起来
           if (current.length > 1) segments.push(current);
           current = [];

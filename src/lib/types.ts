@@ -1,36 +1,24 @@
-export interface GdpSeries {
-  /** 现价美元，按年份索引 */
-  nominal: Record<string, number>;
+export interface MetricSeries {
+  [year: string]: number;
 }
 
-export interface Country {
+/** 统一对象模型里的一个条目：国家，或某个国家/地区的省州 */
+export interface RegionObject {
   id: string;
+  kind: 'country' | 'region';
+  /** 所属国家（省州才有） */
+  parentId: string | null;
   zh: string;
   en: string;
+  /** 地图高亮用的几何 id */
+  geoId: string;
   hasGeometry: boolean;
-  gdp: GdpSeries;
-  /** 人口（人），按年份索引 */
-  pop?: Record<string, number>;
-  /** 人均 GDP（美元），按年份索引 */
-  gdpPc?: Record<string, number>;
-  /** 面积（平方公里） */
-  area?: number | null;
-  search: string;
-}
-
-export interface Province {
-  id: string;
-  adcode: number;
-  zh: string;
-  en: string;
-  gdp: GdpSeries;
-  /** 人均 GDP（美元），按年份索引 */
-  gdpPc?: Record<string, number>;
-  /** 人口（人），按年份索引 */
-  pop?: Record<string, number>;
-  /** 面积（平方公里） */
-  area?: number | null;
-  gdpPerCapita?: number;
+  metrics: {
+    gdp: { nominal: MetricSeries };
+    gdpPc?: MetricSeries;
+    pop?: MetricSeries;
+    area?: number | null;
+  };
   source?: string;
   search: string;
 }
@@ -42,6 +30,7 @@ export interface DatasetMeta {
   countrySource: string;
   provinceSource: string;
   provinceSourceUrl: string;
+  usStateSource?: string;
   exchangeRate: Record<string, { year: number; cnyPerUsd: number | null; source: string }>;
   generatedAt: string;
   note: string;
@@ -49,17 +38,19 @@ export interface DatasetMeta {
 
 export interface Dataset {
   meta: DatasetMeta;
-  countries: Country[];
-  provinces: Province[];
+  objects: RegionObject[];
 }
 
-export type RegionKind = 'country' | 'province';
+export type RegionKind = 'country' | 'region';
 
 export interface Region {
   id: string;
   kind: RegionKind;
   zh: string;
   en: string;
+  /** 所属国家（省州才有），用于选择器分组 */
+  parentId: string | null;
+  parentName?: string;
   gdpUsd: number;
   /** 人均 GDP（美元） */
   gdpPerCapitaUsd?: number;
@@ -67,8 +58,9 @@ export interface Region {
   pop?: number;
   /** 面积（平方公里） */
   areaKm2?: number;
-  /** 地图高亮时使用的几何 id（世界地图用 ISO3，中国地图用 adcode） */
+  /** 地图高亮时使用的几何 id（世界地图用 ISO3 / FIPS，中国地图用 adcode） */
   geometryId: string;
+  hasGeometry: boolean;
   search: string;
 }
 
@@ -83,7 +75,9 @@ export interface GeoFeature {
   properties: {
     id?: string;
     name?: string;
+    zh?: string;
     adcode?: number | string;
+    fips?: string;
     center?: [number, number];
     centroid?: [number, number];
     isSouthSea?: boolean;
@@ -97,4 +91,4 @@ export interface FeatureCollection {
 }
 
 export type ViewMode = 'map' | 'globe';
-export type CompareMode = 'region-to-country' | 'country-to-region';
+export type CompareMode = 'region-to-world' | 'world-to-region';

@@ -1,6 +1,8 @@
 // 构建前端数据：public/data/regions.json + public/geo/*.json
 // 用法：node scripts/build-data.mjs
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { feature } from 'topojson-client';
+const { geoArea } = await import('d3-geo');
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import countries from 'i18n-iso-countries';
@@ -51,7 +53,83 @@ const chinaGeo = await readJson(resolve(RAW, 'china-provinces.geo.json'));
 const areaTable = await readJson(resolve(RAW, 'countries-area.json'));
 const provYear = await readJson(resolve(ROOT, 'data/provincial-gdp-2024.json'));
 
-// ---------- 中国省级边界 ----------
+// ---------- 美国各州 ----------
+// GDP / 人均来自维基百科转录的 BEA 表（2024 年），人口由「GDP ÷ 人均」反推，
+// 面积按 us-atlas 的州界几何算。
+const usStatesRaw = await readJson(resolve(RAW, 'us-states-gdp.wiki.json'));
+const usTopo = await readJson(resolve(RAW, 'us-states-10m.json'));
+const usStatesZh = await readJson(resolve(ROOT, 'data/us-states.json'));
+const usGeo = feature(usTopo, usTopo.objects.states);
+
+function parseUsStateTable(text) {
+  const chunks = text.split(/\n\{\|/).slice(1);
+  const num = (s) => Number((s || '').replace(/[^0-9.]/g, ''));
+  const strip = (c) =>
+    c
+      .replace(/\{\{[^}]*\}\}/g, '')
+      .replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, '$2')
+      .replace(/<[^>]*>/g, '')
+      .trim();
+  let best = [];
+  for (const chunk of chunks) {
+    const rows = [];
+    for (const row of chunk.split(/\n\|-/).slice(1)) {
+      const raw = row.split(/\n\s*\|/).slice(1);
+      if (raw.length < 9) continue;
+      const flag = raw[0].match(/\{\{flagg\|[^|]*\|([^|]*)\|/);
+      const name = (flag ? flag[1] : raw[0].replace(/\{\{.*?\}\}/g, ''))
+        .replace(/\s*\(U\.S\. state\)/, '')
+        .trim();
+      if (!name || !Number.isFinite(num(strip(raw[1])))) continue;
+      const c = raw.map(strip);
+      rows.push({
+        name,
+        gdp: num(c[1]) * 1e6, // 百万美元 → 美元
+        gdpPc: num(c[8]),
+        pop2025: num(c[7])
+      });
+    }
+    if (rows.length > best.length) best = rows;
+  }
+  return best;
+}
+
+const usText = usStatesRaw.query.pages[0].revisions[0].slots.main.content;
+const usRows = parseUsStateTable(usText);
+const usByName = new Map(usRows.map((r) => [r.name, r]));
+
+// 面积要等 geometryAreaKm2 定义好之后再算，所以做成函数稍后调用
+function buildUsStates() {
+  const usStates = [];
+  const usFeatures = [];
+  for (const f of usGeo.features) {
+    const fips = String(f.id).padStart(2, '0');
+    const zh = usStatesZh[fips];
+    if (!zh) continue; // 波多黎各等属地不进
+    const row = usByName.get(f.properties.name) ?? usByName.get('Washington, D.C.');
+    if (!row) continue;
+    const area = Math.round(geometryAreaKm2(f.geometry));
+    const pop = row.gdpPc ? row.gdp / row.gdpPc : null;
+    usStates.push({
+      id: `US-${fips}`,
+      adcode: fips,
+      zh: zh.zh,
+      en: zh.en,
+      gdp: { nominal: { [DEFAULT_YEAR]: row.gdp } },
+      gdpPc: { [DEFAULT_YEAR]: row.gdpPc },
+      pop: { [DEFAULT_YEAR]: pop },
+      area,
+      search: searchKey(zh.zh, zh.en)
+    });
+    usFeatures.push({
+      type: 'Feature',
+      id: fips,
+      properties: { fips, name: zh.en, zh: zh.zh },
+      geometry: f.geometry
+    });
+  }
+  return { usStates, usFeatures };
+}
 // DataV 的多边形环绕向与 d3-geo 的球面约定相反，直接渲染会被当成「球面补集」，
 // 所以这里统一反转每个环（外环/内环一起反转，绕向相对关系不变）。
 function reverseRings(geometry) {
@@ -68,7 +146,6 @@ function reverseRings(geometry) {
 // ---------- 面积：从几何算球面面积 ----------
 // 省级用 DataV 的高精度边界直接算；国家用 mledoze/countries 的面积表（更准，保留小国）。
 const EARTH_R = 6371.0088;
-const { geoArea } = await import('d3-geo');
 function geometryAreaKm2(geometry) {
   const polys = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
   let total = 0;
@@ -84,6 +161,8 @@ for (const c of areaTable) {
   const code = c.cca3 || c.ccn3;
   if (code && typeof c.area === 'number') countryArea.set(code, c.area);
 }
+
+const { usStates, usFeatures } = buildUsStates();
 
 const fx = {};
 for (const y of YEARS) fx[y] = await fetchExchangeRate(y);
@@ -234,6 +313,60 @@ const chinaFeatures = chinaGeo.features.map((f) => ({
 await mkdir(resolve(OUT, 'data'), { recursive: true });
 await mkdir(resolve(OUT, 'geo'), { recursive: true });
 
+// 统一对象模型：国家与省/州放在同一个池子里，用 kind 区分
+const objects = [
+  ...countryList.map((c) => ({
+    id: c.id,
+    kind: 'country',
+    parentId: null,
+    zh: c.zh,
+    en: c.en,
+    geoId: c.id,
+    hasGeometry: c.hasGeometry,
+    metrics: {
+      gdp: { nominal: c.gdp.nominal },
+      gdpPc: c.gdpPc,
+      pop: c.pop,
+      area: c.area
+    },
+    search: c.search
+  })),
+  ...provinceList.map((p) => ({
+    id: p.id,
+    kind: 'region',
+    parentId: 'CHN',
+    zh: p.zh,
+    en: p.en,
+    geoId: String(p.adcode),
+    hasGeometry: true,
+    metrics: {
+      gdp: { nominal: p.gdp.nominal },
+      gdpPc: p.gdpPc,
+      pop: p.pop,
+      area: p.area
+    },
+    source: p.source,
+    search: p.search
+  })),
+  ...usStates.map((s) => ({
+    id: s.id,
+    kind: 'region',
+    parentId: 'USA',
+    zh: s.zh,
+    en: s.en,
+    geoId: s.adcode,
+    hasGeometry: true,
+    metrics: {
+      gdp: { nominal: s.gdp.nominal },
+      gdpPc: s.gdpPc,
+      pop: s.pop,
+      area: s.area
+    },
+    source: 'BEA 州级 GDP（2024）与人口（经维基百科转录），面积按 us-atlas 州界几何算',
+    search: s.search
+  }))
+];
+
 const meta = {
   defaultYear: DEFAULT_YEAR,
   years: YEARS,
@@ -241,15 +374,22 @@ const meta = {
   countrySource: `${weo.source}（名义 GDP，现价美元；${DEFAULT_YEAR} 为实际值，2025 为该版预测值）`,
   provinceSource: `${provYear.meta.source}（名义 GDP，现价人民币，按当年年均汇率折美元）`,
   provinceSourceUrl: provYear.meta.sourceUrl,
+  usStateSource:
+    'BEA 州级名义 GDP（2024）与人口（维基百科转录，源引 BEA / Census）；面积按 us-atlas 州界几何算',
   exchangeRate: Object.fromEntries(YEARS.map((y) => [y, fx[y]])),
-  units: { country: 'USD', province: 'USD（由亿元人民币按年均汇率折算）' },
+  units: { country: 'USD', region: 'USD（由亿元人民币按年均汇率折算）' },
   generatedAt: new Date().toISOString(),
   note: '不同来源的统计口径与修订时间不同；跨年比较请注意各国统计口径差异。'
 };
 
-await writeFile(resolve(OUT, 'data/regions.json'), JSON.stringify({ meta, countries: countryList, provinces: provinceList }), 'utf8');
+await writeFile(resolve(OUT, 'data/regions.json'), JSON.stringify({ meta, objects }), 'utf8');
 await writeFile(resolve(OUT, 'geo/world.json'), JSON.stringify({ type: 'FeatureCollection', features: worldFeatures }), 'utf8');
 await writeFile(resolve(OUT, 'geo/china.json'), JSON.stringify({ type: 'FeatureCollection', features: chinaFeatures }), 'utf8');
+await writeFile(
+  resolve(OUT, 'geo/us-states.json'),
+  JSON.stringify({ type: 'FeatureCollection', features: usFeatures }),
+  'utf8'
+);
 
 // ---------- 自检 ----------
 const sumProv = provinceList
@@ -257,15 +397,23 @@ const sumProv = provinceList
   .reduce((s, p) => s + p.gdp.nominal[provYear.meta.year], 0);
 const nationalUsd = (1349084 * 1e8) / fx[provYear.meta.year].cnyPerUsd; // 2024 全国 GDP（统计公报）
 console.log(`国家：${countryList.length} 个经济体（其中 ${countryList.filter((c) => c.hasGeometry).length} 个有边界）`);
-console.log(`省份：${provinceList.length} 个`);
-console.log(`31 省合计 = ${(sumProv / 1e12).toFixed(4)} 万亿美元；全国 ${(nationalUsd / 1e12).toFixed(4)} 万亿美元；差 ${(((sumProv - nationalUsd) / nationalUsd) * 100).toFixed(2)}%`);
+console.log(`中国省级：${provinceList.length} 个；美国州：${usStates.length} 个`);
+console.log(
+  `31 省合计 = ${(sumProv / 1e12).toFixed(4)} 万亿美元；全国 ${(nationalUsd / 1e12).toFixed(4)} 万亿美元；差 ${(((sumProv - nationalUsd) / nationalUsd) * 100).toFixed(2)}%`
+);
 console.log(`汇率：${YEARS.map((y) => `${y}=${fx[y].cnyPerUsd}`).join('  ')}`);
+const usSum = usStates.reduce((s, x) => s + x.gdp.nominal[DEFAULT_YEAR], 0);
+const usOfficial = 29_184_000_000_000; // 美国 2024 名义 GDP（IMF WEO 口径）
+console.log(`美国各州合计 = ${(usSum / 1e12).toFixed(3)} 万亿美元；全美 ${(usOfficial / 1e12).toFixed(3)} 万亿美元；差 ${(((usSum - usOfficial) / usOfficial) * 100).toFixed(2)}%`);
 const show = (zh) => {
   const c = countryList.find((x) => x.zh === zh || x.zh.includes(zh));
   const p = provinceList.find((x) => x.zh.includes(zh));
-  console.log(`  ${zh}: 省 ${p ? (p.gdp.nominal['2024'] / 1e12).toFixed(3) + ' 万亿美元' : '-'} | 国 ${c ? (c.gdp.nominal['2024'] / 1e12).toFixed(3) + ' 万亿美元' : '-'}`);
+  const u = usStates.find((x) => x.zh.includes(zh));
+  console.log(
+    `  ${zh}: 省 ${p ? (p.gdp.nominal['2024'] / 1e12).toFixed(3) + ' 万亿美元' : '-'} | 州 ${u ? (u.gdp.nominal['2024'] / 1e12).toFixed(3) + ' 万亿美元' : '-'} | 国 ${c ? (c.gdp.nominal['2024'] / 1e12).toFixed(3) + ' 万亿美元' : '-'}`
+  );
 };
 console.log('抽样：');
-['广东省', '河南省', '西藏', '上海'].forEach(show);
+['广东省', '河南省', '得克萨斯州', '加利福尼亚州'].forEach(show);
 ['韩国', '日本', '英国', '印度'].forEach(show);
-console.log('\n已写入 public/data/regions.json, public/geo/world.json, public/geo/china.json');
+console.log('\n已写入 public/data/regions.json, public/geo/{world,china,us-states}.json');

@@ -1,6 +1,8 @@
 import { formatPercent } from '../lib/format';
 import type { MatchResult } from '../lib/match';
 import type { Metric } from '../lib/metrics';
+import { AreaSilhouette } from './AreaSilhouette';
+import type { GeoFeature } from '../lib/types';
 
 interface Props {
   /** 主标题，例如「河南省」 */
@@ -22,6 +24,15 @@ interface Props {
   matchedPopulation?: number;
   /** 最接近的单个对象 */
   closest?: { zh: string; value: number } | null;
+  /** 面积对照：同一比例尺的剪影 */
+  silhouette?: {
+    source: GeoFeature;
+    target: GeoFeature;
+    sourceLabel: string;
+    targetLabel: string;
+    sourceArea: string;
+    targetArea: string;
+  } | null;
 }
 
 export function ResultPanel({
@@ -34,7 +45,8 @@ export function ResultPanel({
   strategyLabel,
   worldRank,
   matchedPopulation = 0,
-  closest
+  closest,
+  silhouette
 }: Props) {
   const error = target ? Math.abs(result.gap) / target : 0;
   const over = result.gap >= 0;
@@ -73,6 +85,17 @@ export function ResultPanel({
           </p>
         ) : null}
       </div>
+
+      {silhouette ? (
+        <AreaSilhouette
+          source={silhouette.source}
+          target={silhouette.target}
+          sourceLabel={silhouette.sourceLabel}
+          targetLabel={silhouette.targetLabel}
+          sourceArea={silhouette.sourceArea}
+          targetArea={silhouette.targetArea}
+        />
+      ) : null}
 
       {result.items.length ? (
         <ol className="result-list">

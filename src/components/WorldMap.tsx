@@ -24,6 +24,12 @@ interface Props {
   formatValue?: (value: number) => string;
   /** 世界地图左下角的中国小图 */
   chinaInset?: React.ReactNode;
+  /** 省/州细分层（画在国家之上） */
+  subdivisions?: FeatureCollection;
+  /** 被高亮的省/州 */
+  subHighlights?: Highlight[];
+  /** 右下角的小图（如南海诸岛） */
+  southSea?: React.ReactNode;
   width?: number;
   height?: number;
 }
@@ -37,12 +43,16 @@ export function WorldMap({
   selectedIds = [],
   formatValue,
   chinaInset,
+  subdivisions,
+  subHighlights = [],
+  southSea,
   width = 1000,
   height = 520
 }: Props) {
   const { path, graticule } = useMemo(() => createWorldPath(width, height), [width, height]);
 
   const highlightMap = useMemo(() => new Map(highlights.map((h) => [h.id, h])), [highlights]);
+  const subMap = useMemo(() => new Map(subHighlights.map((h) => [h.id, h])), [subHighlights]);
   const sourceMap = useMemo(() => new Map(sources.map((h) => [h.id, h])), [sources]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -126,6 +136,31 @@ export function WorldMap({
         })}
       </g>
 
+      {subdivisions ? (
+        <g className="subdivisions">
+          {subdivisions.features.map((f: GeoFeature) => {
+            if (f.properties.isSouthSea) return null; // 南海诸岛走右下角小图
+            const h = subMap.get(String(f.id));
+            return (
+              <path
+                key={String(f.id)}
+                d={path(f as never) ?? ''}
+                fill={h ? colorFor(h) : 'none'}
+                fillOpacity={h ? 0.95 : 0}
+                stroke={h ? 'rgba(255,255,255,0.6)' : 'rgba(120,145,195,0.35)'}
+                strokeWidth={h ? 0.7 : 0.3}
+              >
+                <title>
+                  {`${h?.label ?? f.properties.zh ?? f.properties.name ?? f.id}${
+                    h?.value != null && formatValue ? ` · ${formatValue(h.value)}` : ''
+                  }`}
+                </title>
+              </path>
+            );
+          })}
+        </g>
+      ) : null}
+
       <g className="map-labels">
         {labels.map((l) => (
           <text key={l.id} x={l.x} y={l.y} className="map-label" fill={l.color}>
@@ -134,6 +169,7 @@ export function WorldMap({
         ))}
       </g>
 
+      {southSea ? <g className="south-sea">{southSea}</g> : null}
       {chinaInset ? <g className="china-inset">{chinaInset}</g> : null}
     </svg>
   );

@@ -369,7 +369,83 @@ body {
   color: var(--accent);
 }
 
+/* ---------- 面积剪影对照 ---------- */
+.silhouette {
+  margin: 12px 0 0;
+  padding: 10px 10px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(8, 12, 22, 0.55);
+}
+
+.silhouette-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.silhouette-svg {
+  width: 100%;
+  height: 132px;
+  display: block;
+}
+
+.silhouette figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.silhouette figcaption em {
+  flex-basis: 100%;
+  color: var(--text-mute);
+  font-style: normal;
+  font-size: 11px;
+}
+
+.silhouette .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 5px;
+}
+
+.silhouette .dot.teal {
+  background: var(--teal);
+}
+
+.silhouette .dot.gold {
+  background: var(--accent);
+}
+
 /* ---------- 选择器 ---------- */
+.picker-groups {
+  margin-top: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.picker-group-title {
+  font-size: 11.5px;
+  color: var(--text-mute);
+  padding: 2px 4px 4px;
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+  z-index: 1;
+}
+
+.picker-group .picker-list {
+  max-height: none;
+}
 .picker {
   background: var(--bg-panel);
   border: 1px solid var(--line-soft);

@@ -1,4 +1,4 @@
-import type { Dataset, FeatureCollection, Region } from './types';
+import type { Dataset, FeatureCollection, Region, RegionObject } from './types';
 import type { MetricId } from './metrics';
 
 const base = import.meta.env.BASE_URL ?? './';
@@ -12,6 +12,7 @@ async function getJson<T>(path: string): Promise<T> {
 let datasetPromise: Promise<Dataset> | null = null;
 let worldPromise: Promise<FeatureCollection> | null = null;
 let chinaPromise: Promise<FeatureCollection> | null = null;
+let usStatesPromise: Promise<FeatureCollection> | null = null;
 
 export function loadDataset(): Promise<Dataset> {
   datasetPromise ??= getJson<Dataset>('data/regions.json');
@@ -28,35 +29,38 @@ export function loadChina(): Promise<FeatureCollection> {
   return chinaPromise;
 }
 
-/** 把数据集中的国家/省份统一成可比较的 Region 结构 */
-export function toRegion(item: Dataset['countries'][number], year: string): Region {
+export function loadUsStates(): Promise<FeatureCollection> {
+  usStatesPromise ??= getJson<FeatureCollection>('geo/us-states.json');
+  return usStatesPromise;
+}
+
+/** 把数据集中的统一对象转成应用用的 Region */
+export function toRegion(obj: RegionObject, year: string): Region {
   return {
-    id: item.id,
-    kind: 'country',
-    zh: item.zh,
-    en: item.en,
-    gdpUsd: item.gdp.nominal[year] ?? 0,
-    gdpPerCapitaUsd: item.gdpPc?.[year],
-    pop: item.pop?.[year],
-    areaKm2: item.area ?? undefined,
-    geometryId: item.id,
-    search: item.search
+    id: obj.id,
+    kind: obj.kind,
+    zh: obj.zh,
+    en: obj.en,
+    parentId: obj.parentId,
+    gdpUsd: obj.metrics.gdp.nominal[year] ?? 0,
+    gdpPerCapitaUsd: obj.metrics.gdpPc?.[year],
+    pop: obj.metrics.pop?.[year],
+    areaKm2: obj.metrics.area ?? undefined,
+    geometryId: obj.geoId,
+    hasGeometry: obj.hasGeometry,
+    search: obj.search
   };
 }
 
-export function provinceToRegion(item: Dataset['provinces'][number], year: string): Region {
-  return {
-    id: item.id,
-    kind: 'province',
-    zh: item.zh,
-    en: item.en,
-    gdpUsd: item.gdp.nominal[year] ?? 0,
-    gdpPerCapitaUsd: item.gdpPc?.[year],
-    pop: item.pop?.[year],
-    areaKm2: item.area ?? undefined,
-    geometryId: String(item.adcode),
-    search: item.search
-  };
+/** 把数据集拆成国家池与省/州池 */
+export function splitDataset(data: Dataset, year: string): { countries: Region[]; regions: Region[] } {
+  const all = data.objects.map((o) => toRegion(o, year));
+  const countries = all.filter((r) => r.kind === 'country');
+  const regions = all.filter((r) => r.kind === 'region');
+  // 给省/州补上所属国家名，选择器里按国家分组显示
+  const nameById = new Map(countries.map((c) => [c.id, c.zh]));
+  for (const r of regions) r.parentName = r.parentId ? nameById.get(r.parentId) : undefined;
+  return { countries, regions };
 }
 
 /** 取某个地区在某个指标上的数值 */

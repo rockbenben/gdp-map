@@ -9,6 +9,8 @@ interface Props {
   /** 当前指标，决定列表里显示什么数 */
   metric: Metric;
   items: Region[];
+  /** 分组显示（按所属国家） */
+  groups?: Array<{ label: string; items: Region[] }>;
   selected: string[];
   onToggle: (id: string) => void;
   onClear: () => void;
@@ -21,6 +23,7 @@ export function RegionPicker({
   hint,
   metric,
   items,
+  groups,
   selected,
   onToggle,
   onClear,
@@ -35,7 +38,37 @@ export function RegionPicker({
     return items.filter((r) => r.search.includes(q));
   }, [items, query]);
 
+  const shownGroups = useMemo(() => {
+    if (!groups) return null;
+    const q = query.trim().toLowerCase();
+    return groups
+      .map((g) => ({
+        label: g.label,
+        items: q ? g.items.filter((r) => r.search.includes(q)) : g.items
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [groups, query]);
+
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+
+  const renderItem = (r: Region) => {
+    const active = selectedSet.has(r.id);
+    return (
+      <button
+        type="button"
+        key={r.id}
+        className={`picker-item${active ? ' active' : ''}`}
+        onClick={() => onToggle(r.id)}
+        aria-pressed={active}
+      >
+        <span className="mark" aria-hidden="true">
+          {active ? '✓' : ''}
+        </span>
+        <span className="picker-name">{r.zh}</span>
+        <span className="picker-gdp">{metric.short(metricValue(r, metric.id))}</span>
+      </button>
+    );
+  };
 
   return (
     <section className="picker">
@@ -53,31 +86,26 @@ export function RegionPicker({
         className="search"
         type="search"
         value={query}
-        placeholder="搜索：广东 / guangdong / gd / 河南"
+        placeholder="搜索：广东 / guangdong / gd / 河南 / Texas"
         onChange={(e) => setQuery(e.target.value)}
       />
 
-      <div className="picker-list">
-        {filtered.length === 0 ? <p className="empty">{emptyLabel}</p> : null}
-        {filtered.map((r) => {
-          const active = selectedSet.has(r.id);
-          return (
-            <button
-              type="button"
-              key={r.id}
-              className={`picker-item${active ? ' active' : ''}`}
-              onClick={() => onToggle(r.id)}
-              aria-pressed={active}
-            >
-              <span className="mark" aria-hidden="true">
-                {active ? '✓' : ''}
-              </span>
-              <span className="picker-name">{r.zh}</span>
-              <span className="picker-gdp">{metric.short(metricValue(r, metric.id))}</span>
-            </button>
-          );
-        })}
-      </div>
+      {shownGroups ? (
+        <div className="picker-groups">
+          {shownGroups.map((g) => (
+            <div key={g.label} className="picker-group">
+              <div className="picker-group-title">{g.label}</div>
+              <div className="picker-list">{g.items.map(renderItem)}</div>
+            </div>
+          ))}
+          {shownGroups.length === 0 ? <p className="empty">{emptyLabel}</p> : null}
+        </div>
+      ) : (
+        <div className="picker-list">
+          {filtered.length === 0 ? <p className="empty">{emptyLabel}</p> : null}
+          {filtered.map(renderItem)}
+        </div>
+      )}
 
       {!multi ? <p className="picker-hint">单选模式：选新的会替换当前选择。</p> : null}
     </section>

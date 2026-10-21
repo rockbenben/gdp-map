@@ -1,6 +1,7 @@
 import type { CompareMode, ViewMode } from './types';
 import type { MatchStrategy } from './match';
 import type { MetricId } from './metrics';
+import { METRIC_DEFAULT_STRATEGY } from './metrics';
 
 export interface AppState {
   mode: CompareMode;
@@ -15,7 +16,7 @@ export interface AppState {
 }
 
 const DEFAULTS: AppState = {
-  mode: 'region-to-country',
+  mode: 'region-to-world',
   view: 'map',
   selected: [],
   strategy: 'over',
@@ -34,12 +35,19 @@ function readState(): AppState {
   const strategy = p.get('st') as MatchStrategy | null;
   const metric = p.get('m') as MetricId | null;
   const selected = (p.get('sel') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const resolvedMetric = metric && METRICS.includes(metric) ? metric : DEFAULTS.metric;
   return {
-    mode: mode === 'country-to-region' ? 'country-to-region' : 'region-to-country',
+    mode: mode === 'world-to-region' ? 'world-to-region' : 'region-to-world',
     view: view === 'globe' ? 'globe' : 'map',
     selected,
-    strategy: strategy && STRATEGIES.includes(strategy) ? strategy : DEFAULTS.strategy,
-    metric: metric && METRICS.includes(metric) ? metric : DEFAULTS.metric,
+    // URL 里给了指标但没给对照方式时，跟随该指标的默认口径
+    strategy:
+      strategy && STRATEGIES.includes(strategy)
+        ? strategy
+        : metric
+          ? METRIC_DEFAULT_STRATEGY[resolvedMetric]
+          : DEFAULTS.strategy,
+    metric: resolvedMetric,
     ignoreMicro: p.get('micro') === '0' ? false : DEFAULTS.ignoreMicro
   };
 }
