@@ -45,6 +45,8 @@ interface Props {
   counterfactual?: { name: string; rows: RankRow[] } | null;
   /** 「比大国家」时：它是其中哪几个的百分之几 */
   fraction?: { value: number; of: string } | null;
+  /** 要不要数字滚动（系统关了动画、用户也没手动打开时就是 false） */
+  animate?: boolean;
 }
 
 export function ResultPanel({
@@ -62,7 +64,8 @@ export function ResultPanel({
   silhouette,
   comparison,
   counterfactual,
-  fraction = null
+  fraction = null,
+  animate = true
 }: Props) {
   const error = relativeError(result);
   const over = result.gap >= 0;
@@ -75,7 +78,7 @@ export function ResultPanel({
         <h1>
           {title.before}
           {title.eq ? <span className="eq">{title.eq}</span> : null}
-          {title.value != null ? <CountUp value={title.value} format={title.format} /> : null}
+          {title.value != null ? <CountUp value={title.value} format={title.format} animate={animate} /> : null}
           {title.suffix}
           {title.after}
         </h1>

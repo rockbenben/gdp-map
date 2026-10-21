@@ -22,6 +22,7 @@ import {
 import { copyText, exportPng, exportShareCard } from './lib/export';
 import { exportGif } from './lib/export-gif';
 import { createChinaProjection, featureMainCentroid, mixColor, PALETTE } from './lib/geo';
+import { useSystemReducedMotion } from './lib/motion';
 import {
   BIG_POOL_SIZE,
   closestSingle,
@@ -82,6 +83,17 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
 
   const metricDef = METRICS[metric];
+  /**
+   * 动效：默认跟着系统，但**用户可以在页面上自己决定**。
+   *
+   * 系统关了「动画效果」（Windows：辅助功能 → 视觉效果 → 动画效果）时，
+   * 浏览器会报 `prefers-reduced-motion: reduce`，全站动效就该让位——
+   * 但那只是默认值，不是命令。所以页脚留了「动效」开关：
+   * 用户自己打开，`.motion-on` 一加，兜底就不匹配了，动画回来。
+   */
+  const systemReduced = useSystemReducedMotion();
+  const [motionOverride, setMotionOverride] = useState<boolean | null>(null);
+  const motionOn = motionOverride ?? !systemReduced;
   /** 宽屏才默认展开数据来源（窄屏先给结论） */
   const [wide] = useState(() =>
     typeof window === 'undefined' ? true : window.innerWidth >= 1080
@@ -948,7 +960,7 @@ export default function App() {
   }, [isRegionMode, regions, countryById]);
 
   return (
-    <div className="app">
+    <div className={`app ${motionOn ? 'motion-on' : 'motion-off'}`}>
       <header className="topbar">
         <div className="brand">
           <h1>GDP 等价地图</h1>
@@ -1273,6 +1285,7 @@ export default function App() {
               sourceLabel={sourceLabel}
               headline={headline}
               fraction={bigFraction}
+              animate={motionOn}
               comparison={view === 'bracket' ? null : comparison}
               counterfactual={counterfactual}
               target={target}
@@ -1449,6 +1462,19 @@ export default function App() {
                   <i className="swatch" style={{ background: PALETTE.source }} /> 参照地区
                 </span>
               )}
+              <span className="legend-item motion-item">
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={motionOn}
+                    onChange={(e) => setMotionOverride(e.target.checked)}
+                  />
+                  <span>动效</span>
+                </label>
+                {systemReduced && !motionOn ? (
+                  <em className="motion-hint">系统关了动画，这里可以打开</em>
+                ) : null}
+              </span>
             </div>
             {dataset ? (
               <details

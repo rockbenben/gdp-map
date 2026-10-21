@@ -7,13 +7,8 @@ interface Props {
   format?: (v: number) => string;
   /** 动画时长（毫秒） */
   duration?: number;
-}
-
-const REDUCED = '(prefers-reduced-motion: reduce)';
-
-function prefersReduced(): boolean {
-  if (typeof window === 'undefined' || !window.matchMedia) return false;
-  return window.matchMedia(REDUCED).matches;
+  /** 要不要滚。关掉就一步到位——由 App 按「系统偏好 + 用户选择」算出来传进来 */
+  animate?: boolean;
 }
 
 /**
@@ -28,9 +23,9 @@ function prefersReduced(): boolean {
  *      每帧重渲染整棵子树会掉帧；只改一个 span 的 textContent 就没这个问题。
  *   2. 首次渲染不滚（没有「上一个值」），直接给最终值——首屏不该从 0 滚起来。
  *
- * 尊重系统的「减少动态效果」设置：开了就一步到位。
+ * 要不要滚由上层决定（App 会把「系统关了动画 + 用户又手动打开」这种情况也算进去）。
  */
-export function CountUp({ value, format = (v) => String(Math.round(v)), duration = 450 }: Props) {
+export function CountUp({ value, format = (v) => String(Math.round(v)), duration = 450, animate = true }: Props) {
   const ref = useRef<HTMLSpanElement>(null);
   /** 上一次停在哪 */
   const fromRef = useRef(value);
@@ -44,7 +39,7 @@ export function CountUp({ value, format = (v) => String(Math.round(v)), duration
     const from = fromRef.current;
     const fmt = fmtRef.current;
 
-    if (from === value || prefersReduced()) {
+    if (from === value || !animate) {
       fromRef.current = value;
       el.textContent = fmt(value);
       return;
@@ -72,7 +67,7 @@ export function CountUp({ value, format = (v) => String(Math.round(v)), duration
       fromRef.current = value;
       el.textContent = fmt(value);
     };
-  }, [value, duration]);
+  }, [value, duration, animate]);
 
   return (
     <span className="count" ref={ref}>

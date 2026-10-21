@@ -1524,43 +1524,42 @@ body {
    换指标、换口径、换年份时，结果不该「啪」地一下换掉。
    条形从旧长度滑到新长度，地图上的高亮从旧颜色淡到新颜色——
    「它变了」这件事本身就是要让人看出来的。
-   ⚠️ 全部包在 prefers-reduced-motion: no-preference 里：
-   系统关了动效的用户看到的是瞬间切换，不是动画。
+   ⚠️ 这里的规则**始终生效**，关不关由末尾那段全局兜底决定：
+   系统说「别动」就全站别动，但用户可以在页面上手动打开（.motion-on），
+   那一刻这些过渡就回来了——**动效归用户选，不只归系统选**。
    ⚠️ 导出不受影响：export.ts 注入的 SVG_STYLE 里写着 .country { transition: none }，
    导出的 PNG 永远是终态，不会拍到过渡中间的颜色。 */
-@media (prefers-reduced-motion: no-preference) {
-  .result-item .bar-fill {
-    transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-  }
+.result-item .bar-fill {
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
-  .country {
-    transition:
-      fill 0.4s ease,
-      fill-opacity 0.4s ease,
-      stroke 0.4s ease;
-  }
+.country {
+  transition:
+    fill 0.4s ease,
+    fill-opacity 0.4s ease,
+    stroke 0.4s ease;
+}
 
-  .subdivisions path {
-    transition:
-      fill 0.4s ease,
-      fill-opacity 0.4s ease;
-  }
+.subdivisions path {
+  transition:
+    fill 0.4s ease,
+    fill-opacity 0.4s ease;
+}
 
-  /* 方形图：格子从旧位置滑到新位置 */
-  .sq-cell {
-    transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
-  }
+/* 方形图：格子从旧位置滑到新位置 */
+.sq-cell {
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
-  .sq-cell rect {
-    transition:
-      width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-      height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-      fill 0.4s ease;
-  }
+.sq-cell rect {
+  transition:
+    width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    fill 0.4s ease;
+}
 
-  .sq-label {
-    transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
-  }
+.sq-label {
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .result-item .gdp {
@@ -1640,6 +1639,19 @@ body {
   height: 12px;
   border-radius: 3px;
   display: inline-block;
+}
+
+/* 动效开关：系统关了动画时，用户还能在页面上自己打开 */
+.motion-item .toggle {
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.motion-hint {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-mute);
 }
 
 .sources {
@@ -1831,16 +1843,27 @@ body {
   }
 }
 
-/* ── 减少动态效果：系统开了这个开关，所有动效一律关掉 ──
-   为什么不逐个把 transition 塞进 prefers-reduced-motion: no-preference 里：
-   那样每加一处动效都得记得包一层，漏一处就前功尽弃。这里改成反向兜底——
-   只要系统说了「别动」，全站（含以后新加的）都不动。
+/* ── 动效开关 ──
+   用户在页脚把动效关掉：全站动效一律停（这条不看系统）。
    ⚠️ `!important` 是必须的：它要压过各处 transition 的优先级。
    ⚠️ 时长给 0.01ms 而不是 0：0 会让依赖 transitionend 的逻辑收不到事件。 */
+.app.motion-off *,
+.app.motion-off *::before,
+.app.motion-off *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+
+/* ── 减少动态效果：系统开了这个开关 ──
+   系统说「别动」时全站都不动；但这只是默认值——
+   页脚的「动效」开关打开后，.motion-on 一加，下面这条就不匹配了，动画回来。
+   动效归用户选，不只归系统选。 */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  .app:not(.motion-on) *,
+  .app:not(.motion-on) *::before,
+  .app:not(.motion-on) *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

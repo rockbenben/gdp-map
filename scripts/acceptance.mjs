@@ -182,11 +182,11 @@ try {
   await page.locator('.choice', { hasText: '尽量多凑' }).click();
   await page.waitForTimeout(300);
   const manyCount = await page.locator('.result-item').count();
-  await page.locator('.toggle input').uncheck();
+  await page.locator('.compare-panel .toggle input').uncheck();
   await page.waitForTimeout(300);
   const microCount = await page.locator('.result-item').count();
   check('关闭微型过滤后件数变多', microCount > manyCount, `${manyCount} → ${microCount} 件`);
-  await page.locator('.toggle input').check();
+  await page.locator('.compare-panel .toggle input').check();
   await page.waitForTimeout(200);
 
   // 7. 面积指标 + 剪影对照
@@ -598,6 +598,21 @@ try {
   await page.waitForTimeout(1200);
   const deltaCount = await page.locator('.rank-delta').count();
   check('名次变化有标记', deltaCount > 0, `${deltaCount} 个标记`);
+
+  // 22. 动效归用户选：页脚有开关，而且真能开、能关
+  //     （系统关了动画的人，页面上还能自己打开——系统偏好是默认值，不是命令）
+  const motionToggle = page.locator('.motion-item input');
+  const hasToggle = (await motionToggle.count()) === 1;
+  const durOn = await page.$eval('.rank-row', (el) => parseFloat(getComputedStyle(el).transitionDuration));
+  await motionToggle.uncheck();
+  await page.waitForTimeout(400);
+  const durOff = await page.$eval('.rank-row', (el) => parseFloat(getComputedStyle(el).transitionDuration));
+  await motionToggle.check();
+  check(
+    '动效开关能开能关',
+    hasToggle && durOn > 0.1 && durOff < 0.05,
+    `开 ${durOn}s / 关 ${durOff}s`
+  );
 
   check('无运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
