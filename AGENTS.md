@@ -9,8 +9,8 @@
 
 ## 1. 一句话
 
-选一个中国省级地区（或一个国家），自动匹配出「它相当于哪些国家之和」，
-在 2D 世界地图 / 中国地图 / 3D 地球上高亮出来，可以分享链接、导出 PNG。
+选一个省/州（或一个国家），自动匹配出「它相当于哪些国家之和」，
+在 2D 世界地图 / 3D 地球 / 方形图 / 擂台上高亮出来，可以分享链接、导出高清图。
 
 ## 2. 现状
 
@@ -26,7 +26,8 @@
 │   ├── fetch-sources.mjs   # 抓原始数据源 → data/raw/
 │   ├── build-data.mjs      # 合并 → public/data/regions.json + public/geo/*
 │   ├── static-server.mjs   # 验收用的静态服务器（伺服 dist/）
-│   └── acceptance.mjs      # Playwright 验收（自带服务器 + 浏览器）
+│   ├── acceptance.mjs      # Playwright 验收（自带服务器 + 浏览器）
+│   └── screenshots.mjs     # 重新生成 README 的预览图
 ├── data/
 │   ├── provincial-gdp-2024.json   # 年鉴表 3-9 读数（含出处 URL）
 │   ├── us-states.json             # 美国 51 州中英文名对照
@@ -37,8 +38,13 @@
 └── src/
     ├── lib/match.ts               # 唯一自研：贪心累加匹配
     ├── lib/metrics.ts             # 指标定义（格式、标题、能不能累加）
-    ├── lib/{data,geo,format,url,export}.ts
-    └── components/{WorldMap,ChinaMap,GlobeView,RegionPicker,ResultPanel,AreaSilhouette,SouthSeaBox}.tsx
+    ├── lib/{data,geo,format,url,export,types}.ts
+    └── components/
+        ├── WorldMap / ChinaMap / GlobeView      # 地图、地球
+        ├── SquareCartogram / Bracket            # 方形图、擂台
+        ├── RegionPicker / ResultPanel           # 选择器、结果卡
+        ├── CounterfactualCard / TargetComparison # 排名卡、两个目标对比
+        └── AreaSilhouette / SouthSeaBox         # 面积剪影、南海诸岛
 ```
 
 - 数据年份 2024：国家用 IMF WEO 2025-04 的实际值，中国省级用《中国统计年鉴2025》表 3-9，
@@ -47,7 +53,7 @@
 
 ## 3. 已确定的事（不要重新讨论）
 
-1. **主答案是「一组国家」，不是一个。** 「河南 ≈ 81 个国家」这个数字才是这个项目的卖点，
+1. **主答案是「一组国家」，不是一个。** 「河南 ≈ 52 个国家」这个数字才是这个项目的卖点，
    所以匹配算法用贪心累加，不要改成「找最接近的单个国家」。
 2. **对照方式有四种，不要合并成一种。** 纯贪心永远给出图瓦卢、瑙鲁那一串微型国家，
    所以另给了「尽量多凑 / 宁可超出 / 比大国家 / 最像的一个」四种凑法，
@@ -95,12 +101,12 @@
   ⚠️ 本项目现在不依赖固定端口：验收脚本自己起服务器（见第 6 节），dev server 用默认 5173 就行。
 - **d3-geo 与 DataV 边界的绕向相反。** 直接渲染会被当成「球面补集」，整张图变成一个碗。
   `scripts/build-data.mjs` 里的 `reverseRings()` 就是为此存在的，改动数据管线时别把它删了。
-- **国家统计局数据接口（data.stats.gov.cn）对本机 IP 返回 403（UrlACL）。**
+- **国家统计局数据接口（data.stats.gov.cn）直连返回 403（UrlACL）。**
   分省数据因此来自年鉴图片，不是接口。
-- **IMF 官网对本机 403。** IMF WEO 走 DBnomics 镜像（`api.db.nomics.world`）。
+- **IMF 官网直连也是 403。** IMF WEO 走 DBnomics 镜像（`api.db.nomics.world`）。
 - **导出前必须摘掉 SVG 上的滤镜。** 逐路径高斯模糊会让栅格化慢到页面假死（105 个高亮路径时实测会卡）。
   `src/lib/export.ts` 里已经做了 `clone.querySelectorAll('[filter]')` 的清理。
-- **地球每帧要重算 209 条路径**，所以做了节流（约 18 帧/秒），别去掉。
+- **地球每帧要重算 261 条路径**（国家 + 省/州细分层），所以做了节流（约 18 帧/秒），别去掉。
 - **3D 弧线不能横穿球体。** 正射投影在背面返回 null，那一段必须断开成新的子路径，
   否则两点会被直接连成一条横穿地图的直线（这正是「虚线对不上地点」的成因）。
   `src/components/GlobeView.tsx` 里按可见片段拼 `M…L…` 多段子路径。
@@ -122,6 +128,9 @@
   ⚠️ **只裁「写到前端的那一份」**：面积仍用原始几何算，已校验过的面积数字不会漂。
   ⚠️ 改收口规则后要重跑 `npm run data:build`，产物是提交进仓库的，改完不重建
   就是「管线和产物对不上」。
+- **改了界面就要重跑 `npm run screenshots`。** README 里的预览图是产品的一部分，
+  停在旧布局的图比没有图更糟（曾经主图还是改版前的侧栏顺序和按钮文案）。
+  脚本会自己起服务器伺服 `dist/`，拍完直接写回 `docs/preview-*.png`。
 
 ## 5. 下一步可以做什么
 
@@ -133,7 +142,7 @@
    把 `data/provincial-gdp-2024.json` 变成脚本产物。
 3. **PPP 口径**：需要省级 PPP 源，否则保持现状。
 4. **OG 分享图**：加 `ImageResponse` 之类，让分享链接在社交平台带缩略图。
-5. **部署**：静态站，`dist/` 可直接上 **EdgeOne Pages**（已定的目标平台；目前暂缓，先放本地）。
+5. **部署**：静态站，`dist/` 直接丢到任意静态托管即可（具体平台看部署方，仓库里不预设）。
 
 ## 6. 怎样算做完
 
@@ -143,6 +152,7 @@
   想对着 dev server 跑就 `node scripts/acceptance.mjs http://localhost:5173`）
 - `npm run build` 成功产出 `dist/`
 - 页脚数据来源与官方原表链接可点、可见
+- 界面动过就重跑 `npm run screenshots`，README 的预览图要跟上
 
 CI（`.github/workflows/ci.yml`）跑的就是上面这四条，外加浏览器验收。
 ⚠️ **CI 里不要跑 `npm run data`**：抓数据要访问三个外部源，任何一个挂了都会让 CI

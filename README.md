@@ -2,9 +2,9 @@
 
 > 随手选一个省 / 国家，地图上直接亮出：**它相当于多少个国家**。
 
-「广东 GDP ≈ 韩国」「河南相当于 81 个国家之和」这类对比图到处都有，但都是死图。这个项目把它做成一个可以自己玩的小工具：选地区 → 自动匹配 → 出图 → 分享链接。
+「广东 GDP ≈ 韩国」「河南相当于 52 个国家之和」这类对比图到处都有，但都是死图。这个项目把它做成一个可以自己玩的小工具：选地区 → 自动匹配 → 出图 → 分享链接。
 
-![截图](docs/preview-map.png)
+![打开就有结论](docs/preview-first-screen.png)
 
 ## 能做什么
 
@@ -27,7 +27,7 @@
 | 指标 | 河南省的结果 | 得克萨斯州的结果 |
 | --- | --- | --- |
 | 总 GDP | ≈ 52 个国家之和（超出 1.4%） | ≈ 82 个国家之和 |
-| 平价 GDP | ≈ 45 个国家之和（1.80 万亿国际元） | 口径不同，结论也不同 |
+| 平价 GDP | ≈ 45 个国家之和（1.86 万亿国际元） | 口径不同，结论也不同 |
 | 人均 GDP | ≈ 格鲁吉亚（9,141 美元/人） | ≈ 马耳他（34,212 美元/人） |
 | GDP 密度 | ≈ 特立尼达和多巴哥（每平方公里产出） | 每平方公里的产出密度 |
 | 面积 | ≈ 突尼斯（16.4 万 km²） | ≈ 缅甸（67.8 万 km²） |
@@ -57,17 +57,42 @@
 - **方形图**：世界按当前指标重画，每块的大小就是它的份额（squarify 铺排）
 - **擂台**：两个地方逐项 PK 打出比分（总 GDP / 平价 / 人均 / 密度 / 面积 / 人口），右边是省/州前 16 名的对阵树
 - **年份回溯**：国家侧的数据可回到 1990 年。把滑块往前拨，看「今天这个地方放在当年是什么水平」——
-  2024 年的河南相当于 1990 年的 74 个国家，排名也在面板里写明是第几年的第几名
+  2024 年的河南相当于 1990 年的 75 个国家，排名也在面板里写明是第几年的第几名
 - **今日一题**：随机抽一个地方 + 一个指标 + 一套口径，一键换一个话题
 - **今日一省**：按日期确定性地抽一个省——今天所有人打开看到的都一样，方便互相发
 - **拼图玩法**：见上
 - **搜索**：中文 / 拼音 / 拼音首字母都能搜（`广东` / `guangdong` / `gd` / `Texas`）
 - **分享**（右上角「分享」）：
   - 复制链接——选择状态、指标、口径、年份都写进 URL，对方打开就是同一张图
-  - 下载分享卡——竖版 2400×3200（标题 + 四项排名 + 地图 + 出处），适合发群
+  - 下载分享卡——竖版 2400px 宽（标题 + 四项排名 + 地图 + 出处），适合发群
   - 下载高清图——横版 3600px 宽
 - **界面顺序**按新用户动线排：先选指标 → 直接给结论 → 再换地方 → 最后才是微调口径
   （手机上反过来：先给地图和结论，控件在下面）
+
+## 看看长什么样
+
+| 2D 地图（省/州细分层 + 南海诸岛） | 3D 地球 |
+| --- | --- |
+| ![2D 地图](docs/preview-map.png) | ![3D 地球](docs/preview-globe.png) |
+
+| 方形图 | 擂台 |
+| --- | --- |
+| ![方形图](docs/preview-square.png) | ![擂台](docs/preview-bracket.png) |
+
+| 面积剪影对照 | 拼图玩法 |
+| --- | --- |
+| ![面积剪影对照](docs/preview-area.png) | ![拼图玩法](docs/preview-puzzle.png) |
+
+| 反向模式：国家 → 省/州 | 「假如它是一个国家」排名卡 |
+| --- | --- |
+| ![反向模式](docs/preview-world-to-region.png) | ![排名卡](docs/preview-counterfactual.png) |
+
+<div align="center">
+  <img src="docs/preview-share-card.png" width="420" alt="分享卡">
+  <img src="docs/preview-mobile.png" width="240" alt="手机首屏">
+</div>
+
+<sub>截图由 `npm run screenshots` 从当前构建自动生成，界面一改就重跑一次。</sub>
 
 ## 跑起来
 
@@ -84,6 +109,7 @@ npm run build     # 类型检查 + 打包到 dist/
 npm run test      # 核心算法单元测试
 npm run preview   # 预览打包结果
 npm run acceptance # 浏览器级验收（自带服务器，不用先起 dev server）
+npm run screenshots # 重新生成 README 里的预览图
 ```
 
 想对着 dev server 跑验收：`node scripts/acceptance.mjs http://localhost:5173`。
@@ -143,6 +169,7 @@ CI（`.github/workflows/ci.yml`）跑的就是 typecheck → 单测 → 构建 �
 │  ├─ fetch-sources.mjs      # 抓原始数据源到 data/raw/
 │  ├─ build-data.mjs         # 合并成 public/data/regions.json + public/geo/*
 │  ├─ static-server.mjs      # 验收用的静态服务器（伺服 dist/）
+│  ├─ screenshots.mjs        # 重新生成 README 的预览图
 │  └─ acceptance.mjs         # Playwright 浏览器级验收
 ├─ data/
 │  ├─ provincial-gdp-2024.json  # 年鉴表格读数（带出处）
@@ -154,8 +181,13 @@ CI（`.github/workflows/ci.yml`）跑的就是 typecheck → 单测 → 构建 �
 └─ src/
    ├─ lib/match.ts           # 核心算法（唯一自研部分）
    ├─ lib/metrics.ts         # 指标定义（格式、标题、能不能累加）
-   ├─ lib/{data,geo,format,url,export}.ts
-   └─ components/{WorldMap,ChinaMap,GlobeView,RegionPicker,ResultPanel,AreaSilhouette,SouthSeaBox}.tsx
+   ├─ lib/{data,geo,format,url,export,types}.ts
+   └─ components/
+      ├─ WorldMap / ChinaMap / GlobeView          # 地图、地球
+      ├─ SquareCartogram / Bracket                # 方形图、擂台
+      ├─ RegionPicker / ResultPanel               # 选择器、结果卡
+      ├─ CounterfactualCard / TargetComparison    # 排名卡、两个目标对比
+      └─ AreaSilhouette / SouthSeaBox             # 面积剪影、南海诸岛
 ```
 
 ## 数据更新
@@ -179,7 +211,7 @@ CI（`.github/workflows/ci.yml`）跑的就是 typecheck → 单测 → 构建 �
 npm run build     # 产物在 dist/
 ```
 
-`dist/` 直接丢到任何静态托管即可（目标平台 EdgeOne Pages，任意静态托管 / Nginx 也行）。
+`dist/` 直接丢到任何静态托管即可（静态托管 / Nginx 都行，平台由部署方定，仓库里不预设）。
 `vite.config.ts` 里 `base: './'` 用的是相对路径，放子目录也能跑。
 数据是构建期抓取好的静态 JSON，运行时不再访问外部接口。
 
