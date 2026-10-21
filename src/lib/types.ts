@@ -34,6 +34,8 @@ export interface RegionObject {
 export interface DatasetMeta {
   defaultYear: string;
   years: string[];
+  /** 国家侧数据覆盖的年份范围（前端年份滑块按它来） */
+  yearRange?: [string, string];
   provinceYear: string;
   countrySource: string;
   provinceSource: string;

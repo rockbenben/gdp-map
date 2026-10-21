@@ -40,7 +40,7 @@ function readState(): AppState {
   const strategy = p.get('st') as MatchStrategy | null;
   const metric = p.get('m') as MetricId | null;
   const yRaw = Number(p.get('y'));
-  const worldYear = Number.isFinite(yRaw) && yRaw >= 1990 && yRaw <= 2025 ? yRaw : DEFAULTS.worldYear;
+  const worldYear = Number.isFinite(yRaw) && yRaw >= 1960 && yRaw <= 2025 ? yRaw : DEFAULTS.worldYear;
   let selected = (p.get('sel') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const resolvedMetric = metric && METRICS.includes(metric) ? metric : DEFAULTS.metric;
   const additive = METRIC_DEF[resolvedMetric].additive;

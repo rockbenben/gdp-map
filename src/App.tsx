@@ -84,6 +84,20 @@ export default function App() {
 
   const metricDef = METRICS[metric];
   /**
+   * 年份范围：跟着数据走，别写死在代码里。
+   * 1960–1989 是世界银行口径，1990–2025 是 IMF WEO。
+   */
+  const [yearFromText, yearToText] = dataset?.meta.yearRange ?? ['1990', '2025'];
+  const yearFrom = Number(yearFromText);
+  const yearTo = Number(yearToText);
+  /** 滑块上的快捷年份：起点 + 每 20 年 + 最后一个实际年 */
+  const yearTicks = useMemo(() => {
+    const out: number[] = [];
+    for (let y = yearFrom; y <= yearTo - 1; y += 20) out.push(y);
+    out.push(yearTo - 1);
+    return out;
+  }, [yearFrom, yearTo]);
+  /**
    * 动效：默认跟着系统，但**用户可以在页面上自己决定**。
    *
    * 系统关了「动画效果」（Windows：辅助功能 → 视觉效果 → 动画效果）时，
@@ -147,9 +161,9 @@ export default function App() {
       setPlaying(false);
       return;
     }
-    // 播放是「从头看一遍」：总是从 1990 起，播到 2025 停。
+    // 播放是「从头看一遍」：总是从数据最早的一年起，播到最后一年停。
     // 不然默认停在 2024 时只剩一步可走，这个按钮等于没用。
-    setWorldYear(1990);
+    setWorldYear(yearFrom);
     setPlaying(true);
   };
 
@@ -942,8 +956,8 @@ export default function App() {
         await nextPaint();
       }
       const years: number[] = [];
-      for (let y = 1990; y <= 2024; y += 2) years.push(y);
-      years.push(2025);
+      for (let y = yearFrom; y <= yearTo - 1; y += 2) years.push(y);
+      years.push(yearTo);
       const savedYear = worldYear;
       setPlaying(false);
       setToast('正在生成动图…');
@@ -1085,7 +1099,7 @@ export default function App() {
                   </button>
                   <button type="button" onClick={handleExportGif}>
                     <b>下载动图</b>
-                    <span>1990→2025 看它怎么变</span>
+                    <span>{yearFrom}→{yearTo} 看它怎么变</span>
                   </button>
                 </div>
               ) : null}
@@ -1177,7 +1191,7 @@ export default function App() {
                   className={playing ? 'play-btn on' : 'play-btn'}
                   onClick={togglePlay}
                   aria-pressed={playing}
-                  title="从 1990 年播到 2025 年，看这个地方的体量怎么变"
+                  title={`从 ${yearFrom} 年播到 ${yearTo} 年，看这个地方的体量怎么变`}
                 >
                   {playing ? '⏸ 暂停' : '▶ 播放'}
                 </button>
@@ -1187,30 +1201,24 @@ export default function App() {
             <input
               className="year-slider"
               type="range"
-              min={1990}
-              max={2025}
+              min={yearFrom}
+              max={yearTo}
               step={1}
               value={worldYear}
               onChange={(e) => setYear(Number(e.target.value))}
               aria-label="国家数据年份"
             />
             <div className="year-ticks">
-              <button type="button" onClick={() => setYear(1990)}>
-                1990
-              </button>
-              <button type="button" onClick={() => setYear(2000)}>
-                2000
-              </button>
-              <button type="button" onClick={() => setYear(2010)}>
-                2010
-              </button>
-              <button type="button" onClick={() => setYear(2024)}>
-                2024
-              </button>
+              {yearTicks.map((y) => (
+                <button key={y} type="button" onClick={() => setYear(y)}>
+                  {y}
+                </button>
+              ))}
             </div>
             <p className="picker-hint">
-              国家数据可回溯到 1990 年（2025 为 IMF 预测值），省/州按各自年份。
-              往后拨能看出「今天这个地方放在当年是什么水平」，按「播放」让它自己走一遍。
+              国家数据可回溯到 {yearFrom} 年（{yearTo} 为 IMF 预测值，{yearFrom}–1989 为世界银行口径），
+              省/州按各自年份。往后拨能看出「今天这个地方放在当年是什么水平」，
+              按「播放」让它自己走一遍。
             </p>
           </section>
 

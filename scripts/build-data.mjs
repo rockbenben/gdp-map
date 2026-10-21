@@ -223,6 +223,16 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
   pppFactor.set(iso3, f);
 }
 
+// ---------- 1960–1989：世界银行口径，把国家侧的历史往前延 ----------
+// IMF WEO 从 1990 起。1960–1989 用世界银行（GDP 现价美元 + 人口），
+// 没抓过这个文件就只用 WEO 的 1990 起（不影响其它部分）。
+let wb = null;
+try {
+  wb = await readJson(resolve(RAW, 'wb-gdp-pop-1960-1989.json'));
+} catch {
+  wb = null;
+}
+
 let countryList = [];
 for (const [iso3, rec] of Object.entries(weo.data)) {
   const nominal = {};
@@ -234,6 +244,16 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
   for (const [y, v] of Object.entries(rec.LP ?? {})) {
     if (v != null) pop[y] = people(v * 1e6); // WEO 单位：百万人 → 人
   }
+  // 1990 之前：世界银行口径（只补 WEO 没有的年份，两段不打架）
+  const wbRec = wb?.data?.[iso3];
+  if (wbRec) {
+    for (const [y, v] of Object.entries(wbRec.gdp ?? {})) {
+      if (v != null && nominal[y] == null) nominal[y] = money(v);
+    }
+    for (const [y, v] of Object.entries(wbRec.pop ?? {})) {
+      if (v != null && pop[y] == null) pop[y] = people(v);
+    }
+  }
   const en = weo.labels?.[iso3] ?? iso3;
   const zh = zhCountryName(iso3);
   const area = countryArea.get(iso3) ?? null;
@@ -244,6 +264,13 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
   const ppp = {};
   for (const [y, v] of Object.entries(rec.PPPGDP ?? {})) {
     if (v != null) ppp[y] = money(v * 1e9); // 十亿美元 → 美元
+  }
+  // 1990 年前没有官方 PPP：用该国 1990 年的换算因子近似（PPP 因子变化很慢）
+  const f1990 = pppFactor.get(iso3)?.['1990'];
+  if (f1990) {
+    for (const y of Object.keys(nominal)) {
+      if (y < '1990' && ppp[y] == null) ppp[y] = money(nominal[y] * f1990);
+    }
   }
   countryList.push({
     id: iso3,
@@ -511,11 +538,23 @@ const objects = [
   })
 ];
 
+// 数据实际覆盖的年份范围：前端滑块按这个来，别写死在代码里
+const coveredYears = new Set();
+for (const c of countryList) {
+  for (const y of Object.keys(c.gdp.nominal)) coveredYears.add(Number(y));
+}
+const yearNums = [...coveredYears].filter((y) => Number.isFinite(y));
+const yearRange = [String(Math.min(...yearNums)), String(Math.max(...yearNums))];
+
 const meta = {
   defaultYear: DEFAULT_YEAR,
   years: YEARS,
+  /** 国家侧数据覆盖的年份范围（前端年份滑块用） */
+  yearRange,
   provinceYear: provYear.meta.year,
-  countrySource: `${weo.source}（名义 GDP，现价美元；${DEFAULT_YEAR} 为实际值，2025 为该版预测值）`,
+  countrySource:
+    `${weo.source}（名义 GDP，现价美元；${DEFAULT_YEAR} 为实际值，2025 为该版预测值）` +
+    (wb ? `；${yearRange[0]}–1989 用 ${wb.source}` : ''),
   provinceSource: `${provYear.meta.source}（名义 GDP，现价人民币，按当年年均汇率折美元）`,
   provinceSourceUrl: provYear.meta.sourceUrl,
   usStateSource:

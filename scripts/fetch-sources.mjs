@@ -126,9 +126,61 @@ async function fetchWeo() {
   console.log(`saved weo-${WEO_VINTAGE}.json  (2024 有值经济体: ${ok})`);
 }
 
+// ---- 世界银行：把国家侧的历史往前延到 1960 ----
+// IMF WEO 从 1990 起，1960–1989 用世界银行的 NY.GDP.MKTP.CD（现价美元）与
+// SP.POP.TOTL（人口）。两段衔接得上（美国 1989 = 5.64 万亿 → 1990 = 5.96 万亿），
+// 所以滑块从 1990 往前拖是连续的。
+// ⚠️ 苏联解体那批（POL/CZE/KAZ/SVK/HRV/SRB/LTU/AZE/SVN/BLR/LVA/EST）1960 年前
+// 没有独立统计，本来就缺——不是这次引入的缺口。
+const WB_RANGE = [1960, 1989];
+const WB_INDICATORS = [
+  { key: 'gdp', id: 'NY.GDP.MKTP.CD' },
+  { key: 'pop', id: 'SP.POP.TOTL' }
+];
+
+async function fetchWorldBank() {
+  const dest = resolve(RAW, `wb-gdp-pop-${WB_RANGE[0]}-${WB_RANGE[1]}.json`);
+  if (await exists(dest)) {
+    console.log(`skip  wb-gdp-pop-${WB_RANGE[0]}-${WB_RANGE[1]}.json (已存在)`);
+    return;
+  }
+  const data = {};
+  for (const ind of WB_INDICATORS) {
+    const url =
+      `https://api.worldbank.org/v2/country/all/indicator/${ind.id}` +
+      `?date=${WB_RANGE[0]}:${WB_RANGE[1]}&format=json&per_page=20000`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'gdp-map/1.0' } });
+    if (!r.ok) throw new Error(`${r.status} ${url}`);
+    const json = await r.json();
+    for (const row of json?.[1] ?? []) {
+      const iso = row.countryiso3code;
+      if (!iso || row.value == null) continue;
+      data[iso] ??= { gdp: {}, pop: {} };
+      data[iso][ind.key][row.date] = row.value;
+    }
+  }
+  await writeFile(
+    dest,
+    JSON.stringify(
+      {
+        source: 'World Bank, NY.GDP.MKTP.CD (GDP, current US$) + SP.POP.TOTL (population)',
+        range: WB_RANGE,
+        data
+      },
+      null,
+      1
+    ),
+    'utf8'
+  );
+  console.log(
+    `saved wb-gdp-pop-${WB_RANGE[0]}-${WB_RANGE[1]}.json  (${Object.keys(data).length} 个经济体)`
+  );
+}
+
 await mkdir(RAW, { recursive: true });
 for (const [name, url] of Object.entries(SOURCES)) {
   await download(name, url);
 }
 await fetchWeo();
+await fetchWorldBank();
 console.log('\n原始数据就绪：', RAW);

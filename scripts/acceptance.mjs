@@ -241,7 +241,7 @@ try {
   await card.saveAs(cardPath);
   check('导出分享卡成功', (await stat(cardPath)).size > 20000, `${(await stat(cardPath)).size / 1024} KB`);
 
-  // 动图：1990→2025 一帧一年。得真下载下来验它是动图，
+  // 动图：1960→2025 一帧一年。得真下载下来验它是动图，
   // 只看「文件存在」不算——一张静态图也叫 GIF。
   const [gif] = await Promise.all([
     page.waitForEvent('download', { timeout: 120000 }),
@@ -304,9 +304,13 @@ try {
   check('名次按参照物自己的年份算', /2024\s*年/.test(rank2010), rank2010);
   const count2010 = await page.locator('.result-item').count();
   check('换一个年份匹配结果不同', count2010 > 0, `2010 年：${count2010} 件`);
-  await page.locator('.year-ticks button', { hasText: '1990' }).click();
+  await page.locator('.year-ticks button', { hasText: '1960' }).click();
   await page.waitForTimeout(400);
-  check('滑块可切到 1990', (await page.url()).includes('y=1990'), await page.url());
+  check('滑块可切到 1960', (await page.url()).includes('y=1960'), await page.url());
+  // 1960 年也得有结论（世界银行口径补的那一段）
+  const y1960 = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  const sliderMin = await page.locator('.year-slider').getAttribute('min');
+  check('1960 年也有结论', /国家|个/.test(y1960) && sliderMin === '1960', `${y1960}（滑块起点 ${sliderMin}）`);
   await page.locator('.strategy').screenshot({ path: resolve(SHOTS, 'panel-year.png') });
 
   // 10.6.1 播放：让年份自己走，结论跟着变
@@ -314,7 +318,7 @@ try {
   await page.waitForTimeout(1700);
   const playYear = await page.locator('.year-now').innerText();
   const playCount = await page.locator('.result-headline h1 .count').innerText().catch(() => '');
-  check('播放让年份自己往前走', Number(playYear) >= 1990, `${playYear} 年 · ${playCount} 个国家`);
+  check('播放让年份自己往前走', Number(playYear) >= 1960, `${playYear} 年 · ${playCount} 个国家`);
   await page.locator('.play-btn').click(); // 停掉，别让它一路播到 2025
   await page.waitForTimeout(300);
   check('播放可以停下来', (await page.locator('.play-btn').innerText()).includes('播放'), await page.locator('.play-btn').innerText());
