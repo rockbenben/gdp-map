@@ -117,6 +117,7 @@ npm run test      # 核心算法单元测试
 npm run preview   # 预览打包结果
 npm run acceptance # 浏览器级验收（自带服务器，不用先起 dev server）
 npm run screenshots # 重新生成 README 里的预览图
+node scripts/websearch.mjs "查询词"   # 网页搜索（DeepSeek Search & Fetch API，要 DEEPSEEK_API_KEY）
 ```
 
 想对着 dev server 跑验收：`node scripts/acceptance.mjs http://localhost:5173`。
@@ -133,7 +134,7 @@ CI（`.github/workflows/ci.yml`）跑的就是 typecheck → 单测 → 构建 �
 | 平价换算 | IMF WEO 的 PPPGDP ÷ NGDPD | 中国 2.035、美国 1.000（美国是 PPP 基准，恒为 1）、香港 1.390 |
 | 美国各州 | BEA 州级名义 GDP（2024）与人口（维基百科转录，源引 BEA / Census） | 美元；人口由「GDP ÷ 人均」反推；面积按 us-atlas 州界几何算 |
 | 欧洲 NUTS-1 | Eurostat `nama_10r_3gdp` / `nama_10r_3popgdp`（2024） | 94 个一级区（德国 16、法国 14、土耳其 12…），边界 Eurostat GISCO；「整个国家算一个 NUTS-1」的（如捷克、丹麦）不重复收录 |
-| 日本都道府县 | 内阁府《府县民经济计算》与总人口（2021 年度） | 47 个都道府县，边界 Natural Earth；2021 是能拿全 47 个县的最近年份（石川、奈良等 5 个县 2022 年起尚未公布） |
+| 日本都道府县 | 内阁府《府县民经济计算》与总人口（2023 年度） | 47 个都道府县，边界 Natural Earth；内阁府汇总里有 5 个县（石川、奈良、德岛、香川、宫崎）显示「-」，那 5 个从各府县自己公布的结果里读 |
 | 汇率 | World Bank `PA.NUS.FCRF` | 年均官方汇率 |
 | 世界边界 | Natural Earth（经 D3 graph gallery 转换，ISO3 编号） | 台湾并入中国轮廓 |
 | 中国边界 | 阿里云 DataV.GeoAtlas | 34 个省级行政区 + 南海诸岛（符合国内地图合规要求） |
@@ -211,7 +212,7 @@ CI（`.github/workflows/ci.yml`）跑的就是 typecheck → 单测 → 构建 �
 - 省/州现在覆盖中国、美国、欧洲 94 个 NUTS-1 一级区与日本 47 个都道府县；
   欧洲 NUTS 之下的一级（NUTS-2）、日本的市町村暂未接入（管线加一份源文件即可扩）
 - **各地区的数据年份不一定相同**：中国省级与美国州是 2024，欧洲 NUTS-1 是 2024，
-  日本都道府县是 2021（内阁府能拿全 47 个县的最近年份）
+  日本都道府县是 2023
 - 省级面积是按边界几何估算的（与官方公布值相差 1% 上下），省级人口由「总量 ÷ 人均」反推
 - 面积剪影对照用等积投影，保证画出来的大小就是真实大小之比
 
