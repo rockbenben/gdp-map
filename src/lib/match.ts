@@ -40,17 +40,20 @@ export interface MatchResult {
 
 export type MatchStrategy = 'many' | 'over' | 'big' | 'nearest';
 
+/** 「大国」的口径：按当前指标排名前 10 的对象 */
+export const BIG_POOL_SIZE = 10;
+
 export const STRATEGY_LABEL: Record<MatchStrategy, string> = {
   many: '尽量多凑',
   over: '宁可超出',
-  big: '用大国家',
+  big: '比大国家',
   nearest: '最像的一个'
 };
 
 export const STRATEGY_HINT: Record<MatchStrategy, string> = {
   many: '从最小的国家往上加，能加多少个算多少个 —— 件数最多，但多是些小国。',
   over: '同样从小往大加，只是装不下的那一个也算进去 —— 保证总量至少这么大。',
-  big: '从最大的国家往下凑 —— 数量少，但都是大家熟悉的名字。',
+  big: '只跟体量最大的 10 个对象比，看它是其中哪一个的几分之几。',
   nearest: '不凑，只挑最接近的那一个。'
 };
 
@@ -185,7 +188,7 @@ export function closestSingle(target: number, pool: GdpItem[], options: Accumula
  * 按策略匹配。三种累加口径与方向无关，两个方向用同一套语义：
  *   many   小件优先，件最多，合计不超过目标
  *   over   小件优先，装不下的那一个也算进去，合计 ≥ 目标
- *   big    大件优先，合计不超过目标
+ *   big    只在「大件池」里找最接近的一个（由调用方把池收窄到前 10）
  *   nearest  单个最接近
  */
 export function matchByStrategy(
@@ -196,7 +199,7 @@ export function matchByStrategy(
 ): MatchResult {
   if (!target) return { items: [], sum: 0, target, gap: -target, count: 0 };
 
-  if (strategy === 'nearest') {
+  if (strategy === 'nearest' || strategy === 'big') {
     const one = closestSingle(target, pool, options);
     if (!one) return { items: [], sum: 0, target, gap: -target, count: 0 };
     return { items: [{ ...one, cumulative: one.value }], sum: one.value, target, gap: one.value - target, count: 1 };
@@ -207,13 +210,13 @@ export function matchByStrategy(
     return accumulate(target, pool, { ...options, order: 'asc', rule: 'skip' });
   }
 
-  if (strategy === 'over') {
-    // 合计 ≥ 目标：小件优先，装不下的那一个也算进去
-    return accumulate(target, pool, { ...options, order: 'asc', rule: 'over' });
-  }
+  // over：合计 ≥ 目标，装不下的那一个也算进去
+  return accumulate(target, pool, { ...options, order: 'asc', rule: 'over' });
+}
 
-  // big：大件优先，装得下就加
-  return accumulate(target, pool, { ...options, order: 'desc', rule: 'skip' });
+/** 按指标取前 N 个「大件」 */
+export function topByValue(pool: GdpItem[], n: number): GdpItem[] {
+  return [...pool].sort((a, b) => b.value - a.value).slice(0, n);
 }
 
 /** 相对误差（|sum - target| / target），用于 UI 上的「误差」标注 */

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { geoCentroid, geoPath } from 'd3-geo';
 import { GlobeView } from './components/GlobeView';
 import { RegionPicker } from './components/RegionPicker';
 import { ResultPanel } from './components/ResultPanel';
 import { SouthSeaBox } from './components/SouthSeaBox';
+import { TargetComparison } from './components/TargetComparison';
 import { WorldMap } from './components/WorldMap';
 import {
   loadChina,
@@ -15,7 +16,14 @@ import {
 } from './lib/data';
 import { copyText, exportPng } from './lib/export';
 import { createChinaProjection, featureMainCentroid, mixColor, PALETTE } from './lib/geo';
-import { closestSingle, matchByStrategy, STRATEGY_HINT, STRATEGY_LABEL } from './lib/match';
+import {
+  BIG_POOL_SIZE,
+  closestSingle,
+  matchByStrategy,
+  STRATEGY_HINT,
+  STRATEGY_LABEL,
+  topByValue
+} from './lib/match';
 import type { GdpItem, MatchStrategy } from './lib/match';
 import { METRICS, METRIC_DEFAULT_STRATEGY, METRIC_HINT, METRIC_ORDER } from './lib/metrics';
 import type { MetricId } from './lib/metrics';
@@ -84,6 +92,25 @@ export default function App() {
   /** 对照池 */
   const comparePool = isRegionMode ? countries : regions;
 
+  /** 「大件」池：按当前指标排名前 10 的对象 */
+  const bigPool = useMemo(
+    () =>
+      topByValue(
+        comparePool.map((r) => ({ id: r.id, zh: r.zh, value: metricValue(r, metric) })),
+        BIG_POOL_SIZE
+      ),
+    [comparePool, metric]
+  );
+
+  /** 每种口径用哪个池子来凑 */
+  const poolForStrategy = useCallback(
+    (s: MatchStrategy): GdpItem[] =>
+      s === 'big'
+        ? bigPool
+        : comparePool.map((r) => ({ id: r.id, zh: r.zh, value: metricValue(r, metric) })),
+    [bigPool, comparePool, metric]
+  );
+
   // 可叠加的指标才求和；不可叠加的只取唯一那一个
   const target = additive
     ? sourceSelected.reduce((sum, r) => sum + metricValue(r, metric), 0)
@@ -94,13 +121,8 @@ export default function App() {
   const match = useMemo(() => {
     if (!target) return null;
     const exclude = sourceSelected.map((r) => r.id);
-    const pool: GdpItem[] = comparePool.map((r) => ({
-      id: r.id,
-      zh: r.zh,
-      value: metricValue(r, metric)
-    }));
-    return matchByStrategy(target, pool, effectiveStrategy, { exclude });
-  }, [target, comparePool, sourceSelected, metric, effectiveStrategy]);
+    return matchByStrategy(target, poolForStrategy(effectiveStrategy), effectiveStrategy, { exclude });
+  }, [target, poolForStrategy, sourceSelected, effectiveStrategy]);
 
   const closest = useMemo(() => {
     if (!target) return null;
@@ -116,23 +138,25 @@ export default function App() {
   const strategyPreviews = useMemo(() => {
     if (!target) return [];
     const exclude = sourceSelected.map((r) => r.id);
-    const pool: GdpItem[] = comparePool.map((r) => ({ id: r.id, zh: r.zh, value: metricValue(r, metric) }));
     const list: MatchStrategy[] = additive ? ['many', 'over', 'big', 'nearest'] : ['nearest'];
     return list.map((id) => {
-      const r = matchByStrategy(target, pool, id, { exclude });
+      const r = matchByStrategy(target, poolForStrategy(id), id, { exclude });
       const err = target ? Math.abs(r.gap) / target : 0;
       const gapText = `${r.gap >= 0 ? '多' : '少'} ${(err * 100).toFixed(1)}%`;
-      const names = r.items.slice(0, 3).map((i) => i.zh).join(' + ');
+      // 「比大国家」说的是「它是其中哪一个的几分之几」
+      const fraction =
+        id === 'big' && r.count === 1 && r.items[0].value > 0 ? target / r.items[0].value : null;
       const preview =
         r.count === 0
           ? '没有能匹配的对象'
-          : r.count === 1
-            ? `${r.items[0].zh} · ${metricDef.format(r.sum)}（${gapText}）`
-            : `${r.count} 个 · ${metricDef.format(r.sum)}（${gapText}）`;
-      const detail = r.count > 1 ? `${names}${r.count > 3 ? ' …' : ''}` : '';
-      return { id, label: STRATEGY_LABEL[id], hint: STRATEGY_HINT[id], preview, detail };
+          : fraction != null
+            ? `${r.items[0].zh} 的 ${(fraction * 100).toFixed(0)}%`
+            : r.count === 1
+              ? `${r.items[0].zh} · ${metricDef.format(r.sum)}（${gapText}）`
+              : `${r.count} 个 · ${metricDef.format(r.sum)}（${gapText}）`;
+      return { id, label: STRATEGY_LABEL[id], hint: STRATEGY_HINT[id], preview, fraction };
     });
-  }, [target, comparePool, sourceSelected, metric, additive, metricDef]);
+  }, [target, poolForStrategy, sourceSelected, additive, metricDef]);
 
   /** 参照物在「被比对象」里能排第几 */
   const worldRank = useMemo(() => {
@@ -346,6 +370,24 @@ export default function App() {
     };
   }, [metric, match, sourceSelected, featureById, isRegionMode, regionById]);
 
+  /** 「比大国家」时，标题写成「它是其中哪一个的几分之几」 */
+  const bigFraction = useMemo(() => {
+    if (!match || effectiveStrategy !== 'big' || match.count !== 1 || !match.items[0].value) return null;
+    return target / match.items[0].value;
+  }, [match, effectiveStrategy, target]);
+
+  const headline = useMemo(() => {
+    if (!match || !sourceSelected.length || bigFraction == null) return null;
+    const part = bigFraction >= 1 ? `${bigFraction.toFixed(bigFraction < 10 ? 1 : 0)} 倍` : `${(bigFraction * 100).toFixed(0)}%`;
+    return `${sourceLabel} ≈ ${match.items[0].zh}的 ${part}`;
+  }, [match, sourceSelected, bigFraction, sourceLabel]);
+
+  // 两个目标的直接对比
+  const comparison = useMemo(() => {
+    if (sourceSelected.length !== 2) return null;
+    return <TargetComparison a={sourceSelected[0]} b={sourceSelected[1]} current={metricDef} />;
+  }, [sourceSelected, metricDef]);
+
   // 选择器分组：省/州按所属国家分组
   const pickerGroups = useMemo(() => {
     if (!isRegionMode) return undefined;
@@ -515,6 +557,9 @@ export default function App() {
           {match ? (
             <ResultPanel
               sourceLabel={sourceLabel}
+              headline={headline}
+              fraction={bigFraction}
+              comparison={comparison}
               target={target}
               targetText={metricDef.format(target)}
               metric={metricDef}
@@ -523,7 +568,11 @@ export default function App() {
               strategyLabel={STRATEGY_LABEL[strategy]}
               worldRank={worldRank}
               matchedPopulation={matchedPopulation}
-              closest={closest && effectiveStrategy !== 'nearest' ? { zh: closest.zh, value: closest.value } : null}
+              closest={
+                closest && (effectiveStrategy === 'many' || effectiveStrategy === 'over')
+                  ? { zh: closest.zh, value: closest.value }
+                  : null
+              }
               silhouette={silhouette}
             />
           ) : (

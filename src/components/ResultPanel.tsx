@@ -7,6 +7,8 @@ import type { GeoFeature } from '../lib/types';
 interface Props {
   /** 主标题，例如「河南省」 */
   sourceLabel: string;
+  /** 覆盖默认标题（用于「比大国家」这种要写成倍数的场合） */
+  headline?: string | null;
   /** 参照物的指标值合计 */
   target: number;
   /** 参照物金额的可读写法 */
@@ -33,10 +35,15 @@ interface Props {
     sourceArea: string;
     targetArea: string;
   } | null;
+  /** 两个目标的直接对比 */
+  comparison?: React.ReactNode;
+  /** 「比大国家」时：参照物是对方的几分之几 */
+  fraction?: number | null;
 }
 
 export function ResultPanel({
   sourceLabel,
+  headline,
   target,
   targetText,
   result,
@@ -46,7 +53,9 @@ export function ResultPanel({
   worldRank,
   matchedPopulation = 0,
   closest,
-  silhouette
+  silhouette,
+  comparison,
+  fraction = null
 }: Props) {
   const error = target ? Math.abs(result.gap) / target : 0;
   const over = result.gap >= 0;
@@ -55,7 +64,7 @@ export function ResultPanel({
   return (
     <section className="result">
       <div className="result-headline">
-        <h1>{metric.title(sourceLabel, result.count, only?.zh ?? '', unitName)}</h1>
+        <h1>{headline ?? metric.title(sourceLabel, result.count, only?.zh ?? '', unitName)}</h1>
         <p className="result-sub">
           {targetText} ·{' '}
           {result.count === 1 ? (
@@ -68,10 +77,17 @@ export function ResultPanel({
             </>
           )}
           {result.count > 0 ? (
-            <>
-              {' '}
-              · {over ? '超出' : '还差'} <strong>{formatPercent(error)}</strong>
-            </>
+            fraction != null ? (
+              <>
+                {' '}
+                · 是它的 <strong>{fraction >= 1 ? `${fraction.toFixed(fraction < 10 ? 1 : 0)} 倍` : `${(fraction * 100).toFixed(0)}%`}</strong>
+              </>
+            ) : (
+              <>
+                {' '}
+                · {over ? '超出' : '还差'} <strong>{formatPercent(error)}</strong>
+              </>
+            )
           ) : null}
         </p>
         {closest ? (
@@ -94,6 +110,8 @@ export function ResultPanel({
           </p>
         ) : null}
       </div>
+
+      {comparison}
 
       {silhouette ? (
         <AreaSilhouette

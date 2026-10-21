@@ -63,12 +63,12 @@ try {
   const previews = await page.locator('.choice-preview').allInnerTexts();
   check('每种口径都直接给出结果', previews.every((p) => /\d/.test(p)), previews.join(' | '));
 
-  await page.locator('.choice', { hasText: '用大国家' }).click();
+  await page.locator('.choice', { hasText: '比大国家' }).click();
   await page.waitForTimeout(300);
-  const headlineBig = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
-  check('切换对照方式后结果变化', headline !== headlineBig, `${headline} → ${headlineBig}`);
-  const bigCount = await page.locator('.result-item').count();
-  check('用大国家的件数明显更少', bigCount > 0 && bigCount < 20, `${bigCount} 件`);
+  const bigHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  check('比大国家：写成「几分之几」', /≈\s*.+的\s*\d+(\.\d+)?%/.test(bigHeadline), bigHeadline);
+  const bigItems = await page.locator('.result-item .name').allInnerTexts();
+  check('比大国家只给一个大对象', bigItems.length === 1, bigItems.join('、'));
 
   await page.locator('.choice', { hasText: '宁可超出' }).click();
   await page.waitForTimeout(300);
@@ -76,10 +76,13 @@ try {
   check('宁可超出：合计不低于参照物', /超出/.test(overSub), overSub.replace(/\s+/g, ' '));
 
   // 6. 微型经济体开关
+  await page.locator('.choice', { hasText: '尽量多凑' }).click();
+  await page.waitForTimeout(300);
+  const manyCount = await page.locator('.result-item').count();
   await page.locator('.toggle input').uncheck();
   await page.waitForTimeout(300);
   const microCount = await page.locator('.result-item').count();
-  check('关闭微型过滤后件数变多', microCount > bigCount, `${bigCount} → ${microCount} 件`);
+  check('关闭微型过滤后件数变多', microCount > manyCount, `${manyCount} → ${microCount} 件`);
   await page.locator('.toggle input').check();
   await page.waitForTimeout(200);
 
@@ -150,6 +153,13 @@ try {
   const png2 = resolve(SHOTS, 'export-globe.png');
   await download2.saveAs(png2);
   check('导出地球 PNG 成功', (await stat(png2)).size > 20000);
+
+  // 10.5 两个目标的直接对比
+  await page.goto(`${BASE}/?sel=CN-410000,CN-440000`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.target-compare', { timeout: 15000 });
+  const compareText = (await page.locator('.target-compare').innerText()).replace(/\s+/g, ' ');
+  check('两个目标可直接对比', /河南省/.test(compareText) && /广东省/.test(compareText), compareText.slice(0, 90));
+  await page.locator('.result').screenshot({ path: resolve(SHOTS, 'card-compare.png') });
 
   // 11. 反向模式：国家 → 省/州
   await page.goto(`${BASE}/?mode=world-to-region&sel=JPN`, { waitUntil: 'networkidle' });

@@ -5,7 +5,8 @@ import {
   accumulateDescending,
   closestSingle,
   matchByStrategy,
-  relativeError
+  relativeError,
+  topByValue
 } from '../lib/match';
 import type { GdpItem } from '../lib/match';
 
@@ -77,6 +78,19 @@ describe('matchByStrategy', () => {
     const provinces = [item('a', 60), item('b', 30), item('c', 10)];
     const r = matchByStrategy(100, provinces, 'big');
     expect(r.items[0].id).toBe('a');
+  });
+
+  it('big：只在给定的「大件池」里找最接近的一个', () => {
+    const pool = [item('huge', 900), item('big', 500), item('mid', 120)];
+    const bigPool = topByValue(pool, 2); // 取前 2：huge、big
+    const r = matchByStrategy(100, bigPool, 'big');
+    expect(r.count).toBe(1);
+    expect(r.items[0].id).toBe('big'); // 500 比 900 更接近 100
+  });
+
+  it('topByValue：按数值取前 N', () => {
+    const pool = [item('a', 10), item('b', 30), item('c', 20)];
+    expect(topByValue(pool, 2).map((x) => x.id)).toEqual(['b', 'c']);
   });
 
   it('目标为 0 时返回空结果', () => {
