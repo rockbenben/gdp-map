@@ -24,6 +24,7 @@
 ├── .github/workflows/ci.yml     # CI：typecheck · 单测 · 构建 · 浏览器验收
 ├── scripts/
 │   ├── fetch-sources.mjs   # 抓原始数据源 → data/raw/
+│   ├── fetch-regions.mjs   # 抓欧洲 NUTS-1 与日本都道府县 → data/regions-eu-jp.json
 │   ├── build-data.mjs      # 合并 → public/data/regions.json + public/geo/*
 │   ├── static-server.mjs   # 验收用的静态服务器（伺服 dist/）
 │   ├── acceptance.mjs      # Playwright 验收（自带服务器 + 浏览器）
@@ -31,10 +32,12 @@
 ├── data/
 │   ├── provincial-gdp-2024.json   # 年鉴表 3-9 读数（含出处 URL）
 │   ├── us-states.json             # 美国 51 州中英文名对照
+│   ├── region-names.json          # 欧洲 NUTS-1 与日本都道府县的中文名
+│   ├── regions-eu-jp.json         # 上面两套地区的 GDP 与人口（脚本产物）
 │   └── raw/                       # 原始缓存（.gitignore）
 ├── public/
-│   ├── data/regions.json          # 统一对象池：189 国 + 34 中国省级 + 51 美国州
-│   └── geo/{world,china,us-states}.json
+│   ├── data/regions.json          # 统一对象池：189 国 + 226 个省/州
+│   └── geo/{world,china,us-states,extra-regions}.json
 └── src/
     ├── lib/match.ts               # 唯一自研：贪心累加匹配
     ├── lib/metrics.ts             # 指标定义（格式、标题、能不能累加）
@@ -43,13 +46,15 @@
         ├── WorldMap / ChinaMap / GlobeView      # 地图、地球
         ├── SquareCartogram / Bracket            # 方形图、擂台
         ├── RegionPicker / ResultPanel           # 选择器、结果卡
+        ├── RankingView / CountUp                # 排行榜、数字滚动
         ├── CounterfactualCard / TargetComparison # 排名卡、两个目标对比
         └── AreaSilhouette / SouthSeaBox         # 面积剪影、南海诸岛
 ```
 
 - 数据年份 2024：国家用 IMF WEO 2025-04 的实际值，中国省级用《中国统计年鉴2025》表 3-9，
-  美国各州用 BEA 州级 GDP。
-- 交叉校验：31 省合计与全国 GDP 差 0.72%；美国 51 州合计与全美 GDP 差 0.16%。
+  美国各州用 BEA 州级 GDP，欧洲 NUTS-1 用 Eurostat 2024，日本都道府县用内阁府 2021 年度。
+- 交叉校验：31 省合计与全国 GDP 差 0.72%；美国 51 州合计与全美 GDP 差 0.16%；
+  欧洲 NUTS-1 合计 18.9 万亿美元，日本 47 县合计 5.3 万亿美元。
 
 ## 3. 已确定的事（不要重新讨论）
 
@@ -67,12 +72,16 @@
    其余可累加。指标定义集中在 `src/lib/metrics.ts`，加指标不用动算法。
    平价口径：国家用 IMF 的 PPPGDP；省/州没有官方 PPP，用所属国家的 PPP 换算因子估算（页面上要说明）。
 4. **不只中国。** 地区池是「国家 + 省/州」的统一对象池（`regions.json` 的 `objects`），
-   目前有中国 34 个省级行政区与美国 51 个州；接欧洲 NUTS、日本都道府县只要再加一份源数据。
+   目前有中国 34 个省级行政区、美国 51 个州、欧洲 94 个 NUTS-1 一级区、日本 47 个都道府县；
+   接更多国家只要再加一份源数据。
 5. **纯 SVG，不引 WebGL。** 地球用 d3-geo 正射投影实现。曾经用 globe.gl（three.js），
    在受限环境里会把页面渲染进程卡死，且导出要走 canvas，收益远小于代价。
 6. **只用名义 GDP（当年价格美元）。** PPP 在原始数据里备着，但省级没有同口径 PPP 源，
    开放切换会造成两边口径不一致，所以不做。
-7. **数据年份锁定 2024。** 这是双方都有官方实绩的最新完整年度。要扩年份，先解决省级数据来源。
+7. **数据年份按对象走。** 国家侧锁 2024，省/州侧各地区年份不一定相同：
+   中国省级与美国州是 2024，欧洲 NUTS-1 是 2024，日本都道府县是 2021
+   （内阁府的《府县民经济计算》能拿全 47 个县的最近年份就是 2021）。
+   所以 `RegionObject` 带自己的 `year`，别再假设整池一个年份。
 8. **中国地图用 DataV 边界并附南海诸岛小图。** 面向国内发布时这是合规要求，别去掉。
 9. **台湾并入中国轮廓（世界地图）。** 中国省级列表里台湾省是单独一级行政区。
 10. **港澳台走省级池，不进国家池。** 避免同一个经济体在两个列表里各出现一次。
@@ -124,6 +133,9 @@
   换年鉴版本时要重新读数，不要从别处抄。
 - **算面积要用反转绕向后的几何。** 原始 DataV 绕向会被 d3-geo 当成球面补集，
   算出来是 5 亿 km²（`reverseRings()` 之后才是对的 16.6 万 km²）。
+  ⚠️ **但只有 DataV 的中国边界要反转。** Natural Earth（世界边界、日本都道府县）和
+  Eurostat GISCO（NUTS-1）的绕向本来就是对的，反转之后京都的面积会变成 5.1 亿 km²。
+  源换了就重新验一遍，别照抄。
 - **d3 的 `path.bounds()` 返回 2×2 数组**（`[[x0,y0],[x1,y1]]`），按 4 元组取中心点会得到 NaN，
   路径就会变成 `MNaN,NaN...`（剪影对照踩过这个坑）。
 - **面积剪影对照必须用等积投影**（geoEqualEarth）。用 Mercator 的话高纬度国家会被放大，
@@ -139,6 +151,9 @@
 - **改了界面就要重跑 `npm run screenshots`。** README 里的预览图是产品的一部分，
   停在旧布局的图比没有图更糟（曾经主图还是改版前的侧栏顺序和按钮文案）。
   脚本会自己起服务器伺服 `dist/`，拍完直接写回 `docs/preview-*.png`。
+- **地区多到 200 多个以后，世界地图上不能全画。** 欧洲 NUTS-1 有 94 个、日本 47 个，
+  全描边会把欧洲糊成一片灰。所以这些要素标了 `drawOnlyWhenHighlighted`，
+  `WorldMap` 里不高亮就不画。
 
 ## 5. 下一步可以做什么
 
