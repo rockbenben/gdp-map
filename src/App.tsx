@@ -1372,6 +1372,7 @@ export default function App() {
                   format={metricDef.format}
                   noteFor={(e) => (e.selected ? '当前选中' : undefined)}
                   equivCount={(e) => (e.kind === 'region' ? equivCounts.get(e.id) : undefined)}
+                  metricId={metric}
                   onSelect={selectFromRanking}
                 />
                 <p className="view-caption">

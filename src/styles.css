@@ -14,6 +14,10 @@
   --source-2: #a78bfa;
   --radius: 14px;
   --shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  /* 动效只有一套节奏：同一种运动用同一条曲线、同一个时长，
+     页面各处滑起来才是同一个身体在动，而不是各动各的 */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 0.55s;
   color-scheme: dark;
 }
 
@@ -31,7 +35,9 @@ body,
 body {
   background: radial-gradient(1200px 700px at 78% -10%, #14203c 0%, var(--bg) 55%) fixed;
   color: var(--text);
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family:
+    'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC',
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
@@ -181,6 +187,20 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* 菜单是「啪」地冒出来的，加一点浮上来的动效 */
+  animation: menu-in 0.18s var(--ease);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .share-menu button {
@@ -480,7 +500,7 @@ body {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--teal), var(--accent));
-  transition: width 0.25s;
+  transition: width var(--dur) var(--ease);
 }
 
 .puzzle-nums {
@@ -864,7 +884,7 @@ body {
   border-radius: 8px;
   cursor: pointer;
   transition:
-    transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform var(--dur) var(--ease),
     background 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease;
@@ -976,7 +996,7 @@ body {
   opacity: 0.9;
   /* ⚠️ 这个过渡是「追赶」的一半：条形不长动画，数字滚动就没人看得出在变 */
   transition:
-    width 0.55s cubic-bezier(0.22, 0.61, 0.36, 1),
+    width var(--dur) var(--ease),
     background 0.3s ease;
 }
 
@@ -1010,6 +1030,20 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--text);
   white-space: nowrap;
+  /* 换指标时数值轻轻跳一下：量纲整个变了，「滚」会像卡带，跳一下更诚实也更好看 */
+  animation: rank-pop 0.32s var(--ease);
+}
+
+@keyframes rank-pop {
+  from {
+    opacity: 0.2;
+    transform: translateY(-50%) translateX(-7px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
 }
 
 .rank-note {
@@ -1471,10 +1505,14 @@ body {
   font-size: 13px;
 }
 
+/* 结论是这一页的主角：字要够大、行距要够紧，
+   数字用等宽数字（tabular-nums）才不会滚动时左右跳 */
 .result-headline h1 {
   margin: 0;
-  font-size: 22px;
-  line-height: 1.3;
+  font-size: 25px;
+  line-height: 1.24;
+  letter-spacing: -0.2px;
+  text-wrap: balance;
 }
 
 .result-headline .eq {
@@ -1485,6 +1523,7 @@ body {
 .result-headline .count {
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
 }
 
 .result-sub {
@@ -1571,36 +1610,36 @@ body {
    ⚠️ 导出不受影响：export.ts 注入的 SVG_STYLE 里写着 .country { transition: none }，
    导出的 PNG 永远是终态，不会拍到过渡中间的颜色。 */
 .result-item .bar-fill {
-  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: width var(--dur) var(--ease);
 }
 
 .country {
   transition:
-    fill 0.4s ease,
-    fill-opacity 0.4s ease,
-    stroke 0.4s ease;
+    fill var(--dur) var(--ease),
+    fill-opacity var(--dur) var(--ease),
+    stroke var(--dur) var(--ease);
 }
 
 .subdivisions path {
   transition:
-    fill 0.4s ease,
-    fill-opacity 0.4s ease;
+    fill var(--dur) var(--ease),
+    fill-opacity var(--dur) var(--ease);
 }
 
 /* 方形图：格子从旧位置滑到新位置 */
 .sq-cell {
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur) var(--ease);
 }
 
 .sq-cell rect {
   transition:
-    width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    fill 0.4s ease;
+    width var(--dur) var(--ease),
+    height var(--dur) var(--ease),
+    fill var(--dur) var(--ease);
 }
 
 .sq-label {
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--dur) var(--ease);
 }
 
 .result-item .gdp {
@@ -1749,6 +1788,19 @@ body {
   font-size: 13px;
   cursor: pointer;
   z-index: 50;
+  animation: toast-in 0.24s var(--ease);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 /* 「系统关了动画」那条：点一下就打开动效 */

@@ -28,6 +28,8 @@ interface Props {
   limit?: number;
   /** 这个对象相当于多少个国家之和（省/州才有意义，别的口径下不给） */
   equivCount?: (entry: RankEntry) => number | undefined;
+  /** 当前指标：换指标时数值要重来（不然会从 29 万亿一路滚到 8 万美元） */
+  metricId?: string;
   onSelect?: (id: string) => void;
 }
 
@@ -44,7 +46,15 @@ interface Props {
  * 名次变了的那一行还带着「升了几位 / 降了几位」的标记——
  * 动画让你看见动，标记告诉你动了多少。
  */
-export function RankingView({ entries, format, noteFor, limit = 60, equivCount, onSelect }: Props) {
+export function RankingView({
+  entries,
+  format,
+  noteFor,
+  limit = 60,
+  equivCount,
+  metricId = '',
+  onSelect
+}: Props) {
   const [scope, setScope] = useState<Scope>('all');
   /** 一次显示多少条，底部「再显示」往下翻 */
   const [shown, setShown] = useState(limit);
@@ -182,7 +192,11 @@ export function RankingView({ entries, format, noteFor, limit = 60, equivCount, 
               {/* 条形 + 挂在末端的数值：数值跟着条形走，是「追赶」最认得出的那个动作 */}
               <span className="rank-bar">
                 <span className="rank-fill" style={{ width: `${(ratio * 100).toFixed(2)}%` }}>
-                  <span className="rank-value">{format(e.value)}</span>
+                  {/* ⚠️ 数值不能「滚」：换指标是量纲整个变了（29 万亿 → 26 万美元），
+                      从旧值数到新值会像卡带。换指标时让它轻轻跳一下更好看。 */}
+                  <span className="rank-value" key={metricId}>
+                    {format(e.value)}
+                  </span>
                 </span>
               </span>
               {/* 永远占位：有的行没有这个数，空着也不能少一个格子，

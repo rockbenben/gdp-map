@@ -25,7 +25,7 @@ interface Props {
  *
  * 要不要滚由上层决定（App 会把「系统关了动画 + 用户又手动打开」这种情况也算进去）。
  */
-export function CountUp({ value, format = (v) => String(Math.round(v)), duration = 450, animate = true }: Props) {
+export function CountUp({ value, format = (v) => String(Math.round(v)), duration = 550, animate = true }: Props) {
   const ref = useRef<HTMLSpanElement>(null);
   /** 上一次停在哪 */
   const fromRef = useRef(value);
@@ -51,7 +51,9 @@ export function CountUp({ value, format = (v) => String(Math.round(v)), duration
     let raf = 0;
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic：起步快、收尾稳
+      // easeOutQuint：跟 CSS 里的 --ease 是同一条曲线，
+      // 数字滚动的节奏才和条形生长对得上
+      const eased = 1 - Math.pow(1 - t, 5);
       el.textContent = fmt(from + (value - from) * eased);
       if (t < 1) {
         raf = requestAnimationFrame(tick);
