@@ -253,6 +253,8 @@ const provinceList = provYear.provinces.map((p) => {
     },
     // 面积：按 DataV 边界估算
     area: geometry ? Math.round(geometryAreaKm2(geometry)) : null,
+    // 省级没有官方 PPP 口径：用全国 PPP 换算因子估算
+    ppp: pppForRegion('CHN', { [provYear.meta.year]: gdpUsd }),
     gdpPerCapita: p.gdpPerCapita,
     search: searchKey(p.name, p.name)
   };
@@ -280,6 +282,8 @@ for (const x of CN_EXTRA) {
     gdpPc: c.gdpPc,
     pop: c.pop,
     area: geometry ? Math.round(geometryAreaKm2(geometry)) : c.area,
+    // 港澳台在 WEO 里是独立经济体，用各自的 PPP 换算因子，别套中国的
+    ppp: pppForRegion(x.iso3, nominal),
     gdpPerCapita: undefined,
     source: `${weo.source}（非年鉴口径，年鉴不单列港澳台）`,
     search: searchKey(x.zh, x.en)
@@ -372,8 +376,7 @@ const objects = [
       gdpPc: p.gdpPc,
       pop: p.pop,
       area: p.area,
-      // 省级没有官方 PPP 口径：用全国 PPP 换算因子估算
-      ppp: pppForRegion('CHN', p.gdp.nominal)
+      ppp: p.ppp
     },
     source: p.source,
     search: p.search

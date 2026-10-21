@@ -3,6 +3,9 @@
 const SVG_STYLE = `
   .map-label { font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif; font-size: 13px; font-weight: 600; text-anchor: middle; paint-order: stroke; stroke: rgba(4,8,18,0.85); stroke-width: 3px; stroke-linejoin: round; }
   .sea-label { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 11px; fill: #9aa7c7; text-anchor: middle; }
+  .sq-label { font-size: 12px; font-weight: 600; text-anchor: middle; }
+  .bracket-label { font-size: 12px; font-weight: 600; paint-order: stroke; stroke: rgba(8,12,22,0.85); stroke-width: 3px; stroke-linejoin: round; }
+  .bracket-caption { font-size: 11.5px; fill: #6b7896; }
   .country { transition: none; }
 `;
 

@@ -70,6 +70,11 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
 
   const metricDef = METRICS[metric];
+  /** 宽屏才默认展开数据来源（窄屏先给结论） */
+  const [wide] = useState(() =>
+    typeof window === 'undefined' ? true : window.innerWidth >= 1080
+  );
+  const [sourcesOpen, setSourcesOpen] = useState(wide);
 
   useEffect(() => {
     Promise.all([loadDataset(), loadWorld(), loadChina(), loadUsStates()])
@@ -331,7 +336,7 @@ export default function App() {
   const switchMetric = (next: MetricId) => {
     setMetric(next);
     setStrategy(METRIC_DEFAULT_STRATEGY[next]);
-    // 换成不可叠加的指标时，多选只剩第一个
+    // 换成不可叠加的指标时，多选只剩第一个（状态也要真的收掉，否则列表里还亮着两个）
     if (!METRICS[next].additive) setSelected((prev) => prev.slice(0, 1));
   };
 
@@ -428,9 +433,20 @@ export default function App() {
     });
   }, [match, isRegionMode, regionById]);
 
+  /** 当前应该高亮的对象：拼图时是玩家选中的，否则是对照结果 */
+  const highlightedIds = useMemo(() => {
+    if (puzzle) return new Set(puzzle.picked);
+    return new Set((match?.items ?? []).map((i) => i.id));
+  }, [puzzle, match]);
+
   const globeHighlights = useMemo(() => {
     const m = new Map<string, { id: string; label: string; gdp?: number; color: string }>();
-    const items = match?.items ?? [];
+    const items = puzzle
+      ? puzzle.picked.map((id) => {
+          const c = allCountries.find((x) => x.id === id);
+          return { id, zh: c?.zh ?? id, value: c ? metricValue(c, puzzle.metric) : 0 };
+        })
+      : (match?.items ?? []);
     items.forEach((item, idx) => {
       const t = items.length <= 1 ? 0 : idx / (items.length - 1);
       const geoId = isRegionMode ? item.id : (regionById.get(item.id)?.geometryId ?? item.id);
@@ -442,7 +458,7 @@ export default function App() {
       });
     });
     return m;
-  }, [match, isRegionMode, regionById]);
+  }, [match, puzzle, isRegionMode, regionById, allCountries]);
 
   const globeSources = useMemo(() => {
     const m = new Map<string, { id: string; label: string; gdp?: number; color: string }>();
@@ -934,7 +950,7 @@ export default function App() {
                     id: c.id,
                     zh: c.zh,
                     value: metricValue(c, metric),
-                    matched: (match?.items ?? []).some((m) => m.id === c.id)
+                    matched: highlightedIds.has(c.id)
                   }))}
                   onSelect={handleMapClick}
                   labelFor={(id) => countryById.get(id)?.zh ?? id}
@@ -1052,22 +1068,29 @@ export default function App() {
               </span>
             </div>
             {dataset ? (
-              <p className="sources">
-                数据年份 {dataset.meta.provinceYear}｜国家：{dataset.meta.countrySource}｜中国省级：
-                {dataset.meta.provinceSource}
-                {dataset.meta.provinceSourceUrl ? (
-                  <>
-                    {' '}
-                    <a href={dataset.meta.provinceSourceUrl} target="_blank" rel="noreferrer">
-                      官方原表
-                    </a>
-                  </>
-                ) : null}
-                <br />
-                {dataset.meta.usStateSource ? `美国各州：${dataset.meta.usStateSource}` : null}
-                <br />
-                {dataset.meta.note}
-              </p>
+              <details
+                className="sources-details"
+                open={sourcesOpen}
+                onToggle={(e) => setSourcesOpen(e.currentTarget.open)}
+              >
+                <summary>数据来源与口径</summary>
+                <p className="sources">
+                  数据年份 {dataset.meta.provinceYear}｜国家：{dataset.meta.countrySource}｜中国省级：
+                  {dataset.meta.provinceSource}
+                  {dataset.meta.provinceSourceUrl ? (
+                    <>
+                      {' '}
+                      <a href={dataset.meta.provinceSourceUrl} target="_blank" rel="noreferrer">
+                        官方原表
+                      </a>
+                    </>
+                  ) : null}
+                  <br />
+                  {dataset.meta.usStateSource ? `美国各州：${dataset.meta.usStateSource}` : null}
+                  <br />
+                  {dataset.meta.note}
+                </p>
+              </details>
             ) : null}
           </footer>
         </main>

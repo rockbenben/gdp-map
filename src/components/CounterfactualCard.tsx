@@ -1,5 +1,3 @@
-import type { Metric } from '../lib/metrics';
-
 export interface RankRow {
   id: string;
   label: string;
@@ -38,8 +36,4 @@ export function CounterfactualCard({ name, rows }: Props) {
       </ul>
     </section>
   );
-}
-
-export function metricLabelOf(metric: Metric): string {
-  return metric.label;
 }

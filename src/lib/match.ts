@@ -110,66 +110,6 @@ export function accumulate(
   return toResult(target, acc);
 }
 
-/**
- * 由小到大累加：用于「一个省 ≈ 多少个国家」。
- * 逐项累加并记录绝对差最小的前缀；越过目标后停止（再往下只会更远）。
- */
-export function accumulateAscending(target: number, pool: GdpItem[], options: AccumulateOptions = {}): MatchResult {
-  const sorted = sortByValue(prepare(pool, options), 'asc');
-
-  let best: MatchResult = { items: [], sum: 0, target, gap: -target, count: 0 };
-  let sum = 0;
-  const acc: MatchItem[] = [];
-
-  for (const item of sorted) {
-    sum += item.value;
-    acc.push({ ...item, cumulative: sum });
-    const diff = Math.abs(sum - target);
-    if (diff < Math.abs(best.gap)) {
-      best = { items: [...acc], sum, target, gap: sum - target, count: acc.length };
-    }
-    if (sum >= target) break;
-  }
-
-  // 目标比最小的国家还小：仍然给出最接近的那一个，而不是空集
-  if (best.items.length === 0 && sorted.length) {
-    const first = sorted[0];
-    best = {
-      items: [{ ...first, cumulative: first.value }],
-      sum: first.value,
-      target,
-      gap: first.value - target,
-      count: 1
-    };
-  }
-
-  return best;
-}
-
-/**
- * 由大到小累加：用于「一个国家 ≈ 哪几个省加起来」。
- * 逐项累加并记录绝对差最小的前缀；达到目标后停止。
- */
-export function accumulateDescending(target: number, pool: GdpItem[], options: AccumulateOptions = {}): MatchResult {
-  const sorted = sortByValue(prepare(pool, options), 'desc');
-
-  let best: MatchResult = { items: [], sum: 0, target, gap: -target, count: 0 };
-  let sum = 0;
-  const acc: MatchItem[] = [];
-
-  for (const item of sorted) {
-    sum += item.value;
-    acc.push({ ...item, cumulative: sum });
-    const diff = Math.abs(sum - target);
-    if (diff < Math.abs(best.gap)) {
-      best = { items: [...acc], sum, target, gap: sum - target, count: acc.length };
-    }
-    if (sum >= target) break;
-  }
-
-  return best;
-}
-
 /** 单个最接近目标的对象（例：广东 ≈ 韩国） */
 export function closestSingle(target: number, pool: GdpItem[], options: AccumulateOptions = {}): GdpItem | null {
   let best: GdpItem | null = null;

@@ -1303,6 +1303,30 @@ body {
   color: var(--teal);
 }
 
+.sources-details > summary {
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--text-mute);
+  list-style: none;
+  user-select: none;
+}
+
+.sources-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sources-details > summary::before {
+  content: '▸ ';
+}
+
+.sources-details[open] > summary::before {
+  content: '▾ ';
+}
+
+.sources-details > summary:hover {
+  color: var(--text-dim);
+}
+
 /* ---------- 其它 ---------- */
 .loading {
   color: var(--text-mute);
@@ -1341,5 +1365,72 @@ body {
     max-height: none;
     border-right: 0;
     border-bottom: 1px solid var(--line-soft);
+  }
+
+  /* 手机上先给地图，再给结论，最后才是控件 */
+  .stage {
+    order: -1;
+  }
+
+  .sidebar > .result,
+  .sidebar > .puzzle {
+    order: 0;
+  }
+
+  .sidebar > .strategy {
+    order: 1;
+  }
+
+  .stage-inner {
+    padding: 12px 12px 4px;
+  }
+
+  .map-holder {
+    padding: 6px;
+  }
+
+  .topbar {
+    padding: 12px 14px;
+  }
+
+  .brand h1 {
+    font-size: 18px;
+  }
+
+  .brand p {
+    display: none;
+  }
+
+  .controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .segmented {
+    flex: 1 1 auto;
+  }
+
+  .segmented button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .stage-footer {
+    padding: 10px 14px 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .metric-options,
+  .strategy-options {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .bracket-row {
+    grid-template-columns: 1fr;
+  }
+
+  .result-headline h1 {
+    font-size: 19px;
   }
 }
