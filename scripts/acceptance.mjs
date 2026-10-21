@@ -614,6 +614,30 @@ try {
     `开 ${durOn}s / 关 ${durOff}s`
   );
 
+  // 23. 系统关了动画时：要说明白，并且点一下就能打开
+  //     （Windows 的「动画效果」关掉后浏览器报 reduce，用户会以为网站没做动效）
+  const reducedCtx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    reducedMotion: 'reduce'
+  });
+  const reducedPage = await reducedCtx.newPage();
+  await reducedPage.goto(`${BASE}/?sel=CN-440000&view=rank`, { waitUntil: 'networkidle' });
+  await reducedPage.waitForSelector('.motion-toast', { timeout: 15000 });
+  const hintText = (await reducedPage.locator('.motion-toast').innerText()).replace(/\s+/g, ' ');
+  const clsBefore = await reducedPage.$eval('.app', (el) => el.className);
+  await reducedPage.locator('.motion-toast').click();
+  await reducedPage.waitForTimeout(400);
+  const clsAfter = await reducedPage.$eval('.app', (el) => el.className);
+  const reducedDur = await reducedPage.$eval('.rank-row', (el) =>
+    parseFloat(getComputedStyle(el).transitionDuration)
+  );
+  check(
+    '系统关动画时会提示、点一下能打开',
+    /动画/.test(hintText) && clsBefore.includes('motion-off') && clsAfter.includes('motion-on') && reducedDur > 0.1,
+    `${hintText} → ${reducedDur}s`
+  );
+  await reducedCtx.close();
+
   check('无运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   check('验收脚本执行', false, String(e).slice(0, 200));

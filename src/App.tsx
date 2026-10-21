@@ -94,6 +94,17 @@ export default function App() {
   const systemReduced = useSystemReducedMotion();
   const [motionOverride, setMotionOverride] = useState<boolean | null>(null);
   const motionOn = motionOverride ?? !systemReduced;
+  /**
+   * 系统关了动画时提示一次。
+   *
+   * 用户看到的是「页面一点动静都没有」，但他不知道是网站没做动效，
+   * 还是自己的系统关了动画——不说明白，他就只会觉得「这网站是死的」。
+   * 点一下就能打开动效。
+   */
+  const [motionHint, setMotionHint] = useState(false);
+  useEffect(() => {
+    setMotionHint(systemReduced && motionOverride === null);
+  }, [systemReduced, motionOverride]);
   /** 宽屏才默认展开数据来源（窄屏先给结论） */
   const [wide] = useState(() =>
     typeof window === 'undefined' ? true : window.innerWidth >= 1080
@@ -1506,6 +1517,20 @@ export default function App() {
           </footer>
         </main>
       </div>
+
+      {motionHint ? (
+        <div
+          className="toast motion-toast"
+          role="status"
+          onClick={() => {
+            setMotionOverride(true);
+            setMotionHint(false);
+          }}
+          title="点击打开动效"
+        >
+          系统关掉了动画效果，网站的动效也跟着静了 —— 点这里打开
+        </div>
+      ) : null}
 
       {toast ? (
         <div className="toast" onClick={() => setToast(null)} role="status">

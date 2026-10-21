@@ -1710,6 +1710,17 @@ body {
   z-index: 50;
 }
 
+/* 「系统关了动画」那条：点一下就打开动效 */
+.motion-toast {
+  bottom: 78px;
+  border-color: rgba(63, 208, 201, 0.5);
+  color: var(--text);
+}
+
+.motion-toast:hover {
+  background: rgba(20, 30, 52, 0.98);
+}
+
 @media (max-width: 1080px) {
   .layout {
     grid-template-columns: 1fr;
