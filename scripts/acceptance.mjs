@@ -495,6 +495,44 @@ try {
   ]);
   check('两个参照物用两种颜色', sourceFills.length === 2, sourceFills.join(' / '));
 
+  // 14. 排行榜要包含国家（不然「假如它是一个国家」的名次在榜上没法核对）
+  await page.goto(`${BASE}/?sel=CN-440000&view=rank`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.rank-row', { timeout: 15000 });
+  await page.waitForTimeout(400);
+  const allTags = await page.$$eval('.rank-row .rank-name em', (es) =>
+    es.map((e) => (e.textContent ?? '').trim())
+  );
+  check(
+    '排行里有国家也有省/州',
+    allTags.includes('国家') && allTags.some((t) => t !== '国家'),
+    [...new Set(allTags)].join(' / ')
+  );
+
+  // 15. 排行可以只看一类
+  await page.locator('.rank-filters button', { hasText: '国家' }).click();
+  await page.waitForTimeout(300);
+  const countryRows = await page.locator('.rank-row').count();
+  const countryTags = await page.locator('.rank-row .rank-name em').count();
+  check('排行可只看国家', countryRows > 0 && countryTags === 0, `${countryRows} 行`);
+
+  await page.locator('.rank-filters button', { hasText: '省/州' }).click();
+  await page.waitForTimeout(300);
+  const regionRows = await page.locator('.rank-row').count();
+  const regionTags = await page.locator('.rank-row .rank-name em').count();
+  check('排行可只看省/州', regionRows > 0 && regionTags === regionRows, `${regionRows} 行`);
+
+  // 16. 点榜上的国家要切到「世界 → 省/州」并选上它（不然点了等于没点）
+  await page.locator('.rank-filters button', { hasText: '全部' }).click();
+  await page.waitForTimeout(300);
+  const firstCountryIdx = await page.$$eval('.rank-row', (rows) =>
+    rows.findIndex((r) => r.querySelector('.rank-name em')?.textContent?.trim() === '国家')
+  );
+  if (firstCountryIdx >= 0) {
+    await page.locator('.rank-row').nth(firstCountryIdx).click();
+    await page.waitForTimeout(500);
+  }
+  check('点榜上的国家会切方向', page.url().includes('mode=world-to-region'), page.url().split('?')[1] ?? '');
+
   check('无运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   check('验收脚本执行', false, String(e).slice(0, 200));

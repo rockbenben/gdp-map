@@ -485,6 +485,26 @@ export default function App() {
   };
 
   /**
+   * 从排行榜里选一条。
+   *
+   * 榜上国家和省/州混排，点国家就该切到「世界 → 省/州」，
+   * 点省/州就该切到「省/州 → 世界」——不然会出现「选了一个国家、
+   * 但当前是省/州模式，于是选不中」的怪事。
+   */
+  const selectFromRanking = (id: string) => {
+    touchedRef.current = true;
+    if (countryById.has(id)) {
+      setMode('world-to-region');
+      setSelected([id]);
+      return;
+    }
+    if (regionById.has(id)) {
+      setMode('region-to-world');
+      setSelected([id]);
+    }
+  };
+
+  /**
    * 换对照方向，但**别把题目换掉**。
    *
    * 原来的做法是清空选择，结果切过去是一片空白——和首屏直接给结论的做法不一致，
@@ -570,19 +590,33 @@ export default function App() {
     return new Set((match?.items ?? []).map((i) => i.id));
   }, [puzzle, match]);
 
-  /** 排行榜：把「能选的对象」按当前指标排开，选中的那条高亮。
+  /**
+   * 排行的池子：国家与省/州放在一起。
+   *
+   * 之前只看「能选的对象」——省/州模式里只有省/州，于是「假如广东是一个国家」
+   * 那个名次在榜上根本没法核对。现在两边都上榜；国家侧用参照物自己那一年
+   * （与名次卡同口径），所以榜上读到的名次就是名次卡给的那个名次。
+   */
+  const rankingPool = useMemo<Region[]>(
+    () => [...countriesAtSourceYear, ...regions],
+    [countriesAtSourceYear, regions]
+  );
+
+  /** 排行榜：把对象按当前指标排开，选中的那条高亮。
       它给的是名次卡给不了的东西——前后邻居到底有多大。 */
   const rankingEntries = useMemo<RankEntry[]>(
     () =>
-      sourcePool.map((r) => ({
+      rankingPool.map((r) => ({
         id: r.id,
         zh: r.zh,
         value: metricValue(r, metric),
+        kind: r.kind,
         selected: selected.includes(r.id),
         matched: highlightedIds.has(r.id),
-        group: r.parentName
+        // 国家标「国家」，省/州标所属国家——两类混在一张榜上时一眼看得出是哪类
+        group: r.kind === 'country' ? '国家' : (r.parentName ?? '地区')
       })),
-    [sourcePool, metric, selected, highlightedIds]
+    [rankingPool, metric, selected, highlightedIds]
   );
 
   const globeHighlights = useMemo(() => {
@@ -1233,15 +1267,10 @@ export default function App() {
                   entries={rankingEntries}
                   format={metricDef.format}
                   noteFor={(e) => (e.selected ? '当前选中' : undefined)}
-                  onSelect={(id) => {
-                    setSelected([id]);
-                    touchedRef.current = true;
-                  }}
+                  onSelect={selectFromRanking}
                 />
                 <p className="view-caption">
-                  {isRegionMode
-                    ? '中国省级行政区与美国各州，按「' + metricDef.label + '」排在一起。点一条就选它。'
-                    : '所有经济体按「' + metricDef.label + '」排名。点一条就选它。'}
+                  {`国家与省/州按「${metricDef.label}」排在一起（国家侧用 ${sourceYear} 年的数据）。点一条就选它。`}
                 </p>
               </div>
             ) : view === 'square' ? (
