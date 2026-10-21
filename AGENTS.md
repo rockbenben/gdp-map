@@ -15,7 +15,7 @@
 ## 2. 现状
 
 已经跑起来了：数据管线、2D 地图、3D 地球、搜索、URL 分享、PNG 导出全部可用，
-浏览器级验收 26 项全过。
+浏览器级验收 47 项全过。
 
 ```
 046/
@@ -118,12 +118,12 @@
    把 `data/provincial-gdp-2024.json` 变成脚本产物。
 3. **PPP 口径**：需要省级 PPP 源，否则保持现状。
 4. **OG 分享图**：加 `ImageResponse` 之类，让分享链接在社交平台带缩略图。
-5. **部署**：静态站，`dist/` 可直接上 Cloudflare Pages / GitHub Pages / Vercel。
+5. **部署**：静态站，`dist/` 可直接上 **EdgeOne Pages**（已定的目标平台；目前暂缓，先放本地）。
 
 ## 6. 怎样算做完
 
 - `npm run typecheck` 无错
 - `npm run test` 全绿（核心算法单测）
-- `node scripts/acceptance.mjs` 26 项全过（需先起 dev server）
+- `node scripts/acceptance.mjs` 47 项全过（需先起 dev server）
 - `npm run build` 成功产出 `dist/`
 - 页脚数据来源与官方原表链接可点、可见

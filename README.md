@@ -173,7 +173,7 @@ node scripts/acceptance.mjs   # 浏览器级验收（需先起 dev server）
 npm run build     # 产物在 dist/
 ```
 
-`dist/` 直接丢到任何静态托管即可（Cloudflare Pages / GitHub Pages / Vercel / Nginx）。
+`dist/` 直接丢到任何静态托管即可（目标平台 EdgeOne Pages，任意静态托管 / Nginx 也行）。
 `vite.config.ts` 里 `base: './'` 用的是相对路径，放子目录也能跑。
 数据是构建期抓取好的静态 JSON，运行时不再访问外部接口。
 
