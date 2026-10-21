@@ -55,6 +55,27 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
 
   const features = polygons.features;
 
+  /**
+   * 星空：固定的一批小点。
+   *
+   * 用固定种子生成，随机数每次渲染都一样——不然每次转都换一批星，像在闪。
+   * 只用圆点不用滤镜：导出会把 filter 属性摘掉（filters 太慢），
+   * 用滤镜做的星光在导出的图里就没了。
+   */
+  const stars = useMemo(() => {
+    let seed = 20241021;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    return Array.from({ length: 180 }, () => ({
+      x: rand() * SIZE,
+      y: rand() * SIZE,
+      r: 0.4 + rand() * 1.15,
+      o: 0.14 + rand() * 0.46
+    }));
+  }, []);
+
   const labelTargets = useMemo(() => {
     const list: Array<{ id: string; label: string; color: string; area: number }> = [];
     for (const f of features) {
@@ -176,7 +197,9 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
   useEffect(() => {
     let raf = 0;
     let last = 0;
-    const FRAME_MS = 55; // 约 18 帧/秒，避免把主线程占满
+    // 每帧要重算 261 条路径的球面坐标，实测满帧只能跑 30 fps，
+    // 所以节流到 30 帧：拖动时明显比原来的 18 帧跟手，又不至于把主线程占满。
+    const FRAME_MS = 33;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       if (now - last < FRAME_MS) return;
@@ -275,6 +298,13 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
             <feGaussianBlur stdDeviation="3" />
           </filter>
         </defs>
+
+        {/* 星空 */}
+        <g className="globe-stars">
+          {stars.map((s, i) => (
+            <circle key={i} cx={s.x} cy={s.y} r={s.r} fill={`rgba(214,228,255,${s.o.toFixed(2)})`} />
+          ))}
+        </g>
 
         {/* 大气：外圈的光晕 + 贴着球的一层 */}
         <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS + ATMO * 1.5} fill="url(#globe-halo)" />
