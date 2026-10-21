@@ -12,7 +12,8 @@
     "data:fetch": "node scripts/fetch-sources.mjs",
     "data:build": "node scripts/build-data.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "acceptance": "node scripts/acceptance.mjs"
   },
   "dependencies": {
     "d3-geo": "^3.1.1",

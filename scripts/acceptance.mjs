@@ -1,12 +1,21 @@
 // 浏览器级验收：真实点一遍，确认地图、指标、对照方式、剪影对照、导出、URL 都能用。
-// 用法：node scripts/acceptance.mjs [baseUrl]
+//
+// 用法：
+//   node scripts/acceptance.mjs            自动起服务器伺服 dist/（推荐，CI 就走这条）
+//   node scripts/acceptance.mjs <baseUrl>  对着已经跑着的站点跑（比如本地 dev server）
+//
+// 两条路的差别只有「谁来起服务器」：给 baseUrl 就用给定的（dev server 上跑，测的是热更新后的源码），
+// 不给就伺服 dist/（测的是真正要上线的那份产物，CI 里必须走这条）。
 import { chromium } from 'playwright';
 import { mkdir, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startServer } from './static-server.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BASE = process.argv[2] ?? 'http://localhost:5183';
+const DIST = resolve(ROOT, 'dist');
 const SHOTS = resolve(ROOT, 'tmp/acceptance');
 await mkdir(SHOTS, { recursive: true });
 
@@ -16,7 +25,60 @@ function check(name, ok, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  — ${detail}` : ''}`);
 }
 
-const browser = await chromium.launch({ channel: 'chrome' });
+/**
+ * 起浏览器。
+ *
+ * 默认：优先用本机装好的 Google Chrome（channel: 'chrome'），省掉几百 MB 下载；
+ * 起不来再退回 Playwright 自带的 chromium。
+ *
+ * ⚠️ **CI 里要用 `ACCEPTANCE_BROWSER=chromium` 强制走自带浏览器。**
+ * GitHub 的 ubuntu runner **预装了 Google Chrome**，所以默认那条路在 CI 里也会成功——
+ * 于是 `npx playwright install --with-deps chromium` 白装了，而且 Playwright 并不保证
+ * 自带浏览器与系统 Chrome 的协议版本对得上（channel 模式属于「尽量能用」，
+ * 官方支持的组合是自带浏览器）。强制走自带的那条，CI 跑的就是下载下来那个版本。
+ */
+async function launchBrowser() {
+  const forced = process.env.ACCEPTANCE_BROWSER;
+  const notes = [];
+
+  if (forced !== 'chromium') {
+    try {
+      const b = await chromium.launch({ channel: 'chrome' });
+      return { browser: b, via: '系统 Chrome（channel: chrome）' };
+    } catch (err) {
+      notes.push('channel=chrome 起不来：' + String(err?.message ?? err).split('\n')[0]);
+    }
+  }
+
+  try {
+    const b = await chromium.launch();
+    return { browser: b, via: 'Playwright 自带的 chromium' };
+  } catch (err) {
+    notes.push('自带 chromium 起不来：' + String(err?.message ?? err).split('\n')[0]);
+  }
+
+  throw new Error('没有可用的浏览器。\n  ' + notes.join('\n  ') + '\n  下载：npx playwright install chromium');
+}
+
+/** 验收目标地址：给了 baseUrl 就用它，否则自己伺服 dist/。 */
+async function resolveBase() {
+  const given = process.argv[2];
+  if (given) return { base: given, stop: async () => {} };
+
+  if (!existsSync(resolve(DIST, 'index.html'))) {
+    console.log('· dist/ 里没有 index.html，先跑 npm run build …');
+    const r = spawnSync('npm', ['run', 'build'], { cwd: ROOT, stdio: 'inherit', shell: true });
+    if (r.status !== 0) throw new Error(`npm run build 失败（退出码 ${r.status}）`);
+  }
+
+  const server = await startServer(DIST);
+  console.log(`· 验收站点：${server.origin}（伺服 dist/）`);
+  return { base: server.origin, stop: () => server.close() };
+}
+
+const { base: BASE, stop: stopServer } = await resolveBase();
+const { browser, via: browserVia } = await launchBrowser();
+console.log(`· 浏览器：${browserVia}`);
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
 const page = await context.newPage();
 
@@ -36,6 +98,19 @@ try {
   check('世界地图渲染国家多边形', mapPaths > 100, `${mapPaths} 条路径`);
   const subPaths = await page.locator('.map-holder svg .subdivisions path').count();
   check('世界地图带省/州细分层', subPaths > 80, `${subPaths} 条边界`);
+
+  // 路径里不能出现 NaN：d3-geo 遇到退化/越界的坐标会写出 "MNaN,NaN..."，
+  // 那种路径不报错、只是整块画不出来（AGENTS.md 里踩过：按 4 元组取包围盒中心）。
+  // 所以这里不靠「有没有抛异常」，直接扫 d 属性。
+  const badPaths = await page.evaluate(() => {
+    const bad = [];
+    for (const p of document.querySelectorAll('svg path')) {
+      const d = p.getAttribute('d') ?? '';
+      if (/NaN|Infinity|undefined/i.test(d)) bad.push(d.slice(0, 60));
+    }
+    return bad;
+  });
+  check('路径没有 NaN', badPaths.length === 0, badPaths.slice(0, 2).join(' | '));
 
   // 2. 选一个省 → 出结果
   await page.locator('.picker-item', { hasText: '河南省' }).first().click();
@@ -263,6 +338,7 @@ try {
   check('验收脚本执行', false, String(e).slice(0, 200));
 } finally {
   await browser.close();
+  await stopServer();
 }
 
 const failed = results.filter((r) => !r.ok);
