@@ -1147,7 +1147,7 @@ export default function App() {
                 <div className="choice active static">
                   <span className="choice-title">{STRATEGY_LABEL.nearest}</span>
                   <span className="choice-preview">{strategyPreviews[0]?.preview ?? '—'}</span>
-                  <span className="choice-hint">人均不能相加，只能跟单个国家比。</span>
+                  <span className="choice-hint">人均不能相加，只能跟单个对象比。</span>
                 </div>
               </div>
             )}
@@ -1217,7 +1217,7 @@ export default function App() {
           <RegionPicker
             // 换方向时重建：否则上一次搜的词还留在框里，列表看着像空的
             key={mode}
-            title={isRegionMode ? '选择一个省 / 州' : '选择一个国家'}
+            title={isRegionMode ? '选择一个省 / 州 / 地区' : '选择一个国家'}
             hint={
               isRegionMode
                 ? additive

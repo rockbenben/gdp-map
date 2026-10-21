@@ -2,6 +2,7 @@ import { formatPercent } from '../lib/format';
 import { relativeError } from '../lib/match';
 import type { MatchResult } from '../lib/match';
 import type { Metric, MetricTitle } from '../lib/metrics';
+import { METRICS } from '../lib/metrics';
 import { AreaSilhouette } from './AreaSilhouette';
 import { CounterfactualCard } from './CounterfactualCard';
 import { CountUp } from './CountUp';
@@ -128,7 +129,9 @@ export function ResultPanel({
         </p>
         {result.count > 1 && matchedPopulation > 0 ? (
           <p className="result-single">
-            这 {result.count} 个{unitName}加起来住着 <strong>{metric.format(matchedPopulation)}</strong>
+            {/* ⚠️ 人口要用人口自己的格式：拿当前指标（可能是 GDP）的格式去写，
+                会变成「住着 10 亿美元」这种鬼话 */}
+            这 {result.count} 个{unitName}加起来住着 <strong>{METRICS.pop.format(matchedPopulation)}</strong>
           </p>
         ) : null}
         {result.count === 1 && only && only.value > 0 ? (

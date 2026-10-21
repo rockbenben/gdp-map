@@ -362,7 +362,11 @@ try {
   await page.goto(`${BASE}/?sel=CN-410000,CN-440000&view=bracket`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.target-compare', { timeout: 15000 });
   const score = (await page.locator('.tc-score').first().innerText()).replace(/\s+/g, ' ');
-  check('擂台给出比分', /胜出|平局/.test(score), score);
+  const verdict = (await page.locator('.tc-verdict').first().innerText()).replace(/\s+/g, ' ');
+  check('擂台给出比分', /胜出|平局/.test(verdict) && /\d/.test(score), `${score} · ${verdict}`);
+  // 两边各是哪一列，得写出来
+  const tcHead = (await page.locator('.tc-head').first().innerText()).replace(/\s+/g, ' ');
+  check('擂台标出两边是谁', tcHead.includes('河南省') && tcHead.includes('广东省'), tcHead);
   const bracketNodes = await page.locator('.bracket-label').count();
   check('对阵树画出晋级路径', bracketNodes > 8, `${bracketNodes} 个节点`);
 
@@ -579,7 +583,7 @@ try {
     `${raceBefore[0].name} → ${raceAfter[0].name}`
   );
 
-  // 20.1 排行板要是「GDP 追赶」的样子：数值挂在条形末端，条形自己会长
+  // 排行板要是「GDP 追赶」的样子：数值挂在条形末端，条形自己会长
   const rides = await page.$eval('.rank-fill', (el) => el.querySelector('.rank-value') !== null);
   const barTransition = await page.$eval('.rank-fill', (el) => getComputedStyle(el).transitionDuration);
   check(

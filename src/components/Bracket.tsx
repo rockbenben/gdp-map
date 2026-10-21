@@ -22,18 +22,19 @@ interface Props {
  * 对阵树：把排名靠前的地区两两淘汰，每轮赢者晋级。
  * 看起来是一张「谁大谁小」的晋级图，点名字可以直接切换参照物。
  */
-export function Bracket({ entrants, highlightIds = [], width = 1100, height = 560, onSelect }: Props) {
+export function Bracket({ entrants, highlightIds = [], width = 880, height = 560, onSelect }: Props) {
   const layout = useMemo(() => {
     const list = entrants.slice(0, 16);
     if (list.length < 4) return null;
 
-    const rounds: Array<Array<{ y: number; id: string; text: string; value: number }>> = [];
+    const rounds: Array<Array<{ y: number; id: string; name: string; text: string; value: number }>> = [];
     // 第 0 轮：每两个一格（顶部留出标题的位置）
     const topPad = 26;
     const rowH = (height - topPad) / list.length;
     const first = list.map((e, i) => ({
       y: topPad + i * rowH + rowH / 2,
       id: e.id,
+      name: e.zh,
       text: e.text,
       value: e.value
     }));
@@ -42,7 +43,7 @@ export function Bracket({ entrants, highlightIds = [], width = 1100, height = 56
     // 后续轮次：两个子节点的中点
     let prev = first;
     while (prev.length > 1) {
-      const next: Array<{ y: number; id: string; text: string; value: number }> = [];
+      const next: Array<{ y: number; id: string; name: string; text: string; value: number }> = [];
       for (let i = 0; i < prev.length; i += 2) {
         const a = prev[i];
         const b = prev[i + 1];
@@ -51,7 +52,7 @@ export function Bracket({ entrants, highlightIds = [], width = 1100, height = 56
           continue;
         }
         const win = a.value >= b.value ? a : b;
-        next.push({ y: (a.y + b.y) / 2, id: win.id, text: win.text, value: win.value });
+        next.push({ y: (a.y + b.y) / 2, id: win.id, name: win.name, text: win.text, value: win.value });
       }
       rounds.push(next);
       prev = next;
@@ -130,7 +131,11 @@ export function Bracket({ entrants, highlightIds = [], width = 1100, height = 56
                   onClick={() => onSelect?.(node.id)}
                   style={{ cursor: 'pointer' }}
                 >
-                  {node.text}
+                  {node.name}
+                  {/* 名字后面跟一个小号的数值：光看数值不知道是谁 */}
+                  <tspan className="bracket-value" dx="7">
+                    {node.text}
+                  </tspan>
                 </text>
               ) : null}
             </g>
@@ -139,7 +144,7 @@ export function Bracket({ entrants, highlightIds = [], width = 1100, height = 56
       )}
 
       <text x={12} y={20} className="bracket-caption">
-        前 {list.length} 名两两淘汰
+        {`前 ${list.length} 名`}
       </text>
     </svg>
   );

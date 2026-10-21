@@ -28,18 +28,21 @@ export function TargetComparison({ a, b, current, values }: Props) {
 
   return (
     <section className="target-compare">
-      <h3>
-        擂台：<span className="tc-a">{a.zh}</span> <em>vs</em> <span className="tc-b">{b.zh}</span>
-      </h3>
-      <div className="tc-score">
-        <span className={scoreA >= scoreB ? 'win' : 'lose'}>{scoreA}</span>
-        <i>:</i>
-        <span className={scoreB >= scoreA ? 'win' : 'lose'}>{scoreB}</span>
-        <em>
-          {scoreA === scoreB ? '平局' : scoreA > scoreB ? `${a.zh} 胜出` : `${b.zh} 胜出`}
-          {current ? `（当前指标：${current.label}）` : ''}
-        </em>
+      <h3>擂台</h3>
+      {/* 两边各是哪一列，得写出来——不然两串数字分不清谁是谁 */}
+      <div className="tc-head">
+        <span />
+        <span className="tc-a">{a.zh}</span>
+        <span className="tc-b">{b.zh}</span>
       </div>
+      <div className="tc-score">
+        <span className={`tc-num${scoreA >= scoreB ? ' win' : ''}`}>{scoreA}</span>
+        <span className={`tc-num${scoreB >= scoreA ? ' win' : ''}`}>{scoreB}</span>
+      </div>
+      <p className="tc-verdict">
+        {scoreA === scoreB ? '平局' : scoreA > scoreB ? `${a.zh} 胜出` : `${b.zh} 胜出`}
+        {current ? `（当前指标：${current.label}）` : ''}
+      </p>
       <ul className="tc-rows">
         {rows.map((r) => (
           <li key={r.id} className={r.id === current.id ? 'current' : ''}>

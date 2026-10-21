@@ -91,7 +91,7 @@ export function RegionPicker({
         className="search"
         type="search"
         value={query}
-        placeholder="搜索：广东 / guangdong / gd / 河南 / Texas"
+        placeholder="搜索：广东 / guangdong / gd / Texas"
         onChange={(e) => setQuery(e.target.value)}
       />
 
