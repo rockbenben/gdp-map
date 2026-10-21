@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
-    "data": "node scripts/fetch-sources.mjs && node scripts/build-data.mjs",
+    "data": "node scripts/fetch-sources.mjs && node scripts/fetch-regions.mjs && node scripts/build-data.mjs",
     "data:fetch": "node scripts/fetch-sources.mjs",
     "data:build": "node scripts/build-data.mjs",
     "test": "vitest run",

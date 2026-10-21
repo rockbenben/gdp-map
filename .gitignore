@@ -7,6 +7,8 @@ dist/
 data/raw/*.json
 data/raw/*.jpg
 data/raw/*.geo.json
+data/raw/*.geojson
+data/raw/*.xlsx
 data/raw/fx-usd-cny-*.json
 
 # 验收脚本产物

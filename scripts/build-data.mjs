@@ -330,6 +330,52 @@ for (const x of CN_EXTRA) {
 }
 provinceList.sort((a, b) => (b.gdp.nominal[provYear.meta.year] ?? 0) - (a.gdp.nominal[provYear.meta.year] ?? 0));
 
+// ---------- 欧洲 NUTS-1 与日本都道府县 ----------
+// 另一套源（Eurostat + 日本内阁府 + Natural Earth），由 scripts/fetch-regions.mjs 抓，
+// 归一化后的结果放在 data/regions-eu-jp.json。
+const euJp = await readJson(resolve(ROOT, 'data/regions-eu-jp.json'));
+const nutsGeoRaw = await readJson(resolve(RAW, 'nuts1.geojson'));
+const neAdmin1 = await readJson(resolve(RAW, 'ne_10m_admin_1.geo.json'));
+
+/** NUTS-1 与日本都道府县的几何。面积从这里算，跟中美两省一个口径。
+ *  ⚠️ **这两个源不要反转绕向**：Natural Earth 和 Eurostat 的绕向本来就是对的
+ *  （反转后京都的面积会变成 5.1 亿 km²——球面补集）。要反转的只有 DataV 的中国边界。 */
+const extraGeometry = new Map();
+for (const f of nutsGeoRaw.features) {
+  const id = String(f.properties.NUTS_ID);
+  if (!euJp.regions.some((r) => r.set === 'nuts' && r.code === id)) continue;
+  extraGeometry.set(`EU-${id}`, f.geometry);
+}
+for (const f of neAdmin1.features) {
+  if (f.properties.adm0_a3 !== 'JPN') continue;
+  // Natural Earth 的 admin-1 没有两位代码，用日文名反查——日本 47 个都道府县的名字是唯一的
+  const jaName = f.properties.name_ja ?? f.properties.name;
+  const hit = euJp.regions.find((r) => r.set === 'jp' && r.en === jaName);
+  if (!hit) continue;
+  extraGeometry.set(hit.id, f.geometry);
+}
+
+const extraRegions = euJp.regions.map((r) => {
+  const geometry = extraGeometry.get(r.id);
+  return {
+    id: r.id,
+    set: r.set,
+    parentId: r.parentId,
+    zh: r.zh,
+    en: r.en,
+    gdpUsd: r.gdpUsd,
+    pop: r.pop,
+    area: geometry ? Math.round(geometryAreaKm2(geometry)) : null,
+    source: r.source
+  };
+});
+// 面积算完再看有没有漏掉几何的
+const noGeometry = extraRegions.filter((r) => r.area == null);
+if (noGeometry.length) {
+  console.warn(`  ! ${noGeometry.length} 个新地区没找到边界：${noGeometry.map((r) => r.id).join(', ')}`);
+}
+extraRegions.sort((a, b) => b.gdpUsd - a.gdpUsd);
+
 // ---------- 世界边界：把 TWN 并入 CHN（国内发布惯例）----------
 const worldFeatures = [];
 for (const f of worldGeo.features) {
@@ -437,7 +483,30 @@ const objects = [
     },
     source: 'BEA 州级 GDP（2024）与人口（经维基百科转录），面积按 us-atlas 州界几何算',
     search: s.search
-  }))
+  })),
+  // 欧洲 NUTS-1 与日本都道府县：各自的数据年份不一样，所以 year 跟着对象走
+  ...extraRegions.map((r) => {
+    const year = r.set === 'jp' ? euJp.year : String(euJp.euYear);
+    return {
+      id: r.id,
+      kind: 'region',
+      parentId: r.parentId,
+      zh: r.zh,
+      en: r.en,
+      geoId: r.id,
+      hasGeometry: true,
+      year,
+      metrics: {
+        gdp: { nominal: { [year]: r.gdpUsd } },
+        gdpPc: { [year]: r.pop ? Math.round((r.gdpUsd / r.pop) * 100) / 100 : undefined },
+        pop: { [year]: r.pop },
+        area: r.area,
+        ppp: undefined
+      },
+      source: r.source,
+      search: searchKey(r.zh, r.en)
+    };
+  })
 ];
 
 const meta = {
@@ -449,6 +518,9 @@ const meta = {
   provinceSourceUrl: provYear.meta.sourceUrl,
   usStateSource:
     'BEA 州级名义 GDP（2024）与人口（维基百科转录，源引 BEA / Census）；面积按 us-atlas 州界几何算',
+  extraRegionSource:
+    `欧洲 NUTS-1（${euJp.euYear}，Eurostat nama_10r_3gdp / nama_10r_3popgdp，边界 Eurostat GISCO）；` +
+    `日本都道府县（${euJp.year} 年度，内阁府《府县民经济计算》与总人口，边界 Natural Earth）`,
   exchangeRate: Object.fromEntries(YEARS.map((y) => [y, fx[y]])),
   units: { country: 'USD', region: 'USD（由亿元人民币按年均汇率折算）' },
   generatedAt: new Date().toISOString(),
@@ -461,6 +533,30 @@ await writeFile(resolve(OUT, 'geo/china.json'), JSON.stringify(roundGeometry({ t
 await writeFile(
   resolve(OUT, 'geo/us-states.json'),
   JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: usFeatures })),
+  'utf8'
+);
+
+// 欧洲 NUTS-1 与日本都道府县：单独一个文件。
+// ⚠️ 这些地区的数量多（141 个），画在世界地图上会把欧洲糊成一片——
+// 所以标了 drawOnlyWhenHighlighted，只在被高亮时才描边。
+const extraFeatures = [];
+for (const r of extraRegions) {
+  const geometry = extraGeometry.get(r.id);
+  if (!geometry) continue;
+  extraFeatures.push({
+    type: 'Feature',
+    id: r.id,
+    properties: {
+      name: r.en,
+      zh: r.zh,
+      drawOnlyWhenHighlighted: true
+    },
+    geometry
+  });
+}
+await writeFile(
+  resolve(OUT, 'geo/extra-regions.json'),
+  JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: extraFeatures })),
   'utf8'
 );
 
