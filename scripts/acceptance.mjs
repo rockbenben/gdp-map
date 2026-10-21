@@ -476,11 +476,24 @@ try {
   check('附南海诸岛小图', seaBox > 0, `${seaBox} 个标注`);
   await page.screenshot({ path: resolve(SHOTS, 'map-china.png'), fullPage: false });
 
-  // 12. 美国州也能当参照物
+  // 12.7 美国州也能当参照物
   await page.goto(`${BASE}/?sel=US-48`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.result-headline h1', { timeout: 15000 });
   const txHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
   check('美国州可作参照物', /得克萨斯州/.test(txHeadline), txHeadline);
+
+  // 13. 两个地方对比：地图上两个参照物要用两种颜色（一种颜色画两个形状，读者只能靠位置猜）
+  await page.goto(`${BASE}/?sel=CN-410000,US-48`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1600);
+  const sourceFills = await page.$$eval('.map-holder svg .subdivisions path', (ps) => [
+    ...new Set(
+      ps
+        .map((p) => p.getAttribute('fill'))
+        .filter((f) => f && f !== 'none')
+        .map((f) => String(f).toLowerCase())
+    )
+  ]);
+  check('两个参照物用两种颜色', sourceFills.length === 2, sourceFills.join(' / '));
 
   check('无运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {

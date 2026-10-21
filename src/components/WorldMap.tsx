@@ -111,7 +111,8 @@ export function WorldMap({
           const h = highlightMap.get(id);
           const s = sourceMap.get(id);
           const d = path(f as never) ?? '';
-          const fill = h ? colorFor(h) : s ? PALETTE.source : PALETTE.land;
+          // 参照物可以有两个（两个地方对比），颜色由上层给，不能写死一种
+          const fill = h ? colorFor(h) : s ? (s.color ?? PALETTE.source) : PALETTE.land;
           const isDim = (highlights.length > 0 || sources.length > 0) && !h && !s;
           const isSelected = selectedSet.has(id);
           const clickable = Boolean(onSelect);

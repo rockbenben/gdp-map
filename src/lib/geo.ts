@@ -27,7 +27,9 @@ export const PALETTE = {
   globeLand: '#2a3a5e',
   matchedLow: '#f6c453',
   matchedHigh: '#ef4d4d',
-  source: '#3fd0c9'
+  source: '#3fd0c9',
+  /** 第二个参照物用的颜色（两个地方对比时要能分清谁是谁） */
+  source2: '#a78bfa'
 };
 
 export function createWorldProjection(width: number, height: number) {

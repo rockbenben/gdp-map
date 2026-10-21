@@ -606,15 +606,41 @@ export default function App() {
     return m;
   }, [match, puzzle, isRegionMode, regionById, allCountries]);
 
+  /**
+   * 参照物的颜色：第一个青、第二个紫。
+   *
+   * 两个地方对比时，地图上两个都得看得见，还得能分清谁是谁——一种颜色画两个
+   * 形状，读者只能靠位置猜。颜色只有两种，第三个参照物就复用青色。
+   * 两种颜色分不出区别时（两个参照物落在同一块地面上，同一份几何），
+   * 宁可退回一种颜色，也不要画一个看不出来的「区分」。
+   */
+  const sourceColors = useMemo(() => {
+    const geoIds = new Set(sourceSelected.map((r) => r.geometryId));
+    if (sourceSelected.length > 1 && geoIds.size < sourceSelected.length) return [PALETTE.source];
+    return sourceSelected.map((_, i) => (i % 2 === 1 ? PALETTE.source2 : PALETTE.source));
+  }, [sourceSelected]);
+
+  /** 几何 id → 颜色（中国小图这类按 id 上色的地方要用） */
+  const sourceColorMap = useMemo(() => {
+    const m = new Map<string, string>();
+    sourceSelected.forEach((r, i) => m.set(r.geometryId, sourceColors[i] ?? PALETTE.source));
+    return m;
+  }, [sourceSelected, sourceColors]);
+
   const globeSources = useMemo(() => {
     const m = new Map<string, { id: string; label: string; gdp?: number; color: string }>();
     if (!isRegionMode) {
-      for (const r of sourceSelected) {
-        m.set(r.geometryId, { id: r.geometryId, label: r.zh, gdp: r.gdpUsd, color: PALETTE.source });
-      }
+      sourceSelected.forEach((r, i) => {
+        m.set(r.geometryId, {
+          id: r.geometryId,
+          label: r.zh,
+          gdp: r.gdpUsd,
+          color: sourceColors[i] ?? PALETTE.source
+        });
+      });
     }
     return m;
-  }, [isRegionMode, sourceSelected]);
+  }, [isRegionMode, sourceSelected, sourceColors]);
 
   /**
    * 参照物在 2D 地图上的高亮。
@@ -630,9 +656,9 @@ export default function App() {
       rank: i,
       label: r.zh,
       value: r.gdpUsd,
-      color: PALETTE.source
+      color: sourceColors[i] ?? PALETTE.source
     }));
-  }, [isRegionMode, sourceSelected]);
+  }, [isRegionMode, sourceSelected, sourceColors]);
 
   const sourceCountryHighlights = useMemo(() => {
     if (isRegionMode) return [];
@@ -641,9 +667,9 @@ export default function App() {
       rank: i,
       label: r.zh,
       value: r.gdpUsd,
-      color: PALETTE.source
+      color: sourceColors[i] ?? PALETTE.source
     }));
-  }, [isRegionMode, sourceSelected]);
+  }, [isRegionMode, sourceSelected, sourceColors]);
 
   // ---------- 地球仪：世界国家 + 省/州合为一层 ----------
   const globePolygons = useMemo<FeatureCollection | null>(() => {
@@ -1280,11 +1306,8 @@ export default function App() {
                       southSea={china ? <SouthSeaBox geo={china} x={MAP_W - 126} y={MAP_H - 146} width={108} height={128} /> : null}
                       onSelect={handleMapClick}
                       chinaInset={
-                        sourceSelected[0]?.parentId === 'CHN' ? (
-                          <ChinaInset
-                            china={china}
-                            highlightIds={new Set(sourceSelected.map((r) => r.geometryId))}
-                          />
+                        sourceSelected.some((r) => r.parentId === 'CHN') ? (
+                          <ChinaInset china={china} highlightColors={sourceColorMap} />
                         ) : null
                       }
                     />
@@ -1341,9 +1364,23 @@ export default function App() {
               <span className="legend-item">
                 <i className="swatch" style={{ background: PALETTE.matchedHigh }} /> 其中最大的几个
               </span>
-              <span className="legend-item">
-                <i className="swatch" style={{ background: PALETTE.source }} /> 参照地区
-              </span>
+              {sourceSelected.length >= 2 ? (
+                <>
+                  <span className="legend-item">
+                    <i className="swatch" style={{ background: PALETTE.source }} /> {sourceSelected[0].zh}
+                  </span>
+                  <span className="legend-item">
+                    <i className="swatch" style={{ background: PALETTE.source2 }} /> {sourceSelected[1].zh}
+                  </span>
+                  {sourceSelected.length > 2 ? (
+                    <span className="legend-item">共 {sourceSelected.length} 个参照地区</span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="legend-item">
+                  <i className="swatch" style={{ background: PALETTE.source }} /> 参照地区
+                </span>
+              )}
             </div>
             {dataset ? (
               <details
@@ -1386,7 +1423,14 @@ export default function App() {
 }
 
 /** 中国小图（世界地图左下角的定位插图） */
-function ChinaInset({ china, highlightIds }: { china: FeatureCollection; highlightIds: Set<string> }) {
+function ChinaInset({
+  china,
+  highlightColors
+}: {
+  china: FeatureCollection;
+  /** 几何 id → 颜色。两个参照物时各用各的颜色，分得清谁是谁 */
+  highlightColors: Map<string, string>;
+}) {
   const width = 168;
   const height = 196;
   const features = useMemo(() => china.features.filter((f) => !f.properties.isSouthSea), [china]);
@@ -1406,15 +1450,15 @@ function ChinaInset({ china, highlightIds }: { china: FeatureCollection; highlig
       />
       {features.map((f) => {
         const id = String(f.id);
-        const active = highlightIds.has(id);
+        const color = highlightColors.get(id);
         return (
           <path
             key={id}
             d={path(f as never) ?? ''}
-            fill={active ? PALETTE.source : 'rgba(30,42,72,0.9)'}
-            fillOpacity={active ? 1 : 0.75}
-            stroke={active ? 'rgba(255,255,255,0.6)' : '#26314f'}
-            strokeWidth={active ? 0.8 : 0.3}
+            fill={color ?? 'rgba(30,42,72,0.9)'}
+            fillOpacity={color ? 1 : 0.75}
+            stroke={color ? 'rgba(255,255,255,0.6)' : '#26314f'}
+            strokeWidth={color ? 0.8 : 0.3}
           />
         );
       })}
