@@ -174,22 +174,20 @@ const worldIds = new Set(worldGeo.features.map((f) => f.id));
 let countryList = [];
 for (const [iso3, rec] of Object.entries(weo.data)) {
   const nominal = {};
-  for (const y of YEARS) {
-    const v = rec.NGDPD?.[y];
+  for (const [y, v] of Object.entries(rec.NGDPD ?? {})) {
     if (v != null) nominal[y] = v * 1e9; // WEO 单位：十亿美元 → 美元
   }
   if (!nominal[DEFAULT_YEAR]) continue;
   const pop = {};
-  for (const y of YEARS) {
-    const v = rec.LP?.[y];
+  for (const [y, v] of Object.entries(rec.LP ?? {})) {
     if (v != null) pop[y] = v * 1e6; // WEO 单位：百万人 → 人
   }
   const en = weo.labels?.[iso3] ?? iso3;
   const zh = zhCountryName(iso3);
   const area = countryArea.get(iso3) ?? null;
   const gdpPc = {};
-  for (const y of YEARS) {
-    if (nominal[y] != null && pop[y]) gdpPc[y] = nominal[y] / pop[y];
+  for (const y of Object.keys(nominal)) {
+    if (pop[y]) gdpPc[y] = nominal[y] / pop[y];
   }
   countryList.push({
     id: iso3,

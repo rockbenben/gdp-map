@@ -52,9 +52,14 @@ export function toRegion(obj: RegionObject, year: string): Region {
   };
 }
 
-/** 把数据集拆成国家池与省/州池 */
-export function splitDataset(data: Dataset, year: string): { countries: Region[]; regions: Region[] } {
-  const all = data.objects.map((o) => toRegion(o, year));
+/** 把数据集拆成国家池与省/州池。两侧年份可以不同：国家侧可回溯，省/州固定在年鉴年份。 */
+export function splitDataset(
+  data: Dataset,
+  countryYear: string,
+  regionYear?: string
+): { countries: Region[]; regions: Region[] } {
+  const year = regionYear ?? data.meta.provinceYear;
+  const all = data.objects.map((o) => toRegion(o, o.kind === 'country' ? countryYear : year));
   const countries = all.filter((r) => r.kind === 'country');
   const regions = all.filter((r) => r.kind === 'region');
   // 给省/州补上所属国家名，选择器里按国家分组显示

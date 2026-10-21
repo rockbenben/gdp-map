@@ -94,7 +94,13 @@ async function fetchWeo() {
             const i = d.period.indexOf(String(y));
             return i >= 0 ? d.value[i] : null;
           };
-          rec[ind] = { 2024: at(2024), 2025: at(2025) };
+          // 整段年份序列都留着：后面要能选「拿哪一年的世界来比」
+          const series = {};
+          d.period.forEach((p, i) => {
+            const y = Number(p);
+            if (y >= 1990 && y <= 2025 && d.value[i] != null) series[y] = d.value[i];
+          });
+          rec[ind] = series;
         } catch (e) {
           rec[ind] = null;
         }

@@ -21,7 +21,7 @@ interface Props {
   /** 当前对照方式的名称 */
   strategyLabel: string;
   /** 参照物在被比对象里能排第几 */
-  worldRank?: { rank: number; total: number } | null;
+  worldRank?: { rank: number; total: number; year?: number } | null;
   /** 匹配到的对象一共多少人 */
   matchedPopulation?: number;
   /** 最接近的单个对象 */
@@ -97,7 +97,9 @@ export function ResultPanel({
         ) : null}
         <p className="result-strategy">
           {metric.valueLabel}｜对照方式：{strategyLabel}
-          {worldRank ? `｜在 ${worldRank.total} 个经济体里排第 ${worldRank.rank} 位` : ''}
+          {worldRank
+            ? `｜在 ${worldRank.year ?? ''} 年的 ${worldRank.total} 个经济体里排第 ${worldRank.rank} 位`
+            : ''}
         </p>
         {result.count > 1 && matchedPopulation > 0 ? (
           <p className="result-single">

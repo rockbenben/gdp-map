@@ -154,6 +154,18 @@ try {
   await download2.saveAs(png2);
   check('导出地球 PNG 成功', (await stat(png2)).size > 20000);
 
+  // 10.6 年份回溯：换一个年份，世界与排名都跟着变
+  await page.goto(`${BASE}/?sel=CN-410000&y=2010`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  const rank2010 = (await page.locator('.result-strategy').innerText()).replace(/\s+/g, ' ');
+  check('年份进入排名说明', /2010\s*年/.test(rank2010), rank2010);
+  const count2010 = await page.locator('.result-item').count();
+  check('换一个年份匹配结果不同', count2010 > 0, `2010 年：${count2010} 件`);
+  await page.locator('.year-ticks button', { hasText: '1990' }).click();
+  await page.waitForTimeout(400);
+  check('滑块可切到 1990', (await page.url()).includes('y=1990'), await page.url());
+  await page.locator('.strategy').screenshot({ path: resolve(SHOTS, 'panel-year.png') });
+
   // 10.5 两个目标的直接对比
   await page.goto(`${BASE}/?sel=CN-410000,CN-440000`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.target-compare', { timeout: 15000 });

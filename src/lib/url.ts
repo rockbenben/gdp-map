@@ -13,6 +13,8 @@ export interface AppState {
   metric: MetricId;
   /** 忽略人口不足 100 万的微型经济体 */
   ignoreMicro: boolean;
+  /** 拿哪一年的世界来比（国家侧） */
+  worldYear: number;
 }
 
 const DEFAULTS: AppState = {
@@ -21,7 +23,8 @@ const DEFAULTS: AppState = {
   selected: [],
   strategy: 'over',
   metric: 'gdp',
-  ignoreMicro: true
+  ignoreMicro: true,
+  worldYear: 2024
 };
 
 const STRATEGIES: MatchStrategy[] = ['many', 'over', 'big', 'nearest'];
@@ -34,6 +37,8 @@ function readState(): AppState {
   const view = p.get('view');
   const strategy = p.get('st') as MatchStrategy | null;
   const metric = p.get('m') as MetricId | null;
+  const yRaw = Number(p.get('y'));
+  const worldYear = Number.isFinite(yRaw) && yRaw >= 1990 && yRaw <= 2025 ? yRaw : DEFAULTS.worldYear;
   let selected = (p.get('sel') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const resolvedMetric = metric && METRICS.includes(metric) ? metric : DEFAULTS.metric;
   const additive = METRIC_DEF[resolvedMetric].additive;
@@ -46,7 +51,8 @@ function readState(): AppState {
       selected,
       strategy: 'nearest',
       metric: resolvedMetric,
-      ignoreMicro: p.get('micro') === '0' ? false : DEFAULTS.ignoreMicro
+      ignoreMicro: p.get('micro') === '0' ? false : DEFAULTS.ignoreMicro,
+      worldYear
     };
   }
   return {
@@ -61,7 +67,8 @@ function readState(): AppState {
           ? METRIC_DEFAULT_STRATEGY[resolvedMetric]
           : DEFAULTS.strategy,
     metric: resolvedMetric,
-    ignoreMicro: p.get('micro') === '0' ? false : DEFAULTS.ignoreMicro
+    ignoreMicro: p.get('micro') === '0' ? false : DEFAULTS.ignoreMicro,
+    worldYear
   };
 }
 
@@ -77,6 +84,7 @@ function buildQuery(state: AppState): string {
   if (state.strategy !== DEFAULTS.strategy) p.set('st', state.strategy);
   if (state.metric !== DEFAULTS.metric) p.set('m', state.metric);
   if (state.ignoreMicro !== DEFAULTS.ignoreMicro) p.set('micro', state.ignoreMicro ? '0' : '1');
+  if (state.worldYear !== DEFAULTS.worldYear) p.set('y', String(state.worldYear));
   return p.toString();
 }
 

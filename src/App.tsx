@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { geoCentroid, geoPath } from 'd3-geo';
+import { geoPath } from 'd3-geo';
 import { GlobeView } from './components/GlobeView';
 import { RegionPicker } from './components/RegionPicker';
 import { ResultPanel } from './components/ResultPanel';
@@ -48,6 +48,7 @@ export default function App() {
   const [metric, setMetric] = useState<MetricId>(initial.metric);
   const [strategy, setStrategy] = useState<MatchStrategy>(initial.strategy);
   const [ignoreMicro, setIgnoreMicro] = useState(initial.ignoreMicro);
+  const [worldYear, setWorldYear] = useState(initial.worldYear);
   const [toast, setToast] = useState<string | null>(null);
 
   const metricDef = METRICS[metric];
@@ -66,8 +67,8 @@ export default function App() {
   const year = dataset?.meta.defaultYear ?? '2024';
 
   const { countries: allCountries, regions } = useMemo(
-    () => (dataset ? splitDataset(dataset, year) : { countries: [], regions: [] }),
-    [dataset, year]
+    () => (dataset ? splitDataset(dataset, String(worldYear), year) : { countries: [], regions: [] }),
+    [dataset, worldYear, year]
   );
 
   /** 可参与对照的国家池：开启「忽略微型经济体」时剔掉人口不足 100 万的 */
@@ -131,8 +132,8 @@ export default function App() {
   }, [target, comparePool, sourceSelected, metric]);
 
   useEffect(() => {
-    writeState({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro });
-  }, [mode, view, selected, metric, effectiveStrategy, ignoreMicro]);
+    writeState({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro, worldYear });
+  }, [mode, view, selected, metric, effectiveStrategy, ignoreMicro, worldYear]);
 
   /** 四种口径各自会得到什么：让用户直接看懂区别，而不是背术语 */
   const strategyPreviews = useMemo(() => {
@@ -162,8 +163,8 @@ export default function App() {
   const worldRank = useMemo(() => {
     if (!target || !isRegionMode) return null;
     const bigger = allCountries.filter((c) => metricValue(c, metric) > target).length;
-    return { rank: bigger + 1, total: allCountries.length };
-  }, [target, isRegionMode, allCountries, metric]);
+    return { rank: bigger + 1, total: allCountries.length, year: worldYear };
+  }, [target, isRegionMode, allCountries, metric, worldYear]);
 
   const matchedPopulation = useMemo(() => {
     if (!match) return 0;
@@ -191,6 +192,29 @@ export default function App() {
     };
   }, [china, usStates]);
 
+  /** 「比大国家」时，标题写成「它是其中哪一个的几分之几」 */
+  const bigFraction = useMemo(() => {
+    if (!match || effectiveStrategy !== 'big' || match.count !== 1 || !match.items[0].value) return null;
+    return target / match.items[0].value;
+  }, [match, effectiveStrategy, target]);
+
+  const sourceLabel = sourceSelected.length ? sourceSelected.map((r) => r.zh).join(' + ') : '（未选择）';
+
+  const headline = useMemo(() => {
+    if (!match || !sourceSelected.length || bigFraction == null) return null;
+    const part =
+      bigFraction >= 1
+        ? `${bigFraction.toFixed(bigFraction < 10 ? 1 : 0)} 倍`
+        : `${(bigFraction * 100).toFixed(0)}%`;
+    return `${sourceLabel} ≈ ${match.items[0].zh}的 ${part}`;
+  }, [match, sourceSelected, bigFraction, sourceLabel]);
+
+  // 两个目标的直接对比
+  const comparison = useMemo(() => {
+    if (sourceSelected.length !== 2) return null;
+    return <TargetComparison a={sourceSelected[0]} b={sourceSelected[1]} current={metricDef} />;
+  }, [sourceSelected, metricDef]);
+
   const switchMetric = (next: MetricId) => {
     setMetric(next);
     setStrategy(METRIC_DEFAULT_STRATEGY[next]);
@@ -216,6 +240,18 @@ export default function App() {
     if (!sourcePool.length) return;
     const pick = sourcePool[Math.floor(Math.random() * sourcePool.length)];
     setSelected([pick.id]);
+  };
+
+  /** 今日一题：随机抽一个地区 + 一个指标 + 一套口径 */
+  const randomQuestion = () => {
+    if (!regions.length) return;
+    const region = regions[Math.floor(Math.random() * regions.length)];
+    const m = METRIC_ORDER[Math.floor(Math.random() * METRIC_ORDER.length)];
+    setMode('region-to-world');
+    setMetric(m);
+    setStrategy(METRIC_DEFAULT_STRATEGY[m]);
+    setSelected([region.id]);
+    setToast(`今日一题：${region.zh}的${METRICS[m].label}`);
   };
 
   // ---------- 高亮 ----------
@@ -276,10 +312,20 @@ export default function App() {
       if (!f) return null;
       return featureMainCentroid(f);
     };
+    /** 省/州的中心点：中国省用官方质心，美国州用几何主体质心 */
+    const centroidOfRegion = (geoId: string): [number, number] | null => {
+      const cn = china.features.find((x) => String(x.id) === geoId);
+      if (cn) {
+        if (cn.properties.centroid) return [cn.properties.centroid[0], cn.properties.centroid[1]];
+        return featureMainCentroid(cn);
+      }
+      const f = featureById.get(geoId);
+      return f ? featureMainCentroid(f) : null;
+    };
     const top = match.items.slice().sort((a, b) => b.value - a.value).slice(0, 12);
 
     if (isRegionMode) {
-      const start = sourceSelected[0] ? chinaCentroid(china, sourceSelected[0].geometryId) : null;
+      const start = sourceSelected[0] ? centroidOfRegion(sourceSelected[0].geometryId) : null;
       if (!start) return [];
       for (const item of top) {
         const end = centroidOfWorld(item.id);
@@ -292,24 +338,25 @@ export default function App() {
       if (!start) return [];
       for (const item of top) {
         const geoId = regionById.get(item.id)?.geometryId ?? item.id;
-        const end = chinaCentroid(china, geoId);
+        const end = centroidOfRegion(geoId);
         if (!end) continue;
         out.push({ start, end, color: PALETTE.source });
       }
     }
     return out;
-  }, [match, isRegionMode, world, china, sourceSelected, regionById]);
+  }, [match, isRegionMode, world, china, sourceSelected, regionById, featureById]);
 
   // ---------- 导出 ----------
   const handleExport = async () => {
     try {
       const title = sourceSelected.length
-        ? metricDef.title(
+        ? (headline ??
+          metricDef.title(
             sourceSelected.map((r) => r.zh).join(' + '),
             match?.count ?? 0,
             match?.items[0]?.zh ?? '',
             isRegionMode ? '国家' : '省/州'
-          )
+          ))
         : 'GDP 等价地图';
       const subtitle = sourceSelected.length
         ? `${metricDef.format(target)} · ${metricDef.valueLabel} · 数据年份 ${year}`
@@ -336,7 +383,7 @@ export default function App() {
 
   const handleCopyLink = () => {
     setToast('正在复制链接…');
-    copyText(shareUrl({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro })).then(
+    copyText(shareUrl({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro, worldYear })).then(
       (ok) => setToast(ok ? '链接已复制到剪贴板' : '复制失败，请手动复制地址栏'),
       () => setToast('复制失败，请手动复制地址栏')
     );
@@ -350,11 +397,9 @@ export default function App() {
     );
   }
 
-  const sourceLabel = sourceSelected.length ? sourceSelected.map((r) => r.zh).join(' + ') : '（未选择）';
-
-  // 面积对照的剪影：参照地区与对照对象各取一个
+  // 面积对照的剪影：参照地区与对照对象各取一个（只对单个参照物有意义）
   const silhouette = useMemo(() => {
-    if (metric !== 'area' || !match || !match.items.length || !sourceSelected[0]) return null;
+    if (metric !== 'area' || !match || !match.items.length || sourceSelected.length !== 1) return null;
     const sourceFeature = featureById.get(sourceSelected[0].geometryId) ?? null;
     const targetId = match.items[0].id;
     const targetFeature =
@@ -369,24 +414,6 @@ export default function App() {
       targetArea: METRICS.area.format(match.items[0].value)
     };
   }, [metric, match, sourceSelected, featureById, isRegionMode, regionById]);
-
-  /** 「比大国家」时，标题写成「它是其中哪一个的几分之几」 */
-  const bigFraction = useMemo(() => {
-    if (!match || effectiveStrategy !== 'big' || match.count !== 1 || !match.items[0].value) return null;
-    return target / match.items[0].value;
-  }, [match, effectiveStrategy, target]);
-
-  const headline = useMemo(() => {
-    if (!match || !sourceSelected.length || bigFraction == null) return null;
-    const part = bigFraction >= 1 ? `${bigFraction.toFixed(bigFraction < 10 ? 1 : 0)} 倍` : `${(bigFraction * 100).toFixed(0)}%`;
-    return `${sourceLabel} ≈ ${match.items[0].zh}的 ${part}`;
-  }, [match, sourceSelected, bigFraction, sourceLabel]);
-
-  // 两个目标的直接对比
-  const comparison = useMemo(() => {
-    if (sourceSelected.length !== 2) return null;
-    return <TargetComparison a={sourceSelected[0]} b={sourceSelected[1]} current={metricDef} />;
-  }, [sourceSelected, metricDef]);
 
   // 选择器分组：省/州按所属国家分组
   const pickerGroups = useMemo(() => {
@@ -502,14 +529,49 @@ export default function App() {
                 </div>
               </div>
             )}
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={ignoreMicro}
-                onChange={(e) => setIgnoreMicro(e.target.checked)}
-              />
-              <span>忽略微型经济体（人口不足 100 万）</span>
-            </label>
+            {isRegionMode ? (
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={ignoreMicro}
+                  onChange={(e) => setIgnoreMicro(e.target.checked)}
+                />
+                <span>忽略微型经济体（人口不足 100 万）</span>
+              </label>
+            ) : null}
+
+            <div className="picker-head" style={{ marginTop: 14 }}>
+              <h2>拿哪一年的世界来比</h2>
+              <span className="year-now">{worldYear}</span>
+            </div>
+            <input
+              className="year-slider"
+              type="range"
+              min={1990}
+              max={2025}
+              step={1}
+              value={worldYear}
+              onChange={(e) => setWorldYear(Number(e.target.value))}
+              aria-label="国家数据年份"
+            />
+            <div className="year-ticks">
+              <button type="button" onClick={() => setWorldYear(1990)}>
+                1990
+              </button>
+              <button type="button" onClick={() => setWorldYear(2000)}>
+                2000
+              </button>
+              <button type="button" onClick={() => setWorldYear(2010)}>
+                2010
+              </button>
+              <button type="button" onClick={() => setWorldYear(2024)}>
+                2024
+              </button>
+            </div>
+            <p className="picker-hint">
+              国家数据可回溯到 1990 年（2025 为 IMF 预测值），省级数据固定 {year} 年。
+              往后拨，能看出「今天这个地方放在当年是什么水平」。
+            </p>
           </section>
 
           <RegionPicker
@@ -551,6 +613,9 @@ export default function App() {
             ) : null}
             <button type="button" className="chip ghost" onClick={randomPick}>
               随机来一个
+            </button>
+            <button type="button" className="chip ghost" onClick={randomQuestion}>
+              今日一题
             </button>
           </div>
 
@@ -740,11 +805,3 @@ function ChinaInset({ china, highlightIds }: { china: FeatureCollection; highlig
   );
 }
 
-function chinaCentroid(china: FeatureCollection | null, adcode: string): [number, number] | null {
-  if (!china) return null;
-  const f = china.features.find((x) => String(x.id) === adcode);
-  if (!f) return null;
-  if (f.properties.centroid) return [f.properties.centroid[0], f.properties.centroid[1]];
-  const c = geoCentroid(f as never);
-  return [c[0], c[1]];
-}
