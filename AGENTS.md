@@ -88,6 +88,11 @@
 
 ## 4. 已知的技术坑（改代码前先看这里）
 
+- **npm 11 会吞掉 `npm run dev -- --port 5183` 里的 `--port`。** 它把这个参数当成自己的
+  cli config 消费掉了（只留一个 `5183` 给 vite），npm 还会打一句
+  `Unknown cli config "--port"`。结果就是**命令看着成功、服务器却起在默认的 5173**——
+  `-- --port=5184` 同样中招。要指定端口就写 `npx vite --port 5183`。
+  ⚠️ 本项目现在不依赖固定端口：验收脚本自己起服务器（见第 6 节），dev server 用默认 5173 就行。
 - **d3-geo 与 DataV 边界的绕向相反。** 直接渲染会被当成「球面补集」，整张图变成一个碗。
   `scripts/build-data.mjs` 里的 `reverseRings()` 就是为此存在的，改动数据管线时别把它删了。
 - **国家统计局数据接口（data.stats.gov.cn）对本机 IP 返回 403（UrlACL）。**
@@ -135,7 +140,7 @@
 - `npm run typecheck` 无错
 - `npm run test` 全绿（核心算法单测）
 - `npm run acceptance` 48 项全过（**自带服务器**，不用先起 dev server；
-  想对着 dev server 跑就 `node scripts/acceptance.mjs http://localhost:5183`）
+  想对着 dev server 跑就 `node scripts/acceptance.mjs http://localhost:5173`）
 - `npm run build` 成功产出 `dist/`
 - 页脚数据来源与官方原表链接可点、可见
 
