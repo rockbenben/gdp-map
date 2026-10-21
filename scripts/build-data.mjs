@@ -65,6 +65,11 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
     if (v != null) nominal[y] = v * 1e9; // WEO 单位：十亿美元 → 美元
   }
   if (!nominal[DEFAULT_YEAR]) continue;
+  const pop = {};
+  for (const y of YEARS) {
+    const v = rec.LP?.[y];
+    if (v != null) pop[y] = v * 1e6; // WEO 单位：百万人 → 人
+  }
   const en = weo.labels?.[iso3] ?? iso3;
   const zh = zhCountryName(iso3);
   countryList.push({
@@ -73,6 +78,7 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
     en,
     hasGeometry: worldIds.has(iso3),
     gdp: { nominal },
+    pop,
     search: searchKey(zh ?? en, en)
   });
 }

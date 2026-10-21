@@ -35,6 +35,7 @@ export function toRegion(item: Dataset['countries'][number], year: string): Regi
     zh: item.zh,
     en: item.en,
     gdpUsd: item.gdp.nominal[year] ?? 0,
+    pop: item.pop?.[year],
     geometryId: item.id,
     search: item.search
   };

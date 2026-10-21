@@ -9,8 +9,8 @@ import { loadChina, loadDataset, loadWorld, provinceToRegion, toRegion } from '.
 import { copyText, exportPng } from './lib/export';
 import { createChinaProjection, mixColor, PALETTE } from './lib/geo';
 import { formatUsd } from './lib/format';
-import { accumulateAscending, accumulateDescending, closestSingle } from './lib/match';
-import type { GdpItem } from './lib/match';
+import { closestSingle, matchByStrategy, STRATEGY_HINT, STRATEGY_LABEL } from './lib/match';
+import type { GdpItem, MatchStrategy } from './lib/match';
 import { loadState, shareUrl, writeState } from './lib/url';
 import type { CompareMode, FeatureCollection, GeoFeature, Region, ViewMode } from './lib/types';
 
@@ -33,6 +33,8 @@ export default function App() {
   const [mode, setMode] = useState<CompareMode>(initial.mode);
   const [view, setView] = useState<ViewMode>(initial.view);
   const [selected, setSelected] = useState<string[]>(initial.selected);
+  const [strategy, setStrategy] = useState<MatchStrategy>(initial.strategy);
+  const [ignoreMicro, setIgnoreMicro] = useState(initial.ignoreMicro);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,8 +48,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    writeState({ mode, view, selected });
-  }, [mode, view, selected]);
+    writeState({ mode, view, selected, strategy, ignoreMicro });
+  }, [mode, view, selected, strategy, ignoreMicro]);
 
   const year = dataset?.meta.defaultYear ?? '2024';
 
@@ -55,9 +57,14 @@ export default function App() {
     () => (dataset ? dataset.provinces.map((p) => provinceToRegion(p, year)) : []),
     [dataset, year]
   );
-  const countries = useMemo<Region[]>(
+  const allCountries = useMemo<Region[]>(
     () => (dataset ? dataset.countries.map((c) => toRegion(c, year)) : []),
     [dataset, year]
+  );
+  /** 可参与对照的国家池：开启「忽略微型经济体」时剔掉人口不足 100 万的 */
+  const countries = useMemo(
+    () => (ignoreMicro ? allCountries.filter((c) => (c.pop ?? Infinity) >= 1e6) : allCountries),
+    [allCountries, ignoreMicro]
   );
 
   const provinceById = useMemo(() => new Map(provinces.map((p) => [p.id, p])), [provinces]);
@@ -75,18 +82,20 @@ export default function App() {
     if (!target) return null;
     const exclude = sourceSelected.map((r) => r.id);
     if (isRegionMode) {
-      return accumulateAscending(
+      return matchByStrategy(
         target,
         countries.map((c) => ({ id: c.id, zh: c.zh, gdp: c.gdpUsd })),
+        strategy,
         { exclude }
       );
     }
-    return accumulateDescending(
+    return matchByStrategy(
       target,
       provinces.map((p) => ({ id: p.id, zh: p.zh, gdp: p.gdpUsd })),
+      strategy,
       { exclude }
     );
-  }, [target, isRegionMode, countries, provinces, sourceSelected]);
+  }, [target, isRegionMode, countries, provinces, sourceSelected, strategy]);
 
   const closest = useMemo(() => {
     if (!target) return null;
@@ -201,7 +210,9 @@ export default function App() {
     try {
       const unit = isRegionMode ? '国家' : '省份';
       const title = sourceSelected.length
-        ? `${sourceSelected.map((r) => r.zh).join(' + ')} ≈ ${match?.count ?? 0} 个${unit}`
+        ? `${sourceSelected.map((r) => r.zh).join(' + ')} ≈ ${
+            match && match.count === 1 ? match.items[0].zh : `${match?.count ?? 0} 个${unit}`
+          }`
         : 'GDP 等价地图';
       const subtitle = sourceSelected.length ? `${formatUsd(target)} · 数据年份 ${year}` : '选择一个地区开始';
       const footnote = dataset
@@ -226,7 +237,7 @@ export default function App() {
 
   const handleCopyLink = () => {
     setToast('正在复制链接…');
-    copyText(shareUrl({ mode, view, selected })).then(
+    copyText(shareUrl({ mode, view, selected, strategy, ignoreMicro })).then(
       (ok) => setToast(ok ? '链接已复制到剪贴板' : '复制失败，请手动复制地址栏'),
       () => setToast('复制失败，请手动复制地址栏')
     );
@@ -288,6 +299,35 @@ export default function App() {
 
       <div className="layout">
         <aside className="sidebar">
+          <section className="strategy">
+            <div className="picker-head">
+              <h2>对照方式</h2>
+            </div>
+            <div className="strategy-options" role="radiogroup" aria-label="对照方式">
+              {(Object.keys(STRATEGY_LABEL) as MatchStrategy[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  role="radio"
+                  aria-checked={strategy === s}
+                  className={`strategy-btn${strategy === s ? ' active' : ''}`}
+                  onClick={() => setStrategy(s)}
+                >
+                  {STRATEGY_LABEL[s]}
+                </button>
+              ))}
+            </div>
+            <p className="picker-hint">{STRATEGY_HINT[strategy]}</p>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={ignoreMicro}
+                onChange={(e) => setIgnoreMicro(e.target.checked)}
+              />
+              <span>忽略微型经济体（人口不足 100 万）</span>
+            </label>
+          </section>
+
           <RegionPicker
             title={isRegionMode ? '选择中国的一个或多个地区' : '选择一个国家'}
             hint={
@@ -327,7 +367,8 @@ export default function App() {
               targetText={formatUsd(target)}
               result={match}
               unitName={isRegionMode ? '国家' : '省份'}
-              closest={closest ? { zh: closest.zh, gdp: closest.gdp } : null}
+              strategyLabel={STRATEGY_LABEL[strategy]}
+              closest={closest && strategy !== 'nearest' ? { zh: closest.zh, gdp: closest.gdp } : null}
             />
           ) : (
             <section className="result placeholder">

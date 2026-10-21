@@ -11,6 +11,8 @@ interface Props {
   result: MatchResult;
   /** 匹配出来的对象叫「国家」还是「省份」 */
   unitName: string;
+  /** 当前对照方式的名称 */
+  strategyLabel: string;
   /** 最接近的单个对象 */
   closest?: { zh: string; gdp: number } | null;
 }
@@ -21,22 +23,31 @@ export function ResultPanel({
   targetText,
   result,
   unitName,
+  strategyLabel,
   closest
 }: Props) {
   const error = target ? Math.abs(result.gap) / target : 0;
+  const over = result.gap >= 0;
 
   return (
     <section className="result">
       <div className="result-headline">
         <h1>
-          {sourceLabel} <span className="eq">≈</span> <span className="count">{result.count}</span> 个{unitName}
+          {sourceLabel} <span className="eq">≈</span>{' '}
+          {result.count === 1 ? (
+            <span className="single">{result.items[0].zh}</span>
+          ) : (
+            <>
+              <span className="count">{result.count}</span> 个{unitName}
+            </>
+          )}
         </h1>
         <p className="result-sub">
           {targetText} · 合计 <strong>{formatUsd(result.sum)}</strong>
           {result.count > 0 ? (
             <>
               {' '}
-              · 与参照物相差 <strong>{formatPercent(error)}</strong>
+              · {over ? '超出' : '还差'} <strong>{formatPercent(error)}</strong>
             </>
           ) : null}
         </p>
@@ -45,6 +56,7 @@ export function ResultPanel({
             单个最接近：<strong>{closest.zh}</strong>（{formatUsd(closest.gdp)}）
           </p>
         ) : null}
+        <p className="result-strategy">对照方式：{strategyLabel}</p>
       </div>
 
       {result.items.length ? (
@@ -68,7 +80,7 @@ export function ResultPanel({
       )}
 
       {result.count === 1 ? (
-        <p className="result-hint">想看「几个国家加起来」，可以在左侧多选几个省份。</p>
+        <p className="result-hint">想看「几个国家加起来」，换一种对照方式或多选几个地区。</p>
       ) : null}
     </section>
   );

@@ -228,6 +228,103 @@ body {
   fill-opacity: 0.9;
 }
 
+/* ---------- 对照方式 ---------- */
+.strategy {
+  background: var(--bg-panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.strategy-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 10px;
+  padding: 3px;
+  background: #0a1120;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.strategy-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 7px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.strategy-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.strategy-btn.active {
+  background: linear-gradient(120deg, rgba(246, 196, 83, 0.24), rgba(239, 77, 77, 0.2));
+  color: #fff;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  appearance: none;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: #1b2540;
+  border: 1px solid var(--line);
+  position: relative;
+  cursor: pointer;
+  flex: none;
+  transition: background 0.18s;
+}
+
+.toggle input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  transition: transform 0.18s, background 0.18s;
+}
+
+.toggle input:checked {
+  background: rgba(246, 196, 83, 0.28);
+  border-color: rgba(246, 196, 83, 0.5);
+}
+
+.toggle input:checked::after {
+  transform: translateX(14px);
+  background: var(--accent);
+}
+
+.result-strategy {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--text-mute);
+}
+
+.result-headline .single {
+  color: var(--accent);
+}
+
 /* ---------- 选择器 ---------- */
 .picker {
   background: var(--bg-panel);

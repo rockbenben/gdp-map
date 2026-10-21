@@ -49,11 +49,19 @@ async function fetchJson(url) {
 }
 
 // ---- IMF WEO（经 DBnomics 镜像）----
+const INDICATORS = ['NGDPD', 'PPPGDP', 'LP'];
+
 async function fetchWeo() {
   const dest = resolve(RAW, `weo-${WEO_VINTAGE}.json`);
   if (await exists(dest)) {
-    console.log(`skip  weo-${WEO_VINTAGE}.json (已存在)`);
-    return;
+    // 缓存里缺指标（例如后来才加上人口），就重新抓
+    const cached = JSON.parse(await readFile(dest, 'utf8'));
+    const missing = INDICATORS.filter((ind) => !Object.values(cached.data ?? {}).some((r) => r[ind]));
+    if (!missing.length) {
+      console.log(`skip  weo-${WEO_VINTAGE}.json (已存在)`);
+      return;
+    }
+    console.log(`weo-${WEO_VINTAGE}.json 缺指标 ${missing.join(',')}，重新抓取`);
   }
   const base = 'https://api.db.nomics.world/v22';
   const meta = await fetchJson(`${base}/datasets/IMF/WEO:${WEO_VINTAGE}?limit=1`);
@@ -61,7 +69,6 @@ async function fetchWeo() {
   const countries = Object.keys(doc.dimensions_values_labels['weo-country']);
   console.log(`WEO ${WEO_VINTAGE}: ${countries.length} 个经济体, ${doc.nb_series} 条序列`);
 
-  const INDICATORS = ['NGDPD', 'PPPGDP'];
   const out = {};
   const CONCURRENCY = 8;
   let idx = 0;
@@ -93,7 +100,11 @@ async function fetchWeo() {
   const payload = {
     vintage: WEO_VINTAGE,
     source: `IMF World Economic Outlook ${WEO_VINTAGE} (via DBnomics)`,
-    units: { NGDPD: 'billions of current USD', PPPGDP: 'billions of current international dollars' },
+    units: {
+      NGDPD: 'billions of current USD',
+      PPPGDP: 'billions of current international dollars',
+      LP: 'millions of persons'
+    },
     labels: doc.dimensions_values_labels['weo-country'],
     data: out
   };

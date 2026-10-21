@@ -9,6 +9,8 @@ export interface Country {
   en: string;
   hasGeometry: boolean;
   gdp: GdpSeries;
+  /** 人口（人），按年份索引 */
+  pop?: Record<string, number>;
   search: string;
 }
 
@@ -50,6 +52,8 @@ export interface Region {
   en: string;
   gdpUsd: number;
   gdpPerCapita?: number;
+  /** 人口（人） */
+  pop?: number;
   /** 地图高亮时使用的几何 id（世界地图用 ISO3，中国地图用 adcode） */
   geometryId: string;
   search: string;
