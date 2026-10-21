@@ -794,7 +794,7 @@ body {
   right: 0;
   height: var(--row-h);
   display: grid;
-  grid-template-columns: 30px minmax(90px, 150px) 1fr auto auto;
+  grid-template-columns: 46px minmax(90px, 150px) 1fr auto auto auto;
   align-items: center;
   gap: 10px;
   padding: 0 8px;
@@ -830,6 +830,45 @@ body {
   font-variant-numeric: tabular-nums;
   text-align: right;
   font-size: 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* 名次变化：动画让你看见行在动，这个标记告诉你动了多少 */
+.rank-delta {
+  font-style: normal;
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rank-delta.up {
+  color: var(--teal);
+}
+
+.rank-delta.down {
+  color: var(--accent-2);
+}
+
+/* 「≈ N 国」：这个项目自己的说法——这个省/州相当于多少个国家加起来 */
+.rank-equiv {
+  padding: 1px 7px;
+  font-size: 11px;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* 没有这个数时别留个空药丸（看着像一条横杠） */
+.rank-equiv:empty {
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 .rank-row.is-selected .rank-idx {
@@ -1687,10 +1726,10 @@ body {
   }
 
   .rank-row {
-    grid-template-columns: 26px minmax(0, 1fr) auto auto;
+    grid-template-columns: 36px minmax(0, 1fr) auto auto auto;
     grid-template-areas:
-      'idx name value note'
-      'idx bar  bar  bar';
+      'idx name value equiv note'
+      'idx bar  bar  bar  bar';
     row-gap: 5px;
     column-gap: 8px;
     padding: 7px 8px;
@@ -1706,6 +1745,10 @@ body {
 
   .rank-value {
     grid-area: value;
+  }
+
+  .rank-equiv {
+    grid-area: equiv;
   }
 
   .rank-note {

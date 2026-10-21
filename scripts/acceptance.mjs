@@ -581,6 +581,19 @@ try {
     `${raceBefore[0].name} → ${raceAfter[0].name}`
   );
 
+  // 20. 排行板：省/州行标着「≈ N 国」，名次变了要有标记
+  await page.goto(`${BASE}/?sel=CN-440000&view=rank`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.rank-row', { timeout: 15000 });
+  await page.waitForTimeout(600);
+  const equivText = await page.$$eval('.rank-equiv', (els) =>
+    els.map((e) => (e.textContent ?? '').trim()).find((t) => t.length > 0) ?? ''
+  );
+  check('排行标着「≈ N 个国家」', /≈\s*\d+\s*国/.test(equivText), equivText);
+  await page.locator('.metric-options button', { hasText: '面积' }).click();
+  await page.waitForTimeout(1200);
+  const deltaCount = await page.locator('.rank-delta').count();
+  check('名次变化有标记', deltaCount > 0, `${deltaCount} 个标记`);
+
   check('无运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   check('验收脚本执行', false, String(e).slice(0, 200));

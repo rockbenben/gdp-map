@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export interface RankEntry {
   id: string;
@@ -26,6 +26,8 @@ interface Props {
   noteFor?: (entry: RankEntry, rank: number) => string | undefined;
   /** 最多显示多少条 */
   limit?: number;
+  /** 这个对象相当于多少个国家之和（省/州才有意义，别的口径下不给） */
+  equivCount?: (entry: RankEntry) => number | undefined;
   onSelect?: (id: string) => void;
 }
 
@@ -37,11 +39,17 @@ interface Props {
  *
  * 国家与省/州排在同一张榜上，所以榜上的名次和「假如它是一个国家」那张名次卡
  * 用的是同一个池子、同一套年份，切到「只看国家」时两边读到的名次就是同一个。
+ *
+ * 动效不是通用的条形图竞速：这里行与行会**互相让位**，
+ * 名次变了的那一行还带着「升了几位 / 降了几位」的标记——
+ * 动画让你看见动，标记告诉你动了多少。
  */
-export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: Props) {
+export function RankingView({ entries, format, noteFor, limit = 60, equivCount, onSelect }: Props) {
   const [scope, setScope] = useState<Scope>('all');
   /** 一次显示多少条，底部「再显示」往下翻 */
   const [shown, setShown] = useState(limit);
+  /** 名次变化：id → 上升了几位（正数是升，负数是降） */
+  const [deltas, setDeltas] = useState<Record<string, number>>({});
 
   // 换范围时回到第一页
   useEffect(() => setShown(limit), [scope, limit]);
@@ -76,6 +84,31 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
       .sort((a, b) => b.value - a.value);
     return new Map(sorted.map((e, i) => [e.id, i + 1]));
   }, [scoped]);
+
+  /**
+   * 名次变化徽章：跟上一版名次表比，谁升了谁降了。
+   *
+   * ⚠️ 只在**名次表真的变了**时重算——行数、顺序都一样的重新渲染不该把徽章抹掉。
+   * 所以依赖的是顺序的签名（拼起来的 id 串），不是数组本身。
+   */
+  const orderKey = rows.map((r) => r.id).join('|');
+  const prevOrder = useRef<string[]>([]);
+  useEffect(() => {
+    const next = orderKey ? orderKey.split('|') : [];
+    const prev = prevOrder.current;
+    if (prev.length && next.length) {
+      const prevRank = new Map(prev.map((id, i) => [id, i]));
+      const moved: Record<string, number> = {};
+      next.forEach((id, i) => {
+        const before = prevRank.get(id);
+        // 之前在榜上且位置变了 → 记下升降；之前不在榜上 → 999（标「新进榜」）
+        if (before === undefined) moved[id] = 999;
+        else if (before !== i) moved[id] = before - i;
+      });
+      setDeltas(moved);
+    }
+    prevOrder.current = next;
+  }, [orderKey]);
 
   const total = useMemo(() => scoped.filter((e) => e.value > 0).length, [scoped]);
   const max = useMemo(() => Math.max(...rows.map((r) => r.value), 1), [rows]);
@@ -119,6 +152,8 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
           const ratio = e.value / max;
           // 显示真正的名次，不是它在榜上的位置——选中的那条可能排在 limit 之外
           const rank = rankOf.get(e.id) ?? i + 1;
+          const delta = deltas[e.id];
+          const equiv = equivCount?.(e);
           return (
             <button
               key={e.id}
@@ -131,7 +166,14 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
               onClick={() => onSelect?.(e.id)}
               title={`${e.zh} · ${format(e.value)}`}
             >
-              <span className="rank-idx">{rank}</span>
+              <span className="rank-idx">
+                {rank}
+                {delta ? (
+                  <i className={delta > 0 ? 'rank-delta up' : 'rank-delta down'}>
+                    {delta === 999 ? '新' : delta > 0 ? `▲${delta}` : `▼${-delta}`}
+                  </i>
+                ) : null}
+              </span>
               <span className="rank-name">
                 {/* 只看国家时不用每行都挂个「国家」标签；省/州始终带着所属国家 */}
                 {(scope === 'all' || e.kind === 'region') && e.group ? <em>{e.group}</em> : null}
@@ -141,6 +183,11 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
                 <span className="rank-fill" style={{ width: `${(ratio * 100).toFixed(2)}%` }} />
               </span>
               <span className="rank-value">{format(e.value)}</span>
+              {/* 永远占位：有的行没有这个数，空着也不能少一个格子，
+                  否则后面的「备注」列会在各行之间错位 */}
+              <span className="rank-equiv" title={equiv ? '这个省/州相当于多少个国家加起来' : undefined}>
+                {equiv ? `≈ ${equiv} 国` : ''}
+              </span>
               <span className="rank-note">{noteFor?.(e, rank) ?? ''}</span>
             </button>
           );

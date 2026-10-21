@@ -612,6 +612,24 @@ export default function App() {
     [countriesAtSourceYear, regions]
   );
 
+  /**
+   * 每个省/州「相当于多少个国家之和」——这个项目自己的说法，榜上直接标出来。
+   *
+   * 用当前口径算（尽量多凑 / 宁可超出），所以跟结论卡上的件数一致；
+   * 「比大国家」「最像的一个」是跟单个对象比，没有「多少个」的概念，就不给。
+   */
+  const equivCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!additive || (effectiveStrategy !== 'many' && effectiveStrategy !== 'over')) return m;
+    const pool: GdpItem[] = countries.map((c) => ({ id: c.id, zh: c.zh, value: metricValue(c, metric) }));
+    for (const r of regions) {
+      const v = metricValue(r, metric);
+      if (v <= 0) continue;
+      m.set(r.id, matchByStrategy(v, pool, effectiveStrategy).count);
+    }
+    return m;
+  }, [countries, regions, metric, additive, effectiveStrategy]);
+
   /** 排行榜：把对象按当前指标排开，选中的那条高亮。
       它给的是名次卡给不了的东西——前后邻居到底有多大。 */
   const rankingEntries = useMemo<RankEntry[]>(
@@ -1277,10 +1295,11 @@ export default function App() {
                   entries={rankingEntries}
                   format={metricDef.format}
                   noteFor={(e) => (e.selected ? '当前选中' : undefined)}
+                  equivCount={(e) => (e.kind === 'region' ? equivCounts.get(e.id) : undefined)}
                   onSelect={selectFromRanking}
                 />
                 <p className="view-caption">
-                  {`国家与省/州按「${metricDef.label}」排在一起（国家侧用 ${sourceYear} 年的数据）。点一条就选它。`}
+                  {`国家与省/州按「${metricDef.label}」排在一起（国家侧用 ${sourceYear} 年的数据）。省/州后面标着它相当于多少个国家。`}
                 </p>
               </div>
             ) : view === 'square' ? (
