@@ -383,6 +383,29 @@ try {
   check('两个目标可直接对比', /河南省/.test(compareText) && /广东省/.test(compareText), compareText.slice(0, 90));
   await page.locator('.result').screenshot({ path: resolve(SHOTS, 'card-compare.png') });
 
+  // 10.6 欧洲 NUTS-1 与日本都道府县
+  await page.goto(`${BASE}/?sel=EU-DE2`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  const bayern = await settleHeadline();
+  check('德国州可作参照物', /巴伐利亚/.test(bayern), bayern);
+  const bayernCf = (await page.locator('.counterfactual').innerText()).replace(/\s+/g, ' ');
+  check('德国州给出世界名次', /第\s*\d+\s*位/.test(bayernCf), bayernCf.slice(0, 90));
+
+  await page.goto(`${BASE}/?sel=JP-13`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  const tokyo = await settleHeadline();
+  check('日本都道府县可作参照物', /东京都/.test(tokyo), tokyo);
+
+  // 搜得到新地区
+  await page.goto(`${BASE}/?sel=CN-410000`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.picker-item', { timeout: 15000 });
+  await page.locator('.search').fill('巴伐');
+  await page.waitForTimeout(300);
+  const bayernHit = await page.locator('.picker-item').allInnerTexts();
+  check('搜得到欧洲 NUTS-1', bayernHit.some((t) => t.includes('巴伐利亚')), bayernHit.join(' | '));
+  await page.locator('.search').fill('');
+  await page.waitForTimeout(200);
+
   // 11. 反向模式：国家 → 省/州
   await page.goto(`${BASE}/?mode=world-to-region&sel=JPN`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.result-headline h1', { timeout: 15000 });
