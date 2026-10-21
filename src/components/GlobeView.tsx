@@ -165,9 +165,16 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
           current = [];
           continue;
         }
+        // 往外鼓一点，做出「贴着球面绕过去」的感觉。
+        // ⚠️ 但不能鼓出球面：鼓出是相对球心算的，弧线走到球缘时会被推出去 5% 的半径，
+        // 甩到轮廓外面像一团面条。所以夹住：最多到球面为止。
         const bulge = 1 + 0.05 * Math.sin(Math.PI * t);
-        const cx = SIZE / 2 + (p[0] - SIZE / 2) * bulge;
-        const cy = SIZE / 2 + (p[1] - SIZE / 2) * bulge;
+        const dx = p[0] - SIZE / 2;
+        const dy = p[1] - SIZE / 2;
+        const dist = Math.hypot(dx, dy);
+        const scale = dist > 0 ? Math.min(bulge, RADIUS / dist) : bulge;
+        const cx = SIZE / 2 + dx * scale;
+        const cy = SIZE / 2 + dy * scale;
         current.push(`${cx.toFixed(1)},${cy.toFixed(1)}`);
       }
       if (current.length > 1) segments.push(current);

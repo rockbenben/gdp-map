@@ -1069,6 +1069,8 @@ export default function App() {
             }
             metric={metricDef}
             items={sourcePool}
+            // 数据还没到的时候，列表是空的——那不是「没匹配到」，是「还在加载」
+            emptyLabel={dataset ? '没有匹配的地区' : '加载中…'}
             groups={pickerGroups}
             selected={selected}
             onToggle={toggle}
