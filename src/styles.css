@@ -10,6 +10,8 @@
   --accent: #f6c453;
   --accent-2: #ef4d4d;
   --teal: #3fd0c9;
+  /* 第二个参照物的颜色：与 src/lib/geo.ts 的 PALETTE.source2 保持一致 */
+  --source-2: #a78bfa;
   --radius: 14px;
   --shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
@@ -1045,7 +1047,7 @@ body {
 }
 
 .tc-b {
-  color: var(--accent);
+  color: var(--source-2);
 }
 
 .target-compare h3 em {
