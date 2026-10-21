@@ -21,6 +21,14 @@ interface Props {
 
 const SIZE = 800;
 const RADIUS = 372;
+/**
+ * 滚转角：d3 的 rotate 第三个参数是把球往「侧面倒」的角度。
+ * 原来取 0，球是正对着看的，看起来就是一张平涂的圆盘；倒 16° 之后
+ * 能看见北极斜着退到后���去，立刻像一只立起来的地球仪。
+ */
+const ROLL = -16;
+/** 大气辉光的厚度（像素） */
+const ATMO = 26;
 
 /**
  * SVG 正射投影地球：正射投影本身就是「从无穷远看球面」的 3D 视图，
@@ -35,6 +43,8 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
   const originRef = useRef<SVGGElement | null>(null);
   const rotation = useRef<[number, number]>([110, -20]);
   const drag = useRef<{ x: number; y: number; lon: number; lat: number } | null>(null);
+  /** 甩手的速度：松手后靠它惯性继续转 */
+  const spin = useRef({ lon: 0, lat: 0 });
   const frame = useRef(0);
 
   const projection = useMemo(
@@ -56,8 +66,8 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
   }, [features, highlights]);
 
   const render = useCallback(() => {
-    // d3 的 rotate 取的是「视角中心的反坐标」
-    projection.rotate([-rotation.current[0], -rotation.current[1]]);
+    // d3 的 rotate 取的是「视角中心的反坐标」，第三个参数是滚转（把球侧倒）
+    projection.rotate([-rotation.current[0], -rotation.current[1], ROLL]);
 
     for (const f of features) {
       const id = String(f.id);
@@ -171,7 +181,17 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
       raf = requestAnimationFrame(tick);
       if (now - last < FRAME_MS) return;
       last = now;
-      if (!drag.current) rotation.current[0] += 0.18;
+      if (!drag.current) {
+        // 松手后靠惯性继续转，转速每帧衰减；慢到一定程度就交回自动旋转
+        if (Math.abs(spin.current.lon) > 0.01 || Math.abs(spin.current.lat) > 0.01) {
+          rotation.current[0] += spin.current.lon;
+          rotation.current[1] = Math.max(-75, Math.min(75, rotation.current[1] + spin.current.lat));
+          spin.current.lon *= 0.94;
+          spin.current.lat *= 0.94;
+        } else {
+          rotation.current[0] += 0.18;
+        }
+      }
       render();
     };
     raf = requestAnimationFrame(tick);
@@ -194,6 +214,9 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
     const dy = e.clientY - drag.current.y;
     rotation.current[0] = drag.current.lon - dx * 0.35;
     rotation.current[1] = Math.max(-75, Math.min(75, drag.current.lat + dy * 0.35));
+    // 记下这一帧甩了多快：松手之后靠它继续转
+    spin.current.lon = -dx * 0.35;
+    spin.current.lat = dy * 0.35;
   };
 
   const onPointerUp = () => {
@@ -223,16 +246,39 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
             <stop offset="60%" stopColor="#101a33" />
             <stop offset="100%" stopColor="#060a14" />
           </radialGradient>
+          {/* 球面明暗：光源固定在左上方，往背光面渐暗。没有这一层，
+              球就只是一张贴了图的圆盘，看不出体积。 */}
+          <radialGradient id="globe-shade" cx="32%" cy="26%" r="78%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.10)" />
+            <stop offset="34%" stopColor="rgba(0,0,0,0)" />
+            <stop offset="74%" stopColor="rgba(3,6,16,0.42)" />
+            <stop offset="100%" stopColor="rgba(2,4,10,0.78)" />
+          </radialGradient>
+          {/* 大气层：贴着球边的一圈蓝，越往外越淡 */}
           <radialGradient id="globe-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="78%" stopColor="rgba(120,170,255,0)" />
-            <stop offset="100%" stopColor="rgba(120,170,255,0.20)" />
+            <stop offset="0%" stopColor="rgba(90,150,255,0)" />
+            <stop offset="86%" stopColor="rgba(96,152,255,0.16)" />
+            <stop offset="94%" stopColor="rgba(120,180,255,0.30)" />
+            <stop offset="100%" stopColor="rgba(120,180,255,0)" />
+          </radialGradient>
+          <radialGradient id="globe-halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(70,120,220,0)" />
+            <stop offset="82%" stopColor="rgba(70,120,220,0.10)" />
+            <stop offset="100%" stopColor="rgba(70,120,220,0)" />
+          </radialGradient>
+          {/* 高光：光源那一侧的一点反光，球面才有「瓷」的感觉 */}
+          <radialGradient id="globe-spec" cx="34%" cy="27%" r="30%">
+            <stop offset="0%" stopColor="rgba(214,232,255,0.17)" />
+            <stop offset="100%" stopColor="rgba(214,232,255,0)" />
           </radialGradient>
           <filter id="globe-blur" x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="3" />
           </filter>
         </defs>
 
-        <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS + 10} fill="url(#globe-glow)" />
+        {/* 大气：外圈的光晕 + 贴着球的一层 */}
+        <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS + ATMO * 1.5} fill="url(#globe-halo)" />
+        <circle cx={SIZE / 2} cy={SIZE / 2} r={RADIUS + ATMO * 0.5} fill="url(#globe-glow)" />
 
         <g className="globe-sphere">
           <path
@@ -244,7 +290,7 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
           <path
             d={path(geoGraticule10()) ?? ''}
             fill="none"
-            stroke="rgba(140,180,255,0.13)"
+            stroke="rgba(150,190,255,0.19)"
             strokeWidth={0.6}
           />
         </g>
@@ -291,6 +337,25 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
             );
           })}
         </g>
+
+        {/* 明暗层压在国家之上、弧线之下：国家跟着球面一起明暗，
+            弧线与标注保持清晰可读 */}
+        <circle
+          className="globe-shade-layer"
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={RADIUS}
+          fill="url(#globe-shade)"
+          pointerEvents="none"
+        />
+        <circle
+          className="globe-spec-layer"
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={RADIUS}
+          fill="url(#globe-spec)"
+          pointerEvents="none"
+        />
 
         <g className="globe-arcs">
           {arcs.map((arc, i) => (

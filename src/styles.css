@@ -846,8 +846,14 @@ body {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  opacity: 0.72;
+  /* 条形也做成有体积的：上面受光、下面压暗，再加一道底部投影 */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 48%),
+    linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 2px 5px rgba(0, 0, 0, 0.45);
+  opacity: 0.85;
 }
 
 .rank-row.is-matched .rank-fill {
@@ -856,6 +862,9 @@ body {
 
 .rank-row.is-selected .rank-fill {
   opacity: 1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 2px 8px rgba(246, 196, 83, 0.35);
 }
 
 .rank-value {
@@ -1323,7 +1332,13 @@ body {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  /* 跟排行榜的条形一样，做出一点体积 */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 50%),
+    linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* ── 对比的动态效果 ──
