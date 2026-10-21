@@ -13,6 +13,12 @@ export interface RegionObject {
   /** 地图高亮用的几何 id */
   geoId: string;
   hasGeometry: boolean;
+  /**
+   * 这个对象的数据是哪一年的。
+   * 省州侧各地区数据年份不一定相同（日本府县民经济计算能拿全的最近年份是 2021，
+   * 中国省级与美国州是 2024），所以年份跟着对象走，而不是全池统一。
+   */
+  year?: string;
   metrics: {
     gdp: { nominal: MetricSeries };
     /** 购买力平价 GDP（现价国际元） */
@@ -33,6 +39,8 @@ export interface DatasetMeta {
   provinceSource: string;
   provinceSourceUrl: string;
   usStateSource?: string;
+  /** 欧洲 NUTS-1 与日本都道府县的来源 */
+  extraRegionSource?: string;
   exchangeRate: Record<string, { year: number; cnyPerUsd: number | null; source: string }>;
   generatedAt: string;
   note: string;
@@ -85,6 +93,8 @@ export interface GeoFeature {
     center?: [number, number];
     centroid?: [number, number];
     isSouthSea?: boolean;
+    /** 只在被高亮时才画（欧洲 NUTS-1 与日本都道府县：数量多，全画会糊） */
+    drawOnlyWhenHighlighted?: boolean;
   };
   geometry: GeoGeometry;
 }

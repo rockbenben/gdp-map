@@ -17,7 +17,7 @@ interface Props {
   /** 指标格式化 */
   format: (value: number) => string;
   /** 每条后面补的小字（例如「世界第 22 位」） */
-  noteFor?: (entry: RankEntry) => string | undefined;
+  noteFor?: (entry: RankEntry, rank: number) => string | undefined;
   /** 最多显示多少条 */
   limit?: number;
   onSelect?: (id: string) => void;
@@ -40,6 +40,14 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
     const missing = picked.filter((e) => !head.includes(e));
     return [...head, ...missing];
   }, [entries, limit]);
+
+  /** 每条的真实名次（选中项排在 limit 之外时，名次仍然是它真正的位置） */
+  const rankOf = useMemo(() => {
+    const sorted = [...entries]
+      .filter((e) => e.value > 0)
+      .sort((a, b) => b.value - a.value);
+    return new Map(sorted.map((e, i) => [e.id, i + 1]));
+  }, [entries]);
 
   const max = useMemo(() => Math.max(...rows.map((r) => r.value), 1), [rows]);
 
@@ -75,7 +83,7 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
               <span className="rank-fill" style={{ width: `${(ratio * 100).toFixed(2)}%` }} />
             </span>
             <span className="rank-value">{format(e.value)}</span>
-            <span className="rank-note">{noteFor?.(e) ?? ''}</span>
+            <span className="rank-note">{noteFor?.(e, rankOf.get(e.id) ?? i + 1) ?? ''}</span>
           </button>
         );
       })}

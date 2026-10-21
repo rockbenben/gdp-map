@@ -141,6 +141,9 @@ export function WorldMap({
           {subdivisions.features.map((f: GeoFeature) => {
             if (f.properties.isSouthSea) return null; // 南海诸岛走右下角小图
             const h = subMap.get(String(f.id));
+            // 欧洲 NUTS-1 与日本都道府县：数量多，只在被高亮时才画，
+            // 否则一百多个区一起描边会把欧洲糊成一片灰
+            if (!h && f.properties.drawOnlyWhenHighlighted) return null;
             return (
               <path
                 key={String(f.id)}

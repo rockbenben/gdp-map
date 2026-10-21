@@ -13,6 +13,7 @@ import { WorldMap } from './components/WorldMap';
 import {
   loadChina,
   loadDataset,
+  loadExtraRegions,
   loadUsStates,
   loadWorld,
   metricValue,
@@ -51,6 +52,7 @@ export default function App() {
   const [world, setWorld] = useState<FeatureCollection | null>(null);
   const [china, setChina] = useState<FeatureCollection | null>(null);
   const [usStates, setUsStates] = useState<FeatureCollection | null>(null);
+  const [extraRegions, setExtraRegions] = useState<FeatureCollection | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [initial] = useState(loadState);
@@ -86,12 +88,13 @@ export default function App() {
   const [sourcesOpen, setSourcesOpen] = useState(wide);
 
   useEffect(() => {
-    Promise.all([loadDataset(), loadWorld(), loadChina(), loadUsStates()])
-      .then(([d, w, c, u]) => {
+    Promise.all([loadDataset(), loadWorld(), loadChina(), loadUsStates(), loadExtraRegions()])
+      .then(([d, w, c, u, e]) => {
         setDataset(d);
         setWorld(w);
         setChina(c);
         setUsStates(u);
+        setExtraRegions(e);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
@@ -244,14 +247,16 @@ export default function App() {
     return map;
   }, [world, china, usStates]);
 
-  /** 省/州细分层：画在世界地图上（合规的南海诸岛也在这层里） */
+  /** 省/州细分层：画在世界地图上（合规的南海诸岛也在这层里）
+   *  欧洲 NUTS-1 与日本都道府县也在这层里，但它们标了 drawOnlyWhenHighlighted，
+   *  不被高亮时不描边——141 个区一起画会把欧洲糊成一片。 */
   const subdivisions = useMemo<FeatureCollection | null>(() => {
     if (!china || !usStates) return null;
     return {
       type: 'FeatureCollection',
-      features: [...china.features, ...usStates.features]
+      features: [...china.features, ...usStates.features, ...(extraRegions?.features ?? [])]
     };
-  }, [china, usStates]);
+  }, [china, usStates, extraRegions]);
 
   /** 「比大国家」时，标题写成「它是其中哪一个的几分之几」 */
   const bigFraction = useMemo(() => {
@@ -932,7 +937,8 @@ export default function App() {
                 </button>
               </div>
               <p className="picker-hint">
-                国家数据可回溯到 1990 年（2025 为 IMF 预测值），省级数据固定 {year} 年。
+                国家数据可回溯到 1990 年（2025 为 IMF 预测值）；省/州数据按各自年份（中国与美国 2024、
+                欧洲 NUTS-1 2024、日本都道府县 2021）。
                 往后拨，能看出「今天这个地方放在当年是什么水平」；按「播放」让它从 1990 自己走到 2025。
               </p>
             </details>
@@ -1084,7 +1090,7 @@ export default function App() {
                 <RankingView
                   entries={rankingEntries}
                   format={metricDef.format}
-                  noteFor={(e) => (e.selected ? '当前选中' : undefined)}
+                  noteFor={(e, rank) => (e.selected ? `第 ${rank} 位` : undefined)}
                   onSelect={(id) => {
                     setSelected([id]);
                     touchedRef.current = true;
@@ -1240,6 +1246,8 @@ export default function App() {
                   ) : null}
                   <br />
                   {dataset.meta.usStateSource ? `美国各州：${dataset.meta.usStateSource}` : null}
+                  <br />
+                  {dataset.meta.extraRegionSource ? dataset.meta.extraRegionSource : null}
                   <br />
                   {dataset.meta.note}
                 </p>

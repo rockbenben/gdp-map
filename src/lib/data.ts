@@ -13,6 +13,7 @@ let datasetPromise: Promise<Dataset> | null = null;
 let worldPromise: Promise<FeatureCollection> | null = null;
 let chinaPromise: Promise<FeatureCollection> | null = null;
 let usStatesPromise: Promise<FeatureCollection> | null = null;
+let extraRegionsPromise: Promise<FeatureCollection> | null = null;
 
 export function loadDataset(): Promise<Dataset> {
   datasetPromise ??= getJson<Dataset>('data/regions.json');
@@ -34,18 +35,26 @@ export function loadUsStates(): Promise<FeatureCollection> {
   return usStatesPromise;
 }
 
+/** 欧洲 NUTS-1 与日本都道府县的边界 */
+export function loadExtraRegions(): Promise<FeatureCollection> {
+  extraRegionsPromise ??= getJson<FeatureCollection>('geo/extra-regions.json');
+  return extraRegionsPromise;
+}
+
 /** 把数据集中的统一对象转成应用用的 Region */
 export function toRegion(obj: RegionObject, year: string): Region {
+  // 对象自带年份的用它自己的（日本的府县数据是 2021），没有才用池子的默认年份
+  const y = obj.year ?? year;
   return {
     id: obj.id,
     kind: obj.kind,
     zh: obj.zh,
     en: obj.en,
     parentId: obj.parentId,
-    gdpUsd: obj.metrics.gdp.nominal[year] ?? 0,
-    pppUsd: obj.metrics.ppp?.[year],
-    gdpPerCapitaUsd: obj.metrics.gdpPc?.[year],
-    pop: obj.metrics.pop?.[year],
+    gdpUsd: obj.metrics.gdp.nominal[y] ?? 0,
+    pppUsd: obj.metrics.ppp?.[y],
+    gdpPerCapitaUsd: obj.metrics.gdpPc?.[y],
+    pop: obj.metrics.pop?.[y],
     areaKm2: obj.metrics.area ?? undefined,
     geometryId: obj.geoId,
     hasGeometry: obj.hasGeometry,
