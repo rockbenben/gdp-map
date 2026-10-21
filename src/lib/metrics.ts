@@ -8,6 +8,37 @@
 
 export type MetricId = 'gdp' | 'pppGdp' | 'gdpPc' | 'density' | 'area' | 'pop';
 
+/**
+ * 标题拆成几段。
+ *
+ * 为什么要拆：结论里那个数字（52 个国家、41%）是要会滚动的，
+ * 混在一整串文字里就没法单独驱动它。拆开之后各段各司其职：
+ * before 是主语，eq 是「≈」，value 是会动的数字，suffix 是数字的单位，
+ * after 是收尾。
+ */
+export interface MetricTitle {
+  /** 主语，例如「河南省」 */
+  before: string;
+  /** 等号，'≈' 或 '' */
+  eq: string;
+  /** 会动的数字；这句话里没有数字时为 null */
+  value: number | null;
+  /** 数字怎么写（滚动过程中每一帧都用它） */
+  format: (v: number) => string;
+  /** 数字后面直接跟的字，例如 '%'、' 倍' */
+  suffix: string;
+  /** 收尾，例如「个国家之和」 */
+  after: string;
+}
+
+/** 把拆开的标题还原成一句话（导出、分享卡用得上） */
+export function titleText(t: MetricTitle): string {
+  const mid = t.value == null ? '' : t.format(t.value) + t.suffix;
+  return `${t.before}${t.eq}${mid}${t.after}`;
+}
+
+const intFormat = (v: number) => String(Math.round(v));
+
 export interface Metric {
   id: MetricId;
   /** 按钮上的名字 */
@@ -22,8 +53,8 @@ export interface Metric {
   format: (value: number) => string;
   /** 列表里每一项的简短写法 */
   short: (value: number) => string;
-  /** 标题模板：src 参照地区，n 件数，name 唯一对象的名字，unit 是「国家」或「省份」 */
-  title: (src: string, n: number, name: string, unit: string) => string;
+  /** 标题：src 参照地区，n 件数，name 唯一对象的名字，unit 是「国家」或「省份」 */
+  title: (src: string, n: number, name: string, unit: string) => MetricTitle;
 }
 
 const fmtInt = (v: number) => Math.round(v).toLocaleString('zh-CN');
@@ -37,7 +68,17 @@ export const METRICS: Record<MetricId, Metric> = {
     unitName: '经济体量',
     format: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿美元` : `${fmtInt(v / 1e8)} 亿美元`),
     short: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿` : `${fmtInt(v / 1e8)} 亿`),
-    title: (src, n, name, unit) => (n === 1 ? `${src} ≈ ${name}` : `${src} ≈ ${n} 个${unit}之和`)
+    title: (src, n, name, unit) =>
+      n === 1
+        ? { before: src, eq: ' ≈ ', value: null, format: intFormat, suffix: '', after: name }
+        : {
+            before: src,
+            eq: ' ≈ ',
+            value: n,
+            format: intFormat,
+            suffix: '',
+            after: ` 个${unit}之和`
+          }
   },
   pppGdp: {
     id: 'pppGdp',
@@ -47,7 +88,17 @@ export const METRICS: Record<MetricId, Metric> = {
     unitName: '平价经济体量',
     format: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿（平价）` : `${fmtInt(v / 1e8)} 亿（平价）`),
     short: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿` : `${fmtInt(v / 1e8)} 亿`),
-    title: (src, n, name, unit) => (n === 1 ? `${src}（平价） ≈ ${name}` : `${src}（平价） ≈ ${n} 个${unit}之和`)
+    title: (src, n, name, unit) =>
+      n === 1
+        ? { before: `${src}（平价）`, eq: ' ≈ ', value: null, format: intFormat, suffix: '', after: name }
+        : {
+            before: `${src}（平价）`,
+            eq: ' ≈ ',
+            value: n,
+            format: intFormat,
+            suffix: '',
+            after: ` 个${unit}之和`
+          }
   },
   gdpPc: {
     id: 'gdpPc',
@@ -57,7 +108,14 @@ export const METRICS: Record<MetricId, Metric> = {
     unitName: '人均水平',
     format: (v) => `${fmtInt(v)} 美元/人`,
     short: (v) => `${fmtInt(v)} 美元`,
-    title: (src, _n, name) => `${src}的人均 GDP ≈ ${name}`
+    title: (src, _n, name) => ({
+      before: `${src}的人均 GDP`,
+      eq: ' ≈ ',
+      value: null,
+      format: intFormat,
+      suffix: '',
+      after: name
+    })
   },
   density: {
     id: 'density',
@@ -68,7 +126,14 @@ export const METRICS: Record<MetricId, Metric> = {
     format: (v) =>
       Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万美元/km²` : `${fmtInt(v)} 美元/km²`,
     short: (v) => (Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万/km²` : `${fmtInt(v)}/km²`),
-    title: (src, _n, name) => `${src}的产出密度 ≈ ${name}`
+    title: (src, _n, name) => ({
+      before: `${src}的产出密度`,
+      eq: ' ≈ ',
+      value: null,
+      format: intFormat,
+      suffix: '',
+      after: name
+    })
   },
   area: {
     id: 'area',
@@ -78,7 +143,17 @@ export const METRICS: Record<MetricId, Metric> = {
     unitName: '国土面积',
     format: (v) => (Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万 km²` : `${fmtInt(v)} km²`),
     short: (v) => (Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万` : fmtInt(v)),
-    title: (src, n, name, unit) => (n === 1 ? `${src}的面积 ≈ ${name}` : `${src}的面积 ≈ ${n} 个${unit}加起来`)
+    title: (src, n, name, unit) =>
+      n === 1
+        ? { before: `${src}的面积`, eq: ' ≈ ', value: null, format: intFormat, suffix: '', after: name }
+        : {
+            before: `${src}的面积`,
+            eq: ' ≈ ',
+            value: n,
+            format: intFormat,
+            suffix: '',
+            after: ` 个${unit}加起来`
+          }
   },
   pop: {
     id: 'pop',
@@ -88,7 +163,17 @@ export const METRICS: Record<MetricId, Metric> = {
     unitName: '人口',
     format: (v) => (Math.abs(v) >= 1e8 ? `${(v / 1e8).toFixed(2)} 亿人` : `${fmtInt(v / 1e4)} 万人`),
     short: (v) => (Math.abs(v) >= 1e8 ? `${(v / 1e8).toFixed(2)} 亿` : `${fmtInt(v / 1e4)} 万`),
-    title: (src, n, name, unit) => (n === 1 ? `${src}的人口 ≈ ${name}` : `${src}的人口 ≈ ${n} 个${unit}的人口总和`)
+    title: (src, n, name, unit) =>
+      n === 1
+        ? { before: `${src}的人口`, eq: ' ≈ ', value: null, format: intFormat, suffix: '', after: name }
+        : {
+            before: `${src}的人口`,
+            eq: ' ≈ ',
+            value: n,
+            format: intFormat,
+            suffix: '',
+            after: ` 个${unit}的人口总和`
+          }
   }
 };
 

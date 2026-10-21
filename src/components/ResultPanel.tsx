@@ -1,8 +1,9 @@
 import { formatPercent } from '../lib/format';
 import type { MatchResult } from '../lib/match';
-import type { Metric } from '../lib/metrics';
+import type { Metric, MetricTitle } from '../lib/metrics';
 import { AreaSilhouette } from './AreaSilhouette';
 import { CounterfactualCard } from './CounterfactualCard';
+import { CountUp } from './CountUp';
 import type { RankRow } from './CounterfactualCard';
 import type { GeoFeature } from '../lib/types';
 
@@ -10,7 +11,7 @@ interface Props {
   /** 主标题，例如「河南省」 */
   sourceLabel: string;
   /** 覆盖默认标题（用于「比大国家」这种要写成倍数的场合） */
-  headline?: string | null;
+  headline?: MetricTitle | null;
   /** 参照物的指标值合计 */
   target: number;
   /** 参照物金额的可读写法 */
@@ -65,11 +66,18 @@ export function ResultPanel({
   const error = target ? Math.abs(result.gap) / target : 0;
   const over = result.gap >= 0;
   const only = result.items[0];
+  const title = headline ?? metric.title(sourceLabel, result.count, only?.zh ?? '', unitName);
 
   return (
     <section className="result">
       <div className="result-headline">
-        <h1>{headline ?? metric.title(sourceLabel, result.count, only?.zh ?? '', unitName)}</h1>
+        <h1>
+          {title.before}
+          {title.eq ? <span className="eq">{title.eq}</span> : null}
+          {title.value != null ? <CountUp value={title.value} format={title.format} /> : null}
+          {title.suffix}
+          {title.after}
+        </h1>
         <p className="result-sub">
           {targetText} ·{' '}
           {result.count === 1 ? (

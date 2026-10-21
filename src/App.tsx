@@ -27,8 +27,8 @@ import {
   topByValue
 } from './lib/match';
 import type { GdpItem, MatchStrategy } from './lib/match';
-import { METRICS, METRIC_DEFAULT_STRATEGY, METRIC_HINT, METRIC_ORDER } from './lib/metrics';
-import type { MetricId } from './lib/metrics';
+import { METRICS, METRIC_DEFAULT_STRATEGY, METRIC_HINT, METRIC_ORDER, titleText } from './lib/metrics';
+import type { MetricId, MetricTitle } from './lib/metrics';
 import { loadState, shareUrl, writeState } from './lib/url';
 import type { CompareMode, FeatureCollection, GeoFeature, Region, ViewMode } from './lib/types';
 
@@ -223,13 +223,18 @@ export default function App() {
 
   const sourceLabel = sourceSelected.length ? sourceSelected.map((r) => r.zh).join(' + ') : '（未选择）';
 
-  const headline = useMemo(() => {
+  const headline = useMemo<MetricTitle | null>(() => {
     if (!match || !sourceSelected.length || bigFraction == null) return null;
-    const part =
-      bigFraction >= 1
-        ? `${bigFraction.toFixed(bigFraction < 10 ? 1 : 0)} 倍`
-        : `${(bigFraction * 100).toFixed(0)}%`;
-    return `${sourceLabel} ≈ ${match.items[0].zh}的 ${part}`;
+    const isMultiple = bigFraction >= 1;
+    return {
+      before: `${sourceLabel} ≈ ${match.items[0].zh}的 `,
+      eq: '',
+      // 不足 1 倍时写成百分比，否则写成倍数——数字本身是要滚动的那个
+      value: isMultiple ? bigFraction : bigFraction * 100,
+      format: (v) => (isMultiple ? (v < 10 ? v.toFixed(1) : v.toFixed(0)) : v.toFixed(0)),
+      suffix: isMultiple ? ' 倍' : '%',
+      after: ''
+    };
   }, [match, sourceSelected, bigFraction, sourceLabel]);
 
   // 两个目标的擂台对比（擂台视图里用大号版本，侧栏就不用重复了）
@@ -544,7 +549,7 @@ export default function App() {
         svg,
         title: `假如 ${sourceLabel} 是一个国家`,
         subtitle:
-          headline ??
+          (headline ? titleText(headline) : null) ??
           (match ? `相当于 ${match.count} 个${isRegionMode ? '国家' : '省/州'}之和` : ''),
         facts,
         footnote: dataset
@@ -566,7 +571,7 @@ export default function App() {
       setToast('正在生成高清图…');
       await exportPng({
         svg,
-        title: headline ?? (sourceSelected.length ? sourceLabel : 'GDP 等价地图'),
+        title: (headline ? titleText(headline) : null) ?? (sourceSelected.length ? sourceLabel : 'GDP 等价地图'),
         subtitle: sourceSelected.length
           ? `${metricDef.format(target)} · ${metricDef.valueLabel} · 数据年份 ${year}`
           : '选择一个地区开始',

@@ -1200,6 +1200,33 @@ body {
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
 }
 
+/* ── 对比的动态效果 ──
+   换指标、换口径、换年份时，结果不该「啪」地一下换掉。
+   条形从旧长度滑到新长度，地图上的高亮从旧颜色淡到新颜色——
+   「它变了」这件事本身就是要让人看出来的。
+   ⚠️ 全部包在 prefers-reduced-motion: no-preference 里：
+   系统关了动效的用户看到的是瞬间切换，不是动画。
+   ⚠️ 导出不受影响：export.ts 注入的 SVG_STYLE 里写着 .country { transition: none }，
+   导出的 PNG 永远是终态，不会拍到过渡中间的颜色。 */
+@media (prefers-reduced-motion: no-preference) {
+  .result-item .bar-fill {
+    transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .country {
+    transition:
+      fill 0.4s ease,
+      fill-opacity 0.4s ease,
+      stroke 0.4s ease;
+  }
+
+  .subdivisions path {
+    transition:
+      fill 0.4s ease,
+      fill-opacity 0.4s ease;
+  }
+}
+
 .result-item .gdp {
   text-align: right;
   font-variant-numeric: tabular-nums;
