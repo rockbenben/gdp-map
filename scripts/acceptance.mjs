@@ -146,7 +146,7 @@ try {
   check('首屏直接给结论', /≈/.test(firstTitle), firstTitle);
 
   // 10. 3D 地球
-  await page.locator('.segmented button', { hasText: '3D 地球' }).click();
+  await page.locator('.segmented button', { hasText: '地球' }).click();
   await page.waitForSelector('.globe-wrap svg .globe-country', { timeout: 15000 });
   await page.waitForTimeout(900);
   const globePaths = await page.locator('.globe-wrap svg .globe-country').count();
@@ -210,6 +210,29 @@ try {
   const withBest = (await page.locator('.puzzle').innerText()).replace(/\s+/g, ' ');
   check('拼图公布最优解', /最优解/.test(withBest), withBest.slice(0, 150));
   await page.locator('.puzzle').screenshot({ path: resolve(SHOTS, 'card-puzzle.png') });
+
+  // 10.9 新视图：方形图 / 擂台；新指标：密度 / 平价
+  await page.goto(`${BASE}/?sel=CN-410000&view=square`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.sq-cell', { timeout: 15000 });
+  const sqCells = await page.locator('.sq-cell').count();
+  check('方形图按指标重画世界', sqCells > 100, `${sqCells} 块`);
+
+  await page.goto(`${BASE}/?sel=CN-410000,CN-440000&view=bracket`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.target-compare', { timeout: 15000 });
+  const score = (await page.locator('.tc-score').first().innerText()).replace(/\s+/g, ' ');
+  check('擂台给出比分', /胜出|平局/.test(score), score);
+  const bracketNodes = await page.locator('.bracket-label').count();
+  check('对阵树画出晋级路径', bracketNodes > 8, `${bracketNodes} 个节点`);
+
+  await page.goto(`${BASE}/?sel=CN-410000&m=density`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  const densityHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  check('GDP 密度可对比', /密度/.test(densityHeadline), densityHeadline);
+
+  await page.goto(`${BASE}/?sel=CN-410000&m=pppGdp`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  const pppSub = (await page.locator('.result-sub').innerText()).replace(/\s+/g, ' ');
+  check('平价口径生效', /平价/.test(pppSub), pppSub);
 
   // 10.5 两个目标的直接对比
   await page.goto(`${BASE}/?sel=CN-410000,CN-440000`, { waitUntil: 'networkidle' });

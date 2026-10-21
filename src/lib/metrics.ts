@@ -6,7 +6,7 @@
  *   人均 GDP —— 不能，人均没有「加起来」这回事，只能跟单个对象比
  */
 
-export type MetricId = 'gdp' | 'gdpPc' | 'area' | 'pop';
+export type MetricId = 'gdp' | 'pppGdp' | 'gdpPc' | 'density' | 'area' | 'pop';
 
 export interface Metric {
   id: MetricId;
@@ -39,6 +39,16 @@ export const METRICS: Record<MetricId, Metric> = {
     short: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿` : `${fmtInt(v / 1e8)} 亿`),
     title: (src, n, name, unit) => (n === 1 ? `${src} ≈ ${name}` : `${src} ≈ ${n} 个${unit}之和`)
   },
+  pppGdp: {
+    id: 'pppGdp',
+    label: '平价 GDP',
+    valueLabel: '购买力平价 GDP（现价国际元）',
+    additive: true,
+    unitName: '平价经济体量',
+    format: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿（平价）` : `${fmtInt(v / 1e8)} 亿（平价）`),
+    short: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿` : `${fmtInt(v / 1e8)} 亿`),
+    title: (src, n, name, unit) => (n === 1 ? `${src}（平价） ≈ ${name}` : `${src}（平价） ≈ ${n} 个${unit}之和`)
+  },
   gdpPc: {
     id: 'gdpPc',
     label: '人均 GDP',
@@ -48,6 +58,17 @@ export const METRICS: Record<MetricId, Metric> = {
     format: (v) => `${fmtInt(v)} 美元/人`,
     short: (v) => `${fmtInt(v)} 美元`,
     title: (src, _n, name) => `${src}的人均 GDP ≈ ${name}`
+  },
+  density: {
+    id: 'density',
+    label: 'GDP 密度',
+    valueLabel: '每平方公里产出（现价美元）',
+    additive: false,
+    unitName: '产出密度',
+    format: (v) =>
+      Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万美元/km²` : `${fmtInt(v)} 美元/km²`,
+    short: (v) => (Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万/km²` : `${fmtInt(v)}/km²`),
+    title: (src, _n, name) => `${src}的产出密度 ≈ ${name}`
   },
   area: {
     id: 'area',
@@ -71,19 +92,23 @@ export const METRICS: Record<MetricId, Metric> = {
   }
 };
 
-export const METRIC_ORDER: MetricId[] = ['gdp', 'gdpPc', 'area', 'pop'];
+export const METRIC_ORDER: MetricId[] = ['gdp', 'pppGdp', 'gdpPc', 'density', 'area', 'pop'];
 
-/** 每个指标默认的对照方式：人均只能取单个，其余给最有意思的那个 */
+/** 每个指标默认的对照方式：人均/密度只能取单个，其余给最有意思的那个 */
 export const METRIC_DEFAULT_STRATEGY: Record<MetricId, 'many' | 'over' | 'big' | 'nearest'> = {
   gdp: 'over',
+  pppGdp: 'over',
   gdpPc: 'nearest',
+  density: 'nearest',
   area: 'nearest',
   pop: 'nearest'
 };
 
 export const METRIC_HINT: Record<MetricId, string> = {
   gdp: '看总量：几个国家加起来能赶上它。',
+  pppGdp: '看购买力平价：按当地物价折算，结论常和名义 GDP 不一样。',
   gdpPc: '看人均：人均不能相加，只能找生活水平最接近的那一个国家。',
+  density: '看密度：每平方公里的产出，衡量的是效率而不是体量。',
   area: '看面积：谁的底盘跟它差不多大。',
   pop: '看人口：几个国家的人口加起来有它这么多人。'
 };

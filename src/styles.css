@@ -755,6 +755,105 @@ body {
   margin-top: -2px;
 }
 
+/* ---------- 方形图 / 对阵树 ---------- */
+.sq-label {
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.view-caption {
+  margin: 10px 4px 2px;
+  font-size: 12.5px;
+  color: var(--text-mute);
+  text-align: center;
+}
+
+.bracket-holder {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bracket-row {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.bracket-vs {
+  min-width: 0;
+}
+
+.bracket-tree {
+  min-width: 0;
+}
+
+.bracket-label {
+  font-size: 12px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: rgba(8, 12, 22, 0.85);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.bracket-caption {
+  font-size: 11.5px;
+  fill: var(--text-mute);
+}
+
+.tc-score {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 2px 0 10px;
+}
+
+.tc-score span {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-mute);
+}
+
+.tc-score span.win {
+  color: var(--accent);
+}
+
+.tc-score i {
+  font-style: normal;
+  color: var(--text-mute);
+  font-size: 18px;
+}
+
+.tc-score em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+.tc-val.win {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tc-a {
+  color: var(--teal);
+}
+
+.tc-b {
+  color: var(--accent);
+}
+
+.target-compare h3 em {
+  font-style: normal;
+  color: var(--text-mute);
+  font-size: 12px;
+  margin: 0 2px;
+}
+
 /* ---------- 面积剪影对照 ---------- */
 .silhouette {
   margin: 12px 0 0;

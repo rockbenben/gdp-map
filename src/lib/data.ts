@@ -43,6 +43,7 @@ export function toRegion(obj: RegionObject, year: string): Region {
     en: obj.en,
     parentId: obj.parentId,
     gdpUsd: obj.metrics.gdp.nominal[year] ?? 0,
+    pppUsd: obj.metrics.ppp?.[year],
     gdpPerCapitaUsd: obj.metrics.gdpPc?.[year],
     pop: obj.metrics.pop?.[year],
     areaKm2: obj.metrics.area ?? undefined,
@@ -73,8 +74,12 @@ export function metricValue(region: Region, metric: MetricId): number {
   switch (metric) {
     case 'gdp':
       return region.gdpUsd;
+    case 'pppGdp':
+      return region.pppUsd ?? 0;
     case 'gdpPc':
       return region.gdpPerCapitaUsd ?? 0;
+    case 'density':
+      return region.areaKm2 ? region.gdpUsd / region.areaKm2 : 0;
     case 'area':
       return region.areaKm2 ?? 0;
     case 'pop':

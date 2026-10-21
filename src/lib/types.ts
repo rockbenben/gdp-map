@@ -15,6 +15,8 @@ export interface RegionObject {
   hasGeometry: boolean;
   metrics: {
     gdp: { nominal: MetricSeries };
+    /** 购买力平价 GDP（现价国际元） */
+    ppp?: MetricSeries;
     gdpPc?: MetricSeries;
     pop?: MetricSeries;
     area?: number | null;
@@ -52,6 +54,8 @@ export interface Region {
   parentId: string | null;
   parentName?: string;
   gdpUsd: number;
+  /** 购买力平价 GDP（现价国际元） */
+  pppUsd?: number;
   /** 人均 GDP（美元） */
   gdpPerCapitaUsd?: number;
   /** 人口（人） */
@@ -90,5 +94,5 @@ export interface FeatureCollection {
   features: GeoFeature[];
 }
 
-export type ViewMode = 'map' | 'globe';
+export type ViewMode = 'map' | 'globe' | 'square' | 'bracket';
 export type CompareMode = 'region-to-world' | 'world-to-region';

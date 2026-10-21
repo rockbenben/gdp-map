@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { geoPath } from 'd3-geo';
 import { GlobeView } from './components/GlobeView';
+import { Bracket } from './components/Bracket';
 import { RegionPicker } from './components/RegionPicker';
 import { ResultPanel } from './components/ResultPanel';
+import { SquareCartogram } from './components/SquareCartogram';
 import { SouthSeaBox } from './components/SouthSeaBox';
 import { TargetComparison } from './components/TargetComparison';
 import { WorldMap } from './components/WorldMap';
@@ -225,11 +227,18 @@ export default function App() {
     return `${sourceLabel} ≈ ${match.items[0].zh}的 ${part}`;
   }, [match, sourceSelected, bigFraction, sourceLabel]);
 
-  // 两个目标的直接对比
+  // 两个目标的擂台对比（擂台视图里用大号版本，侧栏就不用重复了）
   const comparison = useMemo(() => {
     if (sourceSelected.length !== 2) return null;
-    return <TargetComparison a={sourceSelected[0]} b={sourceSelected[1]} current={metricDef} />;
-  }, [sourceSelected, metricDef]);
+    return (
+      <TargetComparison
+        a={sourceSelected[0]}
+        b={sourceSelected[1]}
+        current={metricDef}
+        values={(r, m) => metricValue(r, m)}
+      />
+    );
+  }, [sourceSelected, metricDef, metric]);
 
   /** 「假如它是一个国家」：四项指标各自在世界上的名次 */
   const counterfactual = useMemo(() => {
@@ -382,6 +391,20 @@ export default function App() {
     setStrategy(METRIC_DEFAULT_STRATEGY[m]);
     setSelected([region.id]);
     setToast(`今日一题：${region.zh}的${METRICS[m].label}`);
+  };
+
+  /** 今日一省：按日期确定性地抽一个省——今天打开的人看到的都一样，方便分享 */
+  const dailyPick = () => {
+    if (!regions.length) return;
+    const today = new Date();
+    const stamp = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+    let hash = 0;
+    for (const ch of stamp) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+    const region = regions[hash % regions.length];
+    setMode('region-to-world');
+    setSelected([region.id]);
+    touchedRef.current = true;
+    setToast(`今日一省（${stamp}）：${region.zh}`);
   };
 
   // ---------- 高亮 ----------
@@ -613,10 +636,16 @@ export default function App() {
 
           <div className="segmented" role="tablist" aria-label="视图">
             <button type="button" className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}>
-              2D 地图
+              地图
             </button>
             <button type="button" className={view === 'globe' ? 'active' : ''} onClick={() => setView('globe')}>
-              3D 地球
+              地球
+            </button>
+            <button type="button" className={view === 'square' ? 'active' : ''} onClick={() => setView('square')}>
+              方形图
+            </button>
+            <button type="button" className={view === 'bracket' ? 'active' : ''} onClick={() => setView('bracket')}>
+              擂台
             </button>
           </div>
 
@@ -800,6 +829,9 @@ export default function App() {
             <button type="button" className="chip ghost" onClick={randomQuestion}>
               今日一题
             </button>
+            <button type="button" className="chip ghost" onClick={dailyPick}>
+              今日一省
+            </button>
             <button type="button" className="chip ghost" onClick={startPuzzle}>
               玩一局
             </button>
@@ -869,7 +901,7 @@ export default function App() {
               sourceLabel={sourceLabel}
               headline={headline}
               fraction={bigFraction}
-              comparison={comparison}
+              comparison={view === 'bracket' ? null : comparison}
               counterfactual={counterfactual}
               target={target}
               targetText={metricDef.format(target)}
@@ -895,7 +927,54 @@ export default function App() {
 
         <main className="stage">
           <div className="stage-inner">
-            {view === 'map' ? (
+            {view === 'square' ? (
+              <div className="map-holder">
+                <SquareCartogram
+                  items={countries.map((c) => ({
+                    id: c.id,
+                    zh: c.zh,
+                    value: metricValue(c, metric),
+                    matched: (match?.items ?? []).some((m) => m.id === c.id)
+                  }))}
+                  onSelect={handleMapClick}
+                  labelFor={(id) => countryById.get(id)?.zh ?? id}
+                />
+                <p className="view-caption">
+                  世界按「{metricDef.label}」重画：每块的大小就是它的份额，高亮的是这次对照出来的对象。
+                </p>
+              </div>
+            ) : view === 'bracket' ? (
+              <div className="map-holder bracket-holder">
+                <div className="bracket-row">
+                  <div className="bracket-vs">
+                    {comparison ?? (
+                      <p className="view-caption">在左侧选两个地方，这里就是它们的擂台对阵。</p>
+                    )}
+                  </div>
+                  <div className="bracket-tree">
+                    <Bracket
+                      entrants={[...regions]
+                        .sort((a, b) => metricValue(b, metric) - metricValue(a, metric))
+                        .slice(0, 16)
+                        .map((r) => ({
+                          id: r.id,
+                          zh: r.zh,
+                          value: metricValue(r, metric),
+                          text: metricDef.short(metricValue(r, metric))
+                        }))}
+                      highlightIds={selected}
+                      onSelect={(id) => {
+                        setSelected([id]);
+                        touchedRef.current = true;
+                      }}
+                    />
+                    <p className="view-caption">
+                      省/州按「{metricDef.label}」排前 16 名，两两淘汰——越往右越是赢家。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : view === 'map' ? (
               isRegionMode ? (
                 world && china ? (
                   <div className="map-holder">

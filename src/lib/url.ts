@@ -1,7 +1,7 @@
 import type { CompareMode, ViewMode } from './types';
 import type { MatchStrategy } from './match';
 import type { MetricId } from './metrics';
-import { METRIC_DEFAULT_STRATEGY, METRICS as METRIC_DEF } from './metrics';
+import { METRIC_DEFAULT_STRATEGY, METRIC_ORDER, METRICS as METRIC_DEF } from './metrics';
 
 export interface AppState {
   mode: CompareMode;
@@ -28,13 +28,15 @@ const DEFAULTS: AppState = {
 };
 
 const STRATEGIES: MatchStrategy[] = ['many', 'over', 'big', 'nearest'];
-const METRICS: MetricId[] = ['gdp', 'gdpPc', 'area', 'pop'];
+const METRICS: MetricId[] = METRIC_ORDER;
+
+const VIEWS: ViewMode[] = ['map', 'globe', 'square', 'bracket'];
 
 function readState(): AppState {
   if (typeof window === 'undefined') return DEFAULTS;
   const p = new URLSearchParams(window.location.search);
   const mode = p.get('mode');
-  const view = p.get('view');
+  const view = p.get('view') as ViewMode | null;
   const strategy = p.get('st') as MatchStrategy | null;
   const metric = p.get('m') as MetricId | null;
   const yRaw = Number(p.get('y'));
@@ -42,12 +44,13 @@ function readState(): AppState {
   let selected = (p.get('sel') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const resolvedMetric = metric && METRICS.includes(metric) ? metric : DEFAULTS.metric;
   const additive = METRIC_DEF[resolvedMetric].additive;
+  const resolvedView = view && VIEWS.includes(view) ? view : DEFAULTS.view;
   if (!additive) {
-    // 人均这类不可叠加的指标：口径锁死「最接近」，选择也只留一个
+    // 人均、密度这类不可叠加的指标：口径锁死「最接近」，选择也只留一个
     selected = selected.slice(0, 1);
     return {
       mode: mode === 'world-to-region' ? 'world-to-region' : 'region-to-world',
-      view: view === 'globe' ? 'globe' : 'map',
+      view: resolvedView,
       selected,
       strategy: 'nearest',
       metric: resolvedMetric,
@@ -57,7 +60,7 @@ function readState(): AppState {
   }
   return {
     mode: mode === 'world-to-region' ? 'world-to-region' : 'region-to-world',
-    view: view === 'globe' ? 'globe' : 'map',
+    view: resolvedView,
     selected,
     // URL 里给了指标但没给对照方式时，跟随该指标的默认口径
     strategy:

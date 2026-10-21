@@ -171,6 +171,19 @@ for (const y of YEARS) fx[y] = await fetchExchangeRate(y);
 // 港澳台按中国境内一级行政区处理（进入省级池），不重复出现在国家池
 const CN_INTERNAL = new Set(['TWN', 'HKG', 'MAC']);
 const worldIds = new Set(worldGeo.features.map((f) => f.id));
+
+// PPP 换算因子 = PPPGDP / NGDPD，用来把省/州的名义 GDP 折成购买力平价口径
+const pppFactor = new Map();
+for (const [iso3, rec] of Object.entries(weo.data)) {
+  const f = {};
+  for (const y of Object.keys(rec.NGDPD ?? {})) {
+    const nominal = rec.NGDPD[y];
+    const ppp = rec.PPPGDP?.[y];
+    if (nominal && ppp) f[y] = ppp / nominal;
+  }
+  pppFactor.set(iso3, f);
+}
+
 let countryList = [];
 for (const [iso3, rec] of Object.entries(weo.data)) {
   const nominal = {};
@@ -189,6 +202,10 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
   for (const y of Object.keys(nominal)) {
     if (pop[y]) gdpPc[y] = nominal[y] / pop[y];
   }
+  const ppp = {};
+  for (const [y, v] of Object.entries(rec.PPPGDP ?? {})) {
+    if (v != null) ppp[y] = v * 1e9; // 十亿美元 → 美元
+  }
   countryList.push({
     id: iso3,
     zh: zh ?? en,
@@ -198,6 +215,7 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
     pop,
     gdpPc,
     area,
+    ppp,
     search: searchKey(zh ?? en, en)
   });
 }
@@ -308,6 +326,17 @@ const chinaFeatures = chinaGeo.features.map((f) => ({
 }));
 
 // ---------- 输出 ----------
+/** 省/州的 PPP 估算：名义 GDP × 所属国家的 PPP 换算因子 */
+function pppForRegion(countryIso3, nominalByYear) {
+  const factor = pppFactor.get(countryIso3) ?? {};
+  const out = {};
+  for (const [y, v] of Object.entries(nominalByYear)) {
+    const f = factor[y];
+    if (f) out[y] = v * f;
+  }
+  return out;
+}
+
 await mkdir(resolve(OUT, 'data'), { recursive: true });
 await mkdir(resolve(OUT, 'geo'), { recursive: true });
 
@@ -325,7 +354,8 @@ const objects = [
       gdp: { nominal: c.gdp.nominal },
       gdpPc: c.gdpPc,
       pop: c.pop,
-      area: c.area
+      area: c.area,
+      ppp: c.ppp
     },
     search: c.search
   })),
@@ -341,7 +371,9 @@ const objects = [
       gdp: { nominal: p.gdp.nominal },
       gdpPc: p.gdpPc,
       pop: p.pop,
-      area: p.area
+      area: p.area,
+      // 省级没有官方 PPP 口径：用全国 PPP 换算因子估算
+      ppp: pppForRegion('CHN', p.gdp.nominal)
     },
     source: p.source,
     search: p.search
@@ -358,7 +390,8 @@ const objects = [
       gdp: { nominal: s.gdp.nominal },
       gdpPc: s.gdpPc,
       pop: s.pop,
-      area: s.area
+      area: s.area,
+      ppp: pppForRegion('USA', s.gdp.nominal)
     },
     source: 'BEA 州级 GDP（2024）与人口（经维基百科转录），面积按 us-atlas 州界几何算',
     search: s.search
