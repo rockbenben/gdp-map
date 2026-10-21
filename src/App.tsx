@@ -88,13 +88,12 @@ export default function App() {
   const [sourcesOpen, setSourcesOpen] = useState(wide);
 
   useEffect(() => {
-    Promise.all([loadDataset(), loadWorld(), loadChina(), loadUsStates(), loadExtraRegions()])
-      .then(([d, w, c, u, e]) => {
+    Promise.all([loadDataset(), loadWorld(), loadChina(), loadUsStates()])
+      .then(([d, w, c, u]) => {
         setDataset(d);
         setWorld(w);
         setChina(c);
         setUsStates(u);
-        setExtraRegions(e);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
@@ -194,6 +193,26 @@ export default function App() {
     const pool: GdpItem[] = comparePool.map((r) => ({ id: r.id, zh: r.zh, value: metricValue(r, metric) }));
     return closestSingle(target, pool, { exclude: sourceSelected.map((r) => r.id) });
   }, [target, comparePool, sourceSelected, metric]);
+
+  /**
+   * 欧洲 NUTS-1 与日本都道府县的边界，按需加载。
+   *
+   * 这个文件 542 KB（gzip 191 KB），占首屏的四分之一，而绝大多数访问根本不需要它——
+   * 选中国省走的是 china.json，选美国州走 us-states.json，国家侧走 world.json。
+   * 只有「选中的就是欧洲/日本的地区」或「对照结果落到了它们身上」时才用得上。
+   */
+  const needsExtraGeometry = useMemo(() => {
+    const isExtra = (id?: string) => Boolean(id && (id.startsWith('EU-') || id.startsWith('JP-')));
+    if (sourceSelected.some((r) => isExtra(r.geometryId))) return true;
+    return (match?.items ?? []).some((i) => isExtra(i.id));
+  }, [sourceSelected, match]);
+
+  useEffect(() => {
+    if (!needsExtraGeometry || extraRegions) return;
+    loadExtraRegions()
+      .then(setExtraRegions)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [needsExtraGeometry, extraRegions]);
 
   useEffect(() => {
     writeState({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro, worldYear });
