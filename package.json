@@ -1,0 +1,39 @@
+{
+  "name": "gdp-equivalence-map",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GDP 等价地图：随手选一个省/州/国家，看它相当于多少个国家之和",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "data": "node scripts/fetch-sources.mjs && node scripts/build-data.mjs",
+    "data:fetch": "node scripts/fetch-sources.mjs",
+    "data:build": "node scripts/build-data.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "d3-geo": "^3.1.1",
+    "d3-scale": "^4.0.2",
+    "d3-scale-chromatic": "^3.1.0",
+    "gdp-equivalence-map": "file:",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/d3-geo": "^3.1.0",
+    "@types/d3-scale": "^4.0.9",
+    "@types/d3-scale-chromatic": "^3.1.0",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "i18n-iso-countries": "^7.14.0",
+    "pinyin-pro": "^3.26.0",
+    "playwright": "^1.64.1",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.5"
+  }
+}

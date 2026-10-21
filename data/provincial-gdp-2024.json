@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "year": 2024,
+    "unit": "亿元",
+    "source": "国家统计局《中国统计年鉴2025》表 3-9 地区生产总值(2024年)",
+    "sourceUrl": "https://www.stats.gov.cn/sj/ndsj/2025/html/C03-09.jpg",
+    "note": "本表数值由官方年鉴表格图片人工读取，地区生产总值列为「绝对数」栏；单位亿元人民币。人均地区生产总值为元。"
+  },
+  "provinces": [
+    { "name": "北京市", "adcode": 110000, "gdp": 49843.1, "gdpPerCapita": 228167 },
+    { "name": "天津市", "adcode": 120000, "gdp": 18024.3, "gdpPerCapita": 132143 },
+    { "name": "河北省", "adcode": 130000, "gdp": 47526.9, "gdpPerCapita": 64352 },
+    { "name": "山西省", "adcode": 140000, "gdp": 25494.7, "gdpPerCapita": 73769 },
+    { "name": "内蒙古自治区", "adcode": 150000, "gdp": 26314.6, "gdpPerCapita": 110011 },
+    { "name": "辽宁省", "adcode": 210000, "gdp": 32612.7, "gdpPerCapita": 78236 },
+    { "name": "吉林省", "adcode": 220000, "gdp": 14361.2, "gdpPerCapita": 61689 },
+    { "name": "黑龙江省", "adcode": 230000, "gdp": 16476.9, "gdpPerCapita": 54102 },
+    { "name": "上海市", "adcode": 310000, "gdp": 53926.7, "gdpPerCapita": 217140 },
+    { "name": "江苏省", "adcode": 320000, "gdp": 137008.0, "gdpPerCapita": 160694 },
+    { "name": "浙江省", "adcode": 330000, "gdp": 90130.6, "gdpPerCapita": 135565 },
+    { "name": "安徽省", "adcode": 340000, "gdp": 50625.2, "gdpPerCapita": 82694 },
+    { "name": "福建省", "adcode": 350000, "gdp": 57761.0, "gdpPerCapita": 137920 },
+    { "name": "江西省", "adcode": 360000, "gdp": 34202.5, "gdpPerCapita": 75862 },
+    { "name": "山东省", "adcode": 370000, "gdp": 98565.8, "gdpPerCapita": 97575 },
+    { "name": "河南省", "adcode": 410000, "gdp": 63590.0, "gdpPerCapita": 64888 },
+    { "name": "湖北省", "adcode": 420000, "gdp": 60013.0, "gdpPerCapita": 102832 },
+    { "name": "湖南省", "adcode": 430000, "gdp": 52331.0, "gdpPerCapita": 81225 },
+    { "name": "广东省", "adcode": 440000, "gdp": 141633.8, "gdpPerCapita": 111146 },
+    { "name": "广西壮族自治区", "adcode": 450000, "gdp": 28649.4, "gdpPerCapita": 57071 },
+    { "name": "海南省", "adcode": 460000, "gdp": 7935.7, "gdpPerCapita": 75903 },
+    { "name": "重庆市", "adcode": 500000, "gdp": 32193.2, "gdpPerCapita": 100903 },
+    { "name": "四川省", "adcode": 510000, "gdp": 64697.0, "gdpPerCapita": 77333 },
+    { "name": "贵州省", "adcode": 520000, "gdp": 22667.1, "gdpPerCapita": 58685 },
+    { "name": "云南省", "adcode": 530000, "gdp": 31534.1, "gdpPerCapita": 67612 },
+    { "name": "西藏自治区", "adcode": 540000, "gdp": 2764.9, "gdpPerCapita": 75237 },
+    { "name": "陕西省", "adcode": 610000, "gdp": 35538.8, "gdpPerCapita": 89915 },
+    { "name": "甘肃省", "adcode": 620000, "gdp": 13002.9, "gdpPerCapita": 52825 },
+    { "name": "青海省", "adcode": 630000, "gdp": 3950.8, "gdpPerCapita": 66568 },
+    { "name": "宁夏回族自治区", "adcode": 640000, "gdp": 5502.8, "gdpPerCapita": 75484 },
+    { "name": "新疆维吾尔自治区", "adcode": 650000, "gdp": 20534.1, "gdpPerCapita": 78660 }
+  ]
+}

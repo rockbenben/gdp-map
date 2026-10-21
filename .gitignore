@@ -1,0 +1,18 @@
+# 依赖与构建产物
+node_modules/
+dist/
+.vite/
+
+# 数据抓取的原始缓存（可用 npm run data:fetch 重新获取）
+data/raw/*.json
+data/raw/*.jpg
+data/raw/*.geo.json
+data/raw/fx-usd-cny-*.json
+
+# 验收脚本产物
+tmp/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+*.log
