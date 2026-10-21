@@ -112,6 +112,28 @@ export default function App() {
     writeState({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro });
   }, [mode, view, selected, metric, effectiveStrategy, ignoreMicro]);
 
+  /** 四种口径各自会得到什么：让用户直接看懂区别，而不是背术语 */
+  const strategyPreviews = useMemo(() => {
+    if (!target) return [];
+    const exclude = sourceSelected.map((r) => r.id);
+    const pool: GdpItem[] = comparePool.map((r) => ({ id: r.id, zh: r.zh, value: metricValue(r, metric) }));
+    const list: MatchStrategy[] = additive ? ['many', 'over', 'big', 'nearest'] : ['nearest'];
+    return list.map((id) => {
+      const r = matchByStrategy(target, pool, id, { exclude });
+      const err = target ? Math.abs(r.gap) / target : 0;
+      const gapText = `${r.gap >= 0 ? '多' : '少'} ${(err * 100).toFixed(1)}%`;
+      const names = r.items.slice(0, 3).map((i) => i.zh).join(' + ');
+      const preview =
+        r.count === 0
+          ? '没有能匹配的对象'
+          : r.count === 1
+            ? `${r.items[0].zh} · ${metricDef.format(r.sum)}（${gapText}）`
+            : `${r.count} 个 · ${metricDef.format(r.sum)}（${gapText}）`;
+      const detail = r.count > 1 ? `${names}${r.count > 3 ? ' …' : ''}` : '';
+      return { id, label: STRATEGY_LABEL[id], hint: STRATEGY_HINT[id], preview, detail };
+    });
+  }, [target, comparePool, sourceSelected, metric, additive, metricDef]);
+
   /** 参照物在「被比对象」里能排第几 */
   const worldRank = useMemo(() => {
     if (!target || !isRegionMode) return null;
@@ -387,7 +409,7 @@ export default function App() {
         <aside className="sidebar">
           <section className="strategy">
             <div className="picker-head">
-              <h2>比什么</h2>
+              <h2>比哪个方面</h2>
             </div>
             <div className="metric-options" role="radiogroup" aria-label="对比指标">
               {METRIC_ORDER.map((m) => (
@@ -405,27 +427,39 @@ export default function App() {
             </div>
             <p className="picker-hint">{METRIC_HINT[metric]}</p>
 
-            <div className="picker-head" style={{ marginTop: 12 }}>
-              <h2>怎么比</h2>
+            <div className="picker-head" style={{ marginTop: 14 }}>
+              <h2>{isRegionMode ? '拿哪些国家来凑' : '拿哪些省/州来凑'}</h2>
             </div>
-            <div className="strategy-options" role="radiogroup" aria-label="对照方式">
-              {(['many', 'over', 'big', 'nearest'] as MatchStrategy[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  role="radio"
-                  aria-checked={effectiveStrategy === s}
-                  disabled={!additive && s !== 'nearest'}
-                  className={`strategy-btn${effectiveStrategy === s ? ' active' : ''}`}
-                  onClick={() => setStrategy(s)}
-                >
-                  {STRATEGY_LABEL[s]}
-                </button>
-              ))}
-            </div>
-            <p className="picker-hint">
-              {additive ? STRATEGY_HINT[effectiveStrategy] : '人均不能相加，只能跟单个对象比，也不能多选。'}
-            </p>
+            {additive ? (
+              <div className="choice-list" role="radiogroup" aria-label="对照方式">
+                {strategyPreviews.map((opt) => {
+                  const active = effectiveStrategy === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={`choice${active ? ' active' : ''}`}
+                      onClick={() => setStrategy(opt.id)}
+                      title={opt.hint}
+                    >
+                      <span className="choice-title">{opt.label}</span>
+                      <span className="choice-preview">{opt.preview}</span>
+                      {active ? <span className="choice-hint">{opt.hint}</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="choice-list">
+                <div className="choice active static">
+                  <span className="choice-title">{STRATEGY_LABEL.nearest}</span>
+                  <span className="choice-preview">{strategyPreviews[0]?.preview ?? '—'}</span>
+                  <span className="choice-hint">人均不能相加，只能跟单个国家比。</span>
+                </div>
+              </div>
+            )}
             <label className="toggle">
               <input
                 type="checkbox"

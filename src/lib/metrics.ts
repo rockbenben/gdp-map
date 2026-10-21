@@ -82,8 +82,8 @@ export const METRIC_DEFAULT_STRATEGY: Record<MetricId, 'many' | 'over' | 'big' |
 };
 
 export const METRIC_HINT: Record<MetricId, string> = {
-  gdp: '看总量：河南的经济体量相当于几个国家加起来。',
-  gdpPc: '看人均：人均不能加，只能跟单个国家比谁更接近。',
-  area: '看地理：河南的地盘相当于谁。',
-  pop: '看人：河南的人口相当于几个国家的人口总和。'
+  gdp: '看总量：几个国家加起来能赶上它。',
+  gdpPc: '看人均：人均不能相加，只能找生活水平最接近的那一个国家。',
+  area: '看面积：谁的底盘跟它差不多大。',
+  pop: '看人口：几个国家的人口加起来有它这么多人。'
 };

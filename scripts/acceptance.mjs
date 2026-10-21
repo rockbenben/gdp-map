@@ -57,18 +57,23 @@ try {
   check('拼音搜索可用', (await page.locator('.picker-item').count()) === 1);
   await page.locator('.search').fill('');
 
-  // 5. 对照方式
-  await page.locator('.strategy-btn', { hasText: '大件优先' }).click();
+  // 5. 对照方式（每项直接写出结果）
+  const choiceCount = await page.locator('.choice').count();
+  check('列出全部对照口径', choiceCount === 4, `${choiceCount} 项`);
+  const previews = await page.locator('.choice-preview').allInnerTexts();
+  check('每种口径都直接给出结果', previews.every((p) => /\d/.test(p)), previews.join(' | '));
+
+  await page.locator('.choice', { hasText: '用大国家' }).click();
   await page.waitForTimeout(300);
   const headlineBig = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
   check('切换对照方式后结果变化', headline !== headlineBig, `${headline} → ${headlineBig}`);
   const bigCount = await page.locator('.result-item').count();
-  check('大件优先的件数明显更少', bigCount > 0 && bigCount < 20, `${bigCount} 件`);
+  check('用大国家的件数明显更少', bigCount > 0 && bigCount < 20, `${bigCount} 件`);
 
-  await page.locator('.strategy-btn', { hasText: '尽量打过' }).click();
+  await page.locator('.choice', { hasText: '宁可超出' }).click();
   await page.waitForTimeout(300);
   const overSub = await page.locator('.result-sub').innerText();
-  check('尽量打过：合计不低于参照物', /超出/.test(overSub), overSub.replace(/\s+/g, ' '));
+  check('宁可超出：合计不低于参照物', /超出/.test(overSub), overSub.replace(/\s+/g, ' '));
 
   // 6. 微型经济体开关
   await page.locator('.toggle input').uncheck();
@@ -94,7 +99,7 @@ try {
   await page.waitForTimeout(400);
   const pcHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
   check('切换到人均指标', /人均/.test(pcHeadline), pcHeadline);
-  check('人均下只有「最接近」可用', (await page.locator('.strategy-btn:disabled').count()) === 3);
+  check('人均下只留一个口径', (await page.locator('.choice').count()) === 1);
 
   // 人均不可叠加：再选一个地方应该替换，而不是累加
   const pcCount1 = await page.locator('.picker-item.active').count();

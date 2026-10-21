@@ -41,17 +41,17 @@ export interface MatchResult {
 export type MatchStrategy = 'many' | 'over' | 'big' | 'nearest';
 
 export const STRATEGY_LABEL: Record<MatchStrategy, string> = {
-  many: '尽量多件',
-  over: '尽量打过',
-  big: '大件优先',
-  nearest: '最接近'
+  many: '尽量多凑',
+  over: '宁可超出',
+  big: '用大国家',
+  nearest: '最像的一个'
 };
 
 export const STRATEGY_HINT: Record<MatchStrategy, string> = {
-  many: '优先用小件，凑出最多的件数，合计不超过参照物。',
-  over: '沿自然顺序累加，装不下的那一个也算进去 —— 合计至少这么大。',
-  big: '优先用大件，结果由能叫得出名字的经济体组成。',
-  nearest: '只看单个最接近的对象。'
+  many: '从最小的国家往上加，能加多少个算多少个 —— 件数最多，但多是些小国。',
+  over: '同样从小往大加，只是装不下的那一个也算进去 —— 保证总量至少这么大。',
+  big: '从最大的国家往下凑 —— 数量少，但都是大家熟悉的名字。',
+  nearest: '不凑，只挑最接近的那一个。'
 };
 
 export interface AccumulateOptions {
