@@ -1,7 +1,7 @@
 import type { CompareMode, ViewMode } from './types';
 import type { MatchStrategy } from './match';
 import type { MetricId } from './metrics';
-import { METRIC_DEFAULT_STRATEGY } from './metrics';
+import { METRIC_DEFAULT_STRATEGY, METRICS as METRIC_DEF } from './metrics';
 
 export interface AppState {
   mode: CompareMode;
@@ -34,8 +34,21 @@ function readState(): AppState {
   const view = p.get('view');
   const strategy = p.get('st') as MatchStrategy | null;
   const metric = p.get('m') as MetricId | null;
-  const selected = (p.get('sel') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  let selected = (p.get('sel') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const resolvedMetric = metric && METRICS.includes(metric) ? metric : DEFAULTS.metric;
+  const additive = METRIC_DEF[resolvedMetric].additive;
+  if (!additive) {
+    // 人均这类不可叠加的指标：口径锁死「最接近」，选择也只留一个
+    selected = selected.slice(0, 1);
+    return {
+      mode: mode === 'world-to-region' ? 'world-to-region' : 'region-to-world',
+      view: view === 'globe' ? 'globe' : 'map',
+      selected,
+      strategy: 'nearest',
+      metric: resolvedMetric,
+      ignoreMicro: p.get('micro') === '0' ? false : DEFAULTS.ignoreMicro
+    };
+  }
   return {
     mode: mode === 'world-to-region' ? 'world-to-region' : 'region-to-world',
     view: view === 'globe' ? 'globe' : 'map',

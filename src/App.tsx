@@ -55,10 +55,6 @@ export default function App() {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  useEffect(() => {
-    writeState({ mode, view, selected, metric, strategy, ignoreMicro });
-  }, [mode, view, selected, metric, strategy, ignoreMicro]);
-
   const year = dataset?.meta.defaultYear ?? '2024';
 
   const { countries: allCountries, regions } = useMemo(
@@ -78,14 +74,22 @@ export default function App() {
   const isRegionMode = mode === 'region-to-world';
   /** 参照对象池：地方 → 世界时是省/州，世界 → 地方时是国家 */
   const sourcePool = isRegionMode ? regions : allCountries;
-  const sourceSelected = useMemo(
-    () => selected.map((id) => sourcePool.find((r) => r.id === id)).filter(Boolean) as Region[],
-    [selected, sourcePool]
-  );
+  /** 人均这类指标不可叠加：只允许选一个，且只能用「最接近」口径 */
+  const additive = metricDef.additive;
+  const effectiveStrategy: MatchStrategy = additive ? strategy : 'nearest';
+  const sourceSelected = useMemo(() => {
+    const picked = selected.map((id) => sourcePool.find((r) => r.id === id)).filter(Boolean) as Region[];
+    return additive ? picked : picked.slice(0, 1);
+  }, [selected, sourcePool, additive]);
   /** 对照池 */
   const comparePool = isRegionMode ? countries : regions;
 
-  const target = sourceSelected.reduce((sum, r) => sum + metricValue(r, metric), 0);
+  // 可叠加的指标才求和；不可叠加的只取唯一那一个
+  const target = additive
+    ? sourceSelected.reduce((sum, r) => sum + metricValue(r, metric), 0)
+    : sourceSelected.length
+      ? metricValue(sourceSelected[0], metric)
+      : 0;
 
   const match = useMemo(() => {
     if (!target) return null;
@@ -95,14 +99,18 @@ export default function App() {
       zh: r.zh,
       value: metricValue(r, metric)
     }));
-    return matchByStrategy(target, pool, strategy, { exclude });
-  }, [target, comparePool, sourceSelected, metric, strategy]);
+    return matchByStrategy(target, pool, effectiveStrategy, { exclude });
+  }, [target, comparePool, sourceSelected, metric, effectiveStrategy]);
 
   const closest = useMemo(() => {
     if (!target) return null;
     const pool: GdpItem[] = comparePool.map((r) => ({ id: r.id, zh: r.zh, value: metricValue(r, metric) }));
     return closestSingle(target, pool, { exclude: sourceSelected.map((r) => r.id) });
   }, [target, comparePool, sourceSelected, metric]);
+
+  useEffect(() => {
+    writeState({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro });
+  }, [mode, view, selected, metric, effectiveStrategy, ignoreMicro]);
 
   /** 参照物在「被比对象」里能排第几 */
   const worldRank = useMemo(() => {
@@ -140,12 +148,16 @@ export default function App() {
   const switchMetric = (next: MetricId) => {
     setMetric(next);
     setStrategy(METRIC_DEFAULT_STRATEGY[next]);
+    // 换成不可叠加的指标时，多选只剩第一个
+    if (!METRICS[next].additive) setSelected((prev) => prev.slice(0, 1));
   };
 
   const toggle = (id: string) => {
     setSelected((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      return isRegionMode ? [...prev, id] : [id];
+      // 人均这类不可叠加的指标：选新的就替换旧的
+      if (!additive || !isRegionMode) return [id];
+      return [...prev, id];
     });
   };
 
@@ -278,7 +290,7 @@ export default function App() {
 
   const handleCopyLink = () => {
     setToast('正在复制链接…');
-    copyText(shareUrl({ mode, view, selected, metric, strategy, ignoreMicro })).then(
+    copyText(shareUrl({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro })).then(
       (ok) => setToast(ok ? '链接已复制到剪贴板' : '复制失败，请手动复制地址栏'),
       () => setToast('复制失败，请手动复制地址栏')
     );
@@ -402,9 +414,9 @@ export default function App() {
                   key={s}
                   type="button"
                   role="radio"
-                  aria-checked={strategy === s}
-                  disabled={!metricDef.additive && s !== 'nearest'}
-                  className={`strategy-btn${strategy === s ? ' active' : ''}`}
+                  aria-checked={effectiveStrategy === s}
+                  disabled={!additive && s !== 'nearest'}
+                  className={`strategy-btn${effectiveStrategy === s ? ' active' : ''}`}
                   onClick={() => setStrategy(s)}
                 >
                   {STRATEGY_LABEL[s]}
@@ -412,7 +424,7 @@ export default function App() {
               ))}
             </div>
             <p className="picker-hint">
-              {metricDef.additive ? STRATEGY_HINT[strategy] : '人均不可累加，只能跟单个对象比。'}
+              {additive ? STRATEGY_HINT[effectiveStrategy] : '人均不能相加，只能跟单个对象比，也不能多选。'}
             </p>
             <label className="toggle">
               <input
@@ -428,7 +440,9 @@ export default function App() {
             title={isRegionMode ? '选择一个省 / 州' : '选择一个国家'}
             hint={
               isRegionMode
-                ? '中国的省级行政区与美国的州都有经济总量，可以直接跟世界比。'
+                ? additive
+                  ? '中国的省级行政区与美国的州都有经济总量，可以直接跟世界比；多选会先加总。'
+                  : '中国的省级行政区与美国的州都有经济总量。人均不能相加，所以只能选一个。'
                 : '选一个国家，看它相当于哪些省/州加起来。'
             }
             metric={metricDef}
@@ -437,7 +451,7 @@ export default function App() {
             selected={selected}
             onToggle={toggle}
             onClear={() => setSelected([])}
-            multi={isRegionMode}
+            multi={isRegionMode && additive}
           />
 
           <div className="quick-row">
@@ -475,7 +489,7 @@ export default function App() {
               strategyLabel={STRATEGY_LABEL[strategy]}
               worldRank={worldRank}
               matchedPopulation={matchedPopulation}
-              closest={closest && strategy !== 'nearest' ? { zh: closest.zh, value: closest.value } : null}
+              closest={closest && effectiveStrategy !== 'nearest' ? { zh: closest.zh, value: closest.value } : null}
               silhouette={silhouette}
             />
           ) : (

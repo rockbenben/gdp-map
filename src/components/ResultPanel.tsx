@@ -57,7 +57,16 @@ export function ResultPanel({
       <div className="result-headline">
         <h1>{metric.title(sourceLabel, result.count, only?.zh ?? '', unitName)}</h1>
         <p className="result-sub">
-          {targetText} · 合计 <strong>{metric.format(result.sum)}</strong>
+          {targetText} ·{' '}
+          {result.count === 1 ? (
+            <>
+              对照 <strong>{metric.format(result.sum)}</strong>
+            </>
+          ) : (
+            <>
+              合计 <strong>{metric.format(result.sum)}</strong>
+            </>
+          )}
           {result.count > 0 ? (
             <>
               {' '}

@@ -96,6 +96,17 @@ try {
   check('切换到人均指标', /人均/.test(pcHeadline), pcHeadline);
   check('人均下只有「最接近」可用', (await page.locator('.strategy-btn:disabled').count()) === 3);
 
+  // 人均不可叠加：再选一个地方应该替换，而不是累加
+  const pcCount1 = await page.locator('.picker-item.active').count();
+  await page.locator('.picker-item', { hasText: '广东省' }).first().click();
+  await page.waitForTimeout(300);
+  const pcActive = await page.locator('.picker-item.active').allInnerTexts();
+  check('人均下只能选一个地方', pcCount1 === 1 && pcActive.length === 1, pcActive.join('、'));
+  const pcSel = new URL(await page.url()).searchParams.get('sel');
+  check('人均下 URL 只保留一个选择', (pcSel ?? '').split(',').filter(Boolean).length === 1, pcSel ?? '');
+  const pcSum = await page.locator('.result-sub').innerText();
+  check('人均下不再出现「合计」', !/合计/.test(pcSum), pcSum.replace(/\s+/g, ' '));
+
   await page.locator('.metric-btn', { hasText: '总 GDP' }).click();
   await page.waitForTimeout(300);
 
