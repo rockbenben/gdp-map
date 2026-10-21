@@ -288,6 +288,16 @@ try {
   check('滑块可切到 1990', (await page.url()).includes('y=1990'), await page.url());
   await page.locator('.strategy').screenshot({ path: resolve(SHOTS, 'panel-year.png') });
 
+  // 10.6.1 播放：让年份自己走，结论跟着变
+  await page.locator('.play-btn').click();
+  await page.waitForTimeout(1700);
+  const playYear = await page.locator('.year-now').innerText();
+  const playCount = await page.locator('.result-headline h1 .count').innerText().catch(() => '');
+  check('播放让年份自己往前走', Number(playYear) >= 1990, `${playYear} 年 · ${playCount} 个国家`);
+  await page.locator('.play-btn').click(); // 停掉，别让它一路播到 2025
+  await page.waitForTimeout(300);
+  check('播放可以停下来', (await page.locator('.play-btn').innerText()).includes('播放'), await page.locator('.play-btn').innerText());
+
   // 10.7 「假如它是一个国家」排名卡
   await page.goto(`${BASE}/?sel=CN-410000`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.counterfactual', { timeout: 15000 });
