@@ -77,7 +77,26 @@ try {
   await page.locator('.toggle input').check();
   await page.waitForTimeout(200);
 
-  // 7. 2D 地图截图 + 导出 PNG
+  // 7. 换指标：面积 / 人均
+  await page.locator('.metric-btn', { hasText: '面积' }).click();
+  await page.waitForTimeout(400);
+  const areaHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  check('切换到面积指标', /面积/.test(areaHeadline), areaHeadline);
+  const areaRank = await page.locator('.result-strategy').innerText();
+  check('给出世界排名', /排第/.test(areaRank), areaRank.replace(/\s+/g, ' '));
+  await page.screenshot({ path: resolve(SHOTS, 'map-area.png'), fullPage: false });
+
+  await page.locator('.metric-btn', { hasText: '人均 GDP' }).click();
+  await page.waitForTimeout(400);
+  const pcHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  check('切换到人均指标', /人均/.test(pcHeadline), pcHeadline);
+  const disabled = await page.locator('.strategy-btn:disabled').count();
+  check('人均下只有「最接近」可用', disabled === 3, `${disabled} 个按钮被禁用`);
+
+  await page.locator('.metric-btn', { hasText: '总 GDP' }).click();
+  await page.waitForTimeout(300);
+
+  // 8. 2D 地图截图 + 导出 PNG
   await page.screenshot({ path: resolve(SHOTS, 'map-2d.png'), fullPage: false });
 
   const [download] = await Promise.all([
