@@ -329,6 +329,15 @@ try {
   const sqCells = await page.locator('.sq-cell').count();
   check('方形图按指标重画世界', sqCells > 100, `${sqCells} 块`);
 
+  // 排行榜：把能选的对象按当前指标排开，选中的那条高亮
+  await page.goto(`${BASE}/?sel=CN-410000&view=rank`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.rank-row', { timeout: 15000 });
+  const rankRows = await page.locator('.rank-row').count();
+  check('排行榜列出对象', rankRows > 10, `${rankRows} 行`);
+  const rankPicked = await page.locator('.rank-row.is-selected').count();
+  check('排行榜标出当前选中', rankPicked === 1, `${rankPicked} 行高亮`);
+  await page.screenshot({ path: resolve(SHOTS, 'view-rank.png'), fullPage: false });
+
   await page.goto(`${BASE}/?sel=CN-410000,CN-440000&view=bracket`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.target-compare', { timeout: 15000 });
   const score = (await page.locator('.tc-score').first().innerText()).replace(/\s+/g, ' ');
