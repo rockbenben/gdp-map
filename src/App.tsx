@@ -14,8 +14,10 @@ import {
   loadChina,
   loadDataset,
   loadExtraRegions,
+  loadHistory,
   loadUsStates,
   loadWorld,
+  mergeHistory,
   metricValue,
   splitDataset
 } from './lib/data';
@@ -90,12 +92,16 @@ export default function App() {
   const [yearFromText, yearToText] = dataset?.meta.yearRange ?? ['1990', '2025'];
   const yearFrom = Number(yearFromText);
   const yearTo = Number(yearToText);
-  /** 滑块上的快捷年份：起点 + 每 20 年 + 最后一个实际年（离得太近的不重复） */
+  /** 滑块上的快捷年份：起点 + 若干中间点 + 最后一个实际年 */
   const yearTicks = useMemo(() => {
-    const out: number[] = [];
-    for (let y = yearFrom; y <= yearTo - 10; y += 20) out.push(y);
-    out.push(yearTo - 1);
-    return out;
+    const out = new Set<number>();
+    out.add(yearFrom);
+    // 古代那段稀疏（每 10 年一个点），刻度就按 150 年一跳，别挤成一排
+    const step = yearFrom < 1900 ? 150 : 20;
+    for (let y = yearFrom + step; y <= yearTo - 10; y += step) out.add(y);
+    out.add(2000);
+    out.add(yearTo - 1);
+    return [...out].sort((a, b) => a - b);
   }, [yearFrom, yearTo]);
   /**
    * 动效：默认跟着系统，但**用户可以在页面上自己决定**。
@@ -138,23 +144,59 @@ export default function App() {
 
   const year = dataset?.meta.defaultYear ?? '2024';
 
-  // 播放：让年份自己往前走，结论数字与地图高亮随之滚动。
-  // 走到 2025（IMF 预测值）就停——但**要先让 2025 显示出来**再停，
-  // 所以停止判断在 timeout 里做，不在 effect 开头做。
-  useEffect(() => {
-    if (!playing) return;
-    const t = setTimeout(() => {
-      if (worldYear >= 2025) setPlaying(false);
-      else setWorldYear(worldYear + 1);
-    }, 700);
-    return () => clearTimeout(t);
-  }, [playing, worldYear]);
-
   /** 手动拨年份就把播放停掉：用户想自己控制节奏 */
   const setYear = (y: number) => {
     setPlaying(false);
     setWorldYear(y);
   };
+
+  /**
+   * 数据里真的有的那些年份。
+   *
+   * 1960 年前是麦迪逊的稀疏点（每 10 年一个），所以滑块和播放都得按这份清单走，
+   * 不然会一路滑到没有数据的年份，结论变成「0 个国家」。
+   */
+  const playableYears = useMemo(() => {
+    if (!dataset) return [] as number[];
+    const set = new Set<number>();
+    for (const o of dataset.objects) {
+      if (o.kind !== 'country') continue;
+      for (const y of Object.keys(o.metrics.gdp.nominal)) set.add(Number(y));
+    }
+    return [...set].filter((y) => Number.isFinite(y)).sort((a, b) => a - b);
+  }, [dataset]);
+
+  /** 把年份夹到最近的有数据的年份上 */
+  const nearestPlayable = useCallback(
+    (y: number) => {
+      if (!playableYears.length) return y;
+      let best = playableYears[0];
+      let bestD = Infinity;
+      for (const p of playableYears) {
+        const d = Math.abs(p - y);
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+      }
+      return best;
+    },
+    [playableYears]
+  );
+
+  // 播放：让年份自己往前走。
+  // ⚠️ 走的不是「年份 +1」，而是「清单里的下一个」——1960 年前只有稀疏的点，
+  // 逐年播会一路播到没有数据的年份，结论变成「0 个国家」。
+  useEffect(() => {
+    if (!playing || !playableYears.length) return;
+    const t = setTimeout(() => {
+      const idx = playableYears.indexOf(worldYear);
+      const next = idx >= 0 ? idx + 1 : 0;
+      if (next >= playableYears.length) setPlaying(false);
+      else setWorldYear(playableYears[next]);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [playing, worldYear, playableYears]);
 
   const togglePlay = () => {
     if (playing) {
@@ -256,6 +298,40 @@ export default function App() {
       .then(setExtraRegions)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [needsExtraGeometry, extraRegions]);
+
+  /** 年份拖到 1960 以前时，才把长周期历史加载进来。
+   *
+   * 1960 年前只有估算（麦迪逊口径），单独放在一个文件里按需加载——
+   * 不然首屏要平白多背一份。
+   */
+  const historyLoaded = useRef(false);
+  const [historyReady, setHistoryReady] = useState(false);
+  useEffect(() => {
+    if (!dataset || historyLoaded.current || Number(worldYear) >= 1960) return;
+    historyLoaded.current = true;
+    void loadHistory().then((h) => {
+      if (!h) return;
+      setDataset((prev) => (prev ? mergeHistory(prev, h) : prev));
+      setHistoryReady(true);
+    });
+  }, [dataset, worldYear]);
+
+  // 落在没有数据的年份上时，挪到最近的有数据的年份。
+  // ⚠️ 历史还没**载完**之前别夹——那会儿根本不知道 1960 年前有哪些点。
+  useEffect(() => {
+    if (!dataset || !playableYears.length) return;
+    if (worldYear < 1960 && !historyReady) return;
+    if (playableYears.includes(worldYear)) return;
+    setWorldYear(nearestPlayable(worldYear));
+  }, [dataset, playableYears, worldYear, nearestPlayable, historyReady]);
+
+  // URL 里的年份可能超出数据范围（数据改了、链接是旧的），夹一下
+  useEffect(() => {
+    if (!dataset?.meta.yearRange) return;
+    const [from, to] = dataset.meta.yearRange.map(Number);
+    if (worldYear < from) setYear(from);
+    else if (worldYear > to) setYear(to);
+  }, [dataset?.meta.yearRange]);
 
   useEffect(() => {
     writeState({ mode, view, selected, metric, strategy: effectiveStrategy, ignoreMicro, worldYear });
@@ -944,10 +1020,11 @@ export default function App() {
   };
 
   /**
-   * 导出动图：让年份从 1990 走到 2025，一帧一年（隔年取一帧）。
+   * 导出动图：让年份从最早的一年走到最后一年。
    *
    * 每一帧都要界面真的切到那一年，所以是「改状态 → 等它画完 → 抓图」，
    * 不能只改个变量就抓。中途要把年份复原。
+   * ⚠️ 帧数控制在 32 以内：每帧都要重新渲染 + 栅格化，帧数多了导出会很慢。
    */
   const handleExportGif = async () => {
     try {
@@ -956,8 +1033,9 @@ export default function App() {
         await nextPaint();
       }
       const years: number[] = [];
-      for (let y = yearFrom; y <= yearTo - 1; y += 2) years.push(y);
-      years.push(yearTo);
+      const step = Math.max(1, Math.ceil(playableYears.length / 32));
+      for (let i = 0; i < playableYears.length; i += step) years.push(playableYears[i]);
+      if (years[years.length - 1] !== yearTo) years.push(yearTo);
       const savedYear = worldYear;
       setPlaying(false);
       setToast('正在生成动图…');
@@ -1216,9 +1294,10 @@ export default function App() {
               ))}
             </div>
             <p className="picker-hint">
-              国家数据可回溯到 {yearFrom} 年（{yearTo} 为 IMF 预测值，{yearFrom}–1989 为世界银行口径），
-              省/州按各自年份。往后拨能看出「今天这个地方放在当年是什么水平」，
-              按「播放」让它自己走一遍。
+              国家数据可回溯到 {yearFrom} 年：1990 年起是 IMF WEO（{yearTo} 为预测值），
+              1960–1989 是世界银行口径，{yearFrom}–1950 是**麦迪逊项目的估算**（每 10 年一个点，
+              按各国 1960 年的水平折算）。省/州按各自年份。
+              往后拨能看出「今天这个地方放在当年是什么水平」，按「播放」让它自己走一遍。
             </p>
           </section>
 

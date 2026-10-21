@@ -40,7 +40,8 @@ function readState(): AppState {
   const strategy = p.get('st') as MatchStrategy | null;
   const metric = p.get('m') as MetricId | null;
   const yRaw = Number(p.get('y'));
-  const worldYear = Number.isFinite(yRaw) && yRaw >= 1960 && yRaw <= 2025 ? yRaw : DEFAULTS.worldYear;
+  // 下界跟数据走：1700 年前是麦迪逊口径的估算（在单独的历史文件里按需加载）
+  const worldYear = Number.isFinite(yRaw) && yRaw >= 1700 && yRaw <= 2025 ? yRaw : DEFAULTS.worldYear;
   let selected = (p.get('sel') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const resolvedMetric = metric && METRICS.includes(metric) ? metric : DEFAULTS.metric;
   const additive = METRIC_DEF[resolvedMetric].additive;

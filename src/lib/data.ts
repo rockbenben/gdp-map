@@ -41,6 +41,57 @@ export function loadExtraRegions(): Promise<FeatureCollection> {
   return extraRegionsPromise;
 }
 
+/** 长周期历史（1650–1950）：只有估算，单独一个文件，拖到 1960 以前才加载 */
+export interface HistorySeries {
+  gdp: number;
+  gdpPc: number;
+  pop: number;
+  ppp: number;
+}
+
+export interface HistoryData {
+  meta: { source: string; years: string[]; note: string };
+  data: Record<string, Record<string, HistorySeries>>;
+}
+
+let historyPromise: Promise<HistoryData | null> | null = null;
+
+export function loadHistory(): Promise<HistoryData | null> {
+  historyPromise ??= getJson<HistoryData>('data/history.json').catch(() => null);
+  return historyPromise;
+}
+
+/**
+ * 把长周期历史并进数据集。
+ *
+ * 麦迪逊口径的单位（2011 年国际元）跟现价美元不是一回事，
+ * 管线里已经按各国 1960 年的水平折算过了（见 build-data.mjs），
+ * 所以这里直接补进序列即可。
+ */
+export function mergeHistory(dataset: Dataset, history: HistoryData): Dataset {
+  const objects = dataset.objects.map((o) => {
+    const h = history.data?.[o.id];
+    if (!h) return o;
+    const nominal = { ...o.metrics.gdp.nominal };
+    const gdpPc = { ...(o.metrics.gdpPc ?? {}) };
+    const pop = { ...(o.metrics.pop ?? {}) };
+    const ppp = { ...(o.metrics.ppp ?? {}) };
+    // 平价口径：历史年份没有官方 PPP，用该国 1990 年的换算因子近似
+    const factor = nominal['1990'] && ppp['1990'] ? ppp['1990'] / nominal['1990'] : 1;
+    for (const [y, v] of Object.entries(h)) {
+      if (nominal[y] == null) nominal[y] = v.gdp;
+      if (gdpPc[y] == null) gdpPc[y] = v.gdpPc;
+      if (pop[y] == null) pop[y] = v.pop;
+      if (ppp[y] == null) ppp[y] = Math.round(v.gdp * factor);
+    }
+    return {
+      ...o,
+      metrics: { ...o.metrics, gdp: { ...o.metrics.gdp, nominal }, gdpPc, pop, ppp }
+    };
+  });
+  return { ...dataset, objects };
+}
+
 /** 把数据集中的统一对象转成应用用的 Region */
 export function toRegion(obj: RegionObject, year: string): Region {
   // 对象自带年份的用它自己的（日本的府县数据是 2023），没有才用池子的默认年份

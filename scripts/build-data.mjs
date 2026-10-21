@@ -538,12 +538,61 @@ const objects = [
   })
 ];
 
+// ---------- 1650–1950：麦迪逊口径的长周期历史 ----------
+// ⚠️ 麦迪逊的单位是 2011 年国际元（PPP 口径），和后面的现价美元不是一回事，
+// 不能直接接上。所以按**各国 1960 年的水平**折算（每国一个系数），
+// 这样每个国家在 1960 年前后是连续的，滑块拖过接缝时不会跳。
+// ⚠️ 这些是「估算」：麦迪逊把 1950 年的数往回推。所以只取每 10 年一个点，
+// 而且写成单独的文件按需加载，别把首屏撑大。
+let maddison = null;
+try {
+  maddison = await readJson(resolve(RAW, 'maddison-1650-1960.json'));
+} catch {
+  maddison = null;
+}
+
+const HISTORY_YEARS = [];
+for (let y = 1650; y <= 1950; y += 10) HISTORY_YEARS.push(String(y));
+
+const history = {};
+if (maddison) {
+  for (const c of countryList) {
+    const rec = maddison.data?.[c.id];
+    if (!rec) continue;
+    const anchor = rec['1960'];
+    const anchorGdp =
+      anchor?.gdpPc != null && anchor?.pop != null ? anchor.gdpPc * anchor.pop : null;
+    const target = c.gdp.nominal['1960'];
+    if (!anchorGdp || !target) continue;
+    const k = target / anchorGdp; // 折算系数：让 1960 年的水平跟世界银行口径对上
+    const series = {};
+    for (const y of HISTORY_YEARS) {
+      const p = rec[y];
+      if (p?.gdpPc == null || p?.pop == null) continue;
+      const gdp = p.gdpPc * p.pop * k;
+      series[y] = {
+        gdp: money(gdp),
+        pop: people(p.pop),
+        gdpPc: perCapita(gdp / p.pop),
+        // 平价口径：这个年份没有官方 PPP，用该国 1990 年的换算因子近似
+        ppp: Math.round(gdp * (c.ppp['1990'] && c.gdp.nominal['1990'] ? c.ppp['1990'] / c.gdp.nominal['1990'] : 1))
+      };
+    }
+    if (Object.keys(series).length) history[c.id] = series;
+  }
+}
+
 // 数据实际覆盖的年份范围：前端滑块按这个来，别写死在代码里
 const coveredYears = new Set();
 for (const c of countryList) {
   for (const y of Object.keys(c.gdp.nominal)) coveredYears.add(Number(y));
 }
-const yearNums = [...coveredYears].filter((y) => Number.isFinite(y));
+// 长周期历史：只认真的算出来的年份（人口序列缺的那些年会被丢掉）
+const historyYears = new Set();
+for (const series of Object.values(history)) {
+  for (const y of Object.keys(series)) historyYears.add(Number(y));
+}
+const yearNums = [...new Set([...coveredYears, ...historyYears])].filter((y) => Number.isFinite(y));
 const yearRange = [String(Math.min(...yearNums)), String(Math.max(...yearNums))];
 
 const meta = {
@@ -569,6 +618,22 @@ const meta = {
 };
 
 await writeFile(resolve(OUT, 'data/regions.json'), JSON.stringify({ meta, objects }), 'utf8');
+// 长周期历史单独一个文件：1960 年前只有估算，不必拖慢首屏，
+// 等用户把滑块拖到 1960 以前再按需加载。
+await writeFile(
+  resolve(OUT, 'data/history.json'),
+  JSON.stringify({
+    meta: {
+      source: maddison?.source ?? '',
+      years: HISTORY_YEARS,
+      note:
+        '1960 年前只有估算：麦迪逊项目（2011 年国际元、PPP 口径）每 10 年一个点，' +
+        '按各国 1960 年的水平折算成现价美元，以便与后面的年份接上。'
+    },
+    data: history
+  }),
+  'utf8'
+);
 await writeFile(resolve(OUT, 'geo/world.json'), JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: worldFeatures })), 'utf8');
 await writeFile(resolve(OUT, 'geo/china.json'), JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: chinaFeatures })), 'utf8');
 await writeFile(

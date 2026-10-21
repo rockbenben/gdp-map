@@ -177,10 +177,68 @@ async function fetchWorldBank() {
   );
 }
 
+// ---- 麦迪逊项目：1960 年之前的世界（长周期） ----
+// IMF WEO 从 1990 起，世界银行从 1960 起；再往前只有「估算」：
+// 麦迪逊项目（Our World in Data 镜像）提供 1650 年起的人均 GDP 与人口，
+// 两者相乘得到 GDP 总量（2011 年国际元口径）。
+// ⚠️ 单位与后面的现价美元不同，所以只能在 build 阶段按各国 1960 年的水平折算后接入。
+const MADDISON_FROM = 1650;
+const MADDISON_TO = 1960; // 含 1960：用它做各国折算的锚点
+const OWID_CSV = {
+  gdpPc: 'https://ourworldindata.org/grapher/gdp-per-capita-maddison-project-database.csv',
+  pop: 'https://ourworldindata.org/grapher/population.csv'
+};
+
+async function fetchMaddison() {
+  const dest = resolve(RAW, `maddison-${MADDISON_FROM}-${MADDISON_TO}.json`);
+  if (await exists(dest)) {
+    console.log(`skip  maddison-${MADDISON_FROM}-${MADDISON_TO}.json (已存在)`);
+    return;
+  }
+  const out = {};
+  for (const [key, url] of Object.entries(OWID_CSV)) {
+    const r = await fetch(url, { headers: { 'User-Agent': 'gdp-map/1.0' } });
+    if (!r.ok) throw new Error(`${r.status} ${url}`);
+    const text = await r.text();
+    const lines = text.split('\n');
+    const header = lines[0].split(',');
+    const iCode = header.indexOf('Code');
+    const iYear = header.indexOf('Year');
+    const iValue = header.indexOf(key === 'gdpPc' ? 'GDP per capita' : 'Population');
+    for (const line of lines.slice(1)) {
+      const p = line.split(',');
+      const iso = p[iCode];
+      const year = Number(p[iYear]);
+      const value = Number(p[iValue]);
+      if (!iso || !Number.isFinite(year) || !Number.isFinite(value)) continue;
+      if (year < MADDISON_FROM || year > MADDISON_TO) continue;
+      out[iso] ??= {};
+      out[iso][year] ??= {};
+      out[iso][year][key] = value;
+    }
+  }
+  await writeFile(
+    dest,
+    JSON.stringify(
+      {
+        source:
+          'Maddison Project Database 2023（Our World in Data 镜像）：人均 GDP（2011 年国际元）+ 人口',
+        range: [MADDISON_FROM, MADDISON_TO],
+        data: out
+      },
+      null,
+      1
+    ),
+    'utf8'
+  );
+  console.log(`saved maddison-${MADDISON_FROM}-${MADDISON_TO}.json  (${Object.keys(out).length} 个经济体)`);
+}
+
 await mkdir(RAW, { recursive: true });
 for (const [name, url] of Object.entries(SOURCES)) {
   await download(name, url);
 }
 await fetchWeo();
 await fetchWorldBank();
+await fetchMaddison();
 console.log('\n原始数据就绪：', RAW);

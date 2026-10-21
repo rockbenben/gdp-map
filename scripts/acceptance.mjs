@@ -304,13 +304,20 @@ try {
   check('名次按参照物自己的年份算', /2024\s*年/.test(rank2010), rank2010);
   const count2010 = await page.locator('.result-item').count();
   check('换一个年份匹配结果不同', count2010 > 0, `2010 年：${count2010} 件`);
-  await page.locator('.year-ticks button', { hasText: '1960' }).click();
+  await page.locator('.year-ticks button', { hasText: '1850' }).click();
   await page.waitForTimeout(400);
-  check('滑块可切到 1960', (await page.url()).includes('y=1960'), await page.url());
+  check('滑块可切到 1850', (await page.url()).includes('y=1850'), await page.url());
   // 1960 年也得有结论（世界银行口径补的那一段）
   const y1960 = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
-  const sliderMin = await page.locator('.year-slider').getAttribute('min');
-  check('1960 年也有结论', /国家|个/.test(y1960) && sliderMin === '1960', `${y1960}（滑块起点 ${sliderMin}）`);
+  check('1960 年也有结论', /国家|个/.test(y1960), y1960);
+
+  // 21. 长周期：拖到 1800 年要有结论，而且和 2024 年不是一回事
+  await page.goto(`${BASE}/?sel=CN-410000&y=1800`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  await page.waitForTimeout(1200);
+  const y1800 = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  const min1800 = await page.locator('.year-slider').getAttribute('min');
+  check('能回到 1800 年', /个国家/.test(y1800) && min1800 === '1700', `${y1800}（滑块起点 ${min1800}）`);
   await page.locator('.strategy').screenshot({ path: resolve(SHOTS, 'panel-year.png') });
 
   // 10.6.1 播放：让年份自己走，结论跟着变
@@ -318,7 +325,7 @@ try {
   await page.waitForTimeout(1700);
   const playYear = await page.locator('.year-now').innerText();
   const playCount = await page.locator('.result-headline h1 .count').innerText().catch(() => '');
-  check('播放让年份自己往前走', Number(playYear) >= 1960, `${playYear} 年 · ${playCount} 个国家`);
+  check('播放让年份自己往前走', Number(playYear) >= 1700, `${playYear} 年 · ${playCount} 个国家`);
   await page.locator('.play-btn').click(); // 停掉，别让它一路播到 2025
   await page.waitForTimeout(300);
   check('播放可以停下来', (await page.locator('.play-btn').innerText()).includes('播放'), await page.locator('.play-btn').innerText());
