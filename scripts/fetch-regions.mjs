@@ -8,7 +8,7 @@
  * 产出：
  *   data/raw/nuts1.geojson            欧洲 NUTS-1 边界
  *   data/raw/ne_10m_admin_1.geo.json   Natural Earth 的一级行政区（取日本 47 都道府县）
- *   data/raw/jp-huhyo2021.xlsx         日本府县民经济计算 概況（2021 年度）
+ *   data/raw/jp-huhyo2023.xlsx         日本府县民经济计算 概況（2023 年度）
  *   data/raw/jp-soukatu9.xlsx          同上的「総人口」
  *   data/raw/eurostat-nuts1.json       NUTS-1 的 GDP 与人口
  *   data/regions-eu-jp.json            归一化后的结果（提交进仓库）
@@ -31,8 +31,13 @@ const NE_ADMIN1 =
   'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson';
 const EUROSTAT = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/';
 const JP_BASE = 'https://www.esri.cao.go.jp/jp/sna/data/data_list/kenmin/files/contents/tables/';
-/** 日本府县民经济计算：2021 年度（全部 47 个都道府县都有数据的最新年份） */
-const JP_YEAR = 2021;
+/**
+ * 日本府县民经济计算：2023 年度（令和5年度）。
+ * 内阁府的「概況」表覆盖 47 个都道府县，但有 5 个（石川、奈良、德岛、香川、宫崎）
+ * 在汇总时还没报上来，显示为「-」——那 5 个从各府县自己公布的结果里读，
+ * 存在 data/jp-prefecture-gdp-2023.json（中国省级那份读数是同一个做法）。
+ */
+const JP_YEAR = 2023;
 
 async function getJson(url, tries = 3) {
   for (let i = 0; i < tries; i++) {
@@ -254,6 +259,8 @@ const jpPopBuf = await cachedBinary('jp-soukatu9.xlsx', async () => {
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return Buffer.from(await r.arrayBuffer());
 });
+// 内阁府汇总里缺的那 5 个县，从各府县自己公布的结果里读
+const jpManual = JSON.parse(await readFile(resolve(ROOT, 'data/jp-prefecture-gdp-2023.json'), 'utf8'));
 
 const jpGdp = readSheet(jpGdpBuf, '合計');
 const jpPop = readSheet(jpPopBuf, '実数');
@@ -294,9 +301,14 @@ for (const row of jpGdpRows) {
   const code = row[0];
   const zh = names.jp[code];
   if (!zh) continue;
-  const g = Number(row[GDP_COL]);
   const popRow = jpPopRows.find((r) => r[0] === code);
   const p = Number(popRow?.[popCol]);
+  const manual = jpManual.regions.find((r) => r.code === code);
+  // 内阁府汇总里有数就用汇总的，没有（那 5 个县）就用府县自己公布的
+  const g = Number.isFinite(Number(row[GDP_COL])) ? Number(row[GDP_COL]) : manual?.gdpOku * 100;
+  const source = manual
+    ? `${manual.source}（${JP_YEAR} 年度）`
+    : `日本内阁府《府县民经济计算》（${JP_YEAR} 年度）与总人口（${JP_YEAR} 年）`;
   if (!Number.isFinite(g) || !Number.isFinite(p)) {
     console.warn(`  ! ${row[1]} 缺数据，跳过`);
     continue;
@@ -310,7 +322,7 @@ for (const row of jpGdpRows) {
     en: row[1],
     gdpUsd: Math.round((g * 1e6) / jpyRate.perUsd), // 百万日元 → 美元
     pop: Math.round(p),
-    source: `日本内阁府《府县民经济计算》（${JP_YEAR} 年度）与总人口（${JP_YEAR} 年）`
+    source
   });
 }
 
@@ -325,3 +337,17 @@ console.log(
   `  欧洲合计 ${(eu.reduce((s, r) => s + r.gdpUsd, 0) / 1e12).toFixed(2)} 万亿美元；` +
     `日本合计 ${(jp.reduce((s, r) => s + r.gdpUsd, 0) / 1e12).toFixed(2)} 万亿美元`
 );
+
+// ---------- 自检：47 个都道府县的产出加起来，应该等于日本全国 ----------
+// 这是个很强的校验：任何一个县读错、漏掉，单位搞错，总数都会对不上。
+const jpOku = jp.reduce((s, r) => s + r.gdpUsd * jpyRate.perUsd / 1e8, 0); // 億円
+const NATIONAL_2023_OKU = 6_219_000; // 内阁府《2023年度国民経済計算》：全国 621.9 兆円 = 6,219,000 億円
+const diff = ((jpOku - NATIONAL_2023_OKU) / NATIONAL_2023_OKU) * 100;
+console.log(
+  `  日本 47 县合计 ${(jpOku / 1e4).toFixed(1)} 兆円，全国 ${(NATIONAL_2023_OKU / 1e4).toFixed(1)} 兆円，差 ${diff.toFixed(2)}%`
+);
+if (Math.abs(diff) > 1) {
+  console.warn('  ! 47 县合计与全国差超过 1%，有读数或单位出错');
+} else {
+  console.log('  ✓ 与全国总量对得上');
+}

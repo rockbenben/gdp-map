@@ -1,0 +1,47 @@
+{
+  "_note": "日本 5 个府的县内总生产（2023 年度）。内阁府《府县民经济计算》的概况表里这 5 个是「-」（汇总时这 5 个县还没报上来），所以从各府县自己公布的「2023 年度（令和5年度）县民经济计算」里读。与中国省级那份读数同一个做法。",
+  "year": 2023,
+  "unit": "億円（1 億円 = 1 亿日元）",
+  "regions": [
+    {
+      "code": "17",
+      "zh": "石川县",
+      "gdpOku": 48711,
+      "source": "石川县 县民经济计算 概要（令和5年度）",
+      "sourceUrl": "https://toukei.pref.ishikawa.lg.jp/search/detail.asp?d_id=5314",
+      "note": "名目 4 兆 8,711 億円"
+    },
+    {
+      "code": "29",
+      "zh": "奈良県",
+      "gdpOku": 40033,
+      "source": "奈良県 县民经济计算 概要（令和4年度）+ 令和5年度公表 新闻稿的名义增长率",
+      "sourceUrl": "https://www.pref.nara.lg.jp/n003/p149061.html",
+      "note": "令和4年度 3 兆 9,210 億円 × 名目增长率 2.1% = 4 兆 0,033 億円（推算）"
+    },
+    {
+      "code": "36",
+      "zh": "德岛县",
+      "gdpOku": 34514,
+      "source": "德岛县 令和5年度县民经济计算结果（推计）",
+      "sourceUrl": "https://www.pref.tokushima.lg.jp/kenseijoho/tokei/7316645/",
+      "note": "名目 3 兆 4,514 億円"
+    },
+    {
+      "code": "37",
+      "zh": "香川县",
+      "gdpOku": 40941,
+      "source": "香川县 县民经济计算 令和5年度推计结果",
+      "sourceUrl": "https://www.pref.kagawa.lg.jp/tokei/keizai/kenmin/index.html",
+      "note": "名目 4 兆 0,941 億円"
+    },
+    {
+      "code": "45",
+      "zh": "宫崎县",
+      "gdpOku": 39853,
+      "source": "宫崎县 令和5年度县民经济计算 推计结果",
+      "sourceUrl": "https://www.pref.miyazaki.lg.jp/tokeichosa/kense/toke/kennmin/r5_index.html",
+      "note": "名目 3 兆 9,853 億円"
+    }
+  ]
+}
