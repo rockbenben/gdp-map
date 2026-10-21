@@ -36,6 +36,16 @@ describe('accumulate', () => {
     const r = accumulate(100, pool, { order: 'desc', rule: 'skip', exclude: ['a'] });
     expect(r.items.map((i) => i.id)).not.toContain('a');
   });
+
+  it('目标比池里最小的一个还小：给出最接近的那一个，而不是空集', () => {
+    const pool = [item('a', 40), item('b', 35), item('c', 30)];
+    const asc = accumulate(10, pool, { order: 'asc', rule: 'skip' });
+    expect(asc.count).toBe(1);
+    expect(asc.items[0].id).toBe('c'); // 最小也装不下，但离目标最近
+
+    const desc = accumulate(10, pool, { order: 'desc', rule: 'skip' });
+    expect(desc.items[0].id).toBe('c'); // 顺序不影响答案
+  });
 });
 
 describe('matchByStrategy', () => {

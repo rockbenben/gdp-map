@@ -107,6 +107,15 @@ export function accumulate(
     acc.push({ ...item, cumulative: sum });
   }
 
+  // 目标比池里最小的一个还小：至少给最接近的那一个，别返回空集
+  // （取最接近而不是 sorted[0]，这样 asc / desc 两种顺序给出同一个答案）
+  if (!acc.length && sorted.length) {
+    const closest = sorted.reduce((best, x) =>
+      Math.abs(x.value - target) < Math.abs(best.value - target) ? x : best
+    );
+    return toResult(target, [{ ...closest, cumulative: closest.value }]);
+  }
+
   return toResult(target, acc);
 }
 
