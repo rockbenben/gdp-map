@@ -19,6 +19,7 @@ import {
   splitDataset
 } from './lib/data';
 import { copyText, exportPng, exportShareCard } from './lib/export';
+import { exportGif } from './lib/export-gif';
 import { createChinaProjection, featureMainCentroid, mixColor, PALETTE } from './lib/geo';
 import {
   BIG_POOL_SIZE,
@@ -37,6 +38,10 @@ import type { CompareMode, FeatureCollection, GeoFeature, Region, ViewMode } fro
 /** 世界地图的画布尺寸（与 WorldMap 的默认 viewBox 一致） */
 const MAP_W = 1000;
 const MAP_H = 520;
+
+/** 等界面把一次状态变更画完（两次 rAF：第一帧提交，第二帧才是画好的） */
+const nextPaint = () =>
+  new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 /** 拼图最多能选几个国家 */
 const PUZZLE_MAX = 3;
@@ -269,6 +274,24 @@ export default function App() {
       after: ''
     };
   }, [match, sourceSelected, bigFraction, sourceLabel]);
+
+  /**
+   * 完整结论句（不管是「比大国家」的倍数，还是「52 个国家之和」）。
+   * 动图的字幕用这个——「比大国家」口径下 headline 是空的，只用它会没字幕。
+   * 数字是滚动的，所以只能取最终值，不能从 DOM 里读。
+   */
+  const conclusionRef = useRef('');
+  useEffect(() => {
+    if (headline) {
+      conclusionRef.current = titleText(headline);
+      return;
+    }
+    const count = match?.count ?? 0;
+    const only = match?.items[0]?.zh ?? '';
+    conclusionRef.current = titleText(
+      metricDef.title(sourceLabel, count, only, isRegionMode ? '国家' : '省/州')
+    );
+  }, [headline, match, metricDef, sourceLabel, isRegionMode]);
 
   // 两个目标的擂台对比（擂台视图里用大号版本，侧栏就不用重复了）
   const comparison = useMemo(() => {
@@ -636,6 +659,48 @@ export default function App() {
     }
   };
 
+  /**
+   * 导出动图：让年份从 1990 走到 2025，一帧一年（隔年取一帧）。
+   *
+   * 每一帧都要界面真的切到那一年，所以是「改状态 → 等它画完 → 抓图」，
+   * 不能只改个变量就抓。中途要把年份复原。
+   */
+  const handleExportGif = async () => {
+    try {
+      if (view !== 'map') {
+        setView('map');
+        await nextPaint();
+      }
+      const years: number[] = [];
+      for (let y = 1990; y <= 2024; y += 2) years.push(y);
+      years.push(2025);
+      const savedYear = worldYear;
+      setPlaying(false);
+      setToast('正在生成动图…');
+      await exportGif({
+        frameCount: years.length,
+        frameAt: async (i) => {
+          setWorldYear(years[i]);
+          await nextPaint();
+          const svg = document.querySelector<SVGSVGElement>('.map-holder svg');
+          if (!svg) throw new Error('地图未就绪');
+          return {
+            svg,
+            title: `${sourceLabel} · ${years[i]} 年`,
+            subtitle: conclusionRef.current
+          };
+        },
+        fileName: `gdp-equivalence-${years[0]}-${years[years.length - 1]}.gif`,
+        onProgress: (done, total) => setToast(`正在生成动图… ${done}/${total}`)
+      });
+      setWorldYear(savedYear);
+      setToast('动图已导出');
+      setShareOpen(false);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : '动图导出失败');
+    }
+  };
+
   if (error) {
     return (
       <div className="app fatal">
@@ -741,11 +806,15 @@ export default function App() {
                 </button>
                 <button type="button" onClick={handleExportCard}>
                   <b>下载分享卡</b>
-                  <span>竖版 2400×3200，适合发群</span>
+                  <span>竖版 2400px 宽，适合发群</span>
                 </button>
                 <button type="button" onClick={handleExportHires}>
                   <b>下载高清图</b>
                   <span>横版 3600px 宽</span>
+                </button>
+                <button type="button" onClick={handleExportGif}>
+                  <b>下载动图</b>
+                  <span>1990→2025 看它怎么变</span>
                 </button>
               </div>
             ) : null}

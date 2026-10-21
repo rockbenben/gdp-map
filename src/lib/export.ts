@@ -21,7 +21,7 @@ export interface ExportOptions {
   scale?: number;
 }
 
-async function svgToImage(svg: SVGSVGElement, width: number, height: number): Promise<HTMLImageElement> {
+export async function svgToImage(svg: SVGSVGElement, width: number, height: number): Promise<HTMLImageElement> {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
