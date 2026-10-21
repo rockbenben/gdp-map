@@ -61,10 +61,18 @@ export function SquareCartogram({ items, width = 1100, height = 620, onSelect, l
         const label = labelFor ? labelFor(c.id) : c.zh;
         const showLabel = c.w > 46 && c.h > 22;
         return (
-          <g key={c.id} className="sq-cell" onClick={() => onSelect?.(c.id)}>
+          // 位置走 <g> 的 transform、尺寸走 rect 的几何属性：
+          // 这两个都是能被 CSS transition 的 CSS 属性，换指标时格子会滑到新位置，
+          // 而不是啪地重排一次。标签也跟着 <g> 一起走，不会和格子脱节。
+          <g
+            key={c.id}
+            className="sq-cell"
+            onClick={() => onSelect?.(c.id)}
+            style={{ transform: `translate(${c.x}px, ${c.y}px)` }}
+          >
             <rect
-              x={c.x}
-              y={c.y}
+              x={0}
+              y={0}
               width={c.w}
               height={c.h}
               fill={fill}
@@ -76,11 +84,12 @@ export function SquareCartogram({ items, width = 1100, height = 620, onSelect, l
             </rect>
             {showLabel ? (
               <text
-                x={c.x + c.w / 2}
-                y={c.y + c.h / 2 + 4}
+                x={0}
+                y={0}
                 textAnchor="middle"
                 className="sq-label"
                 fill={c.matched ? '#12182a' : '#a9b7d6'}
+                style={{ transform: `translate(${c.w / 2}px, ${c.h / 2 + 4}px)` }}
               >
                 {label.length > 6 ? `${label.slice(0, 6)}…` : label}
               </text>

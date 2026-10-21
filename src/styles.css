@@ -796,6 +796,16 @@ body {
   pointer-events: none;
 }
 
+/* 方形图换指标时格子滑到新位置。
+   ⚠️ 位置走 <g> 的 transform、尺寸走 rect 的几何属性——这两个都是能被过渡的
+   CSS 属性。浏览器不支持几何属性时只是不动画，图形本身照常渲染（尺寸还有
+   属性兜底），不会画坏。
+   ⚠️ transform-origin 必须显式写 0 0：SVG 元素的默认原点跟 HTML 不同。 */
+.sq-cell,
+.sq-label {
+  transform-origin: 0 0;
+}
+
 .view-caption {
   margin: 10px 4px 2px;
   font-size: 12.5px;
@@ -1258,6 +1268,22 @@ body {
     transition:
       fill 0.4s ease,
       fill-opacity 0.4s ease;
+  }
+
+  /* 方形图：格子从旧位置滑到新位置 */
+  .sq-cell {
+    transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .sq-cell rect {
+    transition:
+      width 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      height 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      fill 0.4s ease;
+  }
+
+  .sq-label {
+    transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
 
