@@ -7,7 +7,7 @@ import { ResultPanel } from './components/ResultPanel';
 import { WorldMap } from './components/WorldMap';
 import { loadChina, loadDataset, loadWorld, provinceToRegion, toRegion } from './lib/data';
 import { copyText, exportPng } from './lib/export';
-import { createChinaProjection, mixColor, PALETTE } from './lib/geo';
+import { createChinaProjection, featureMainCentroid, mixColor, PALETTE } from './lib/geo';
 import { formatUsd } from './lib/format';
 import { closestSingle, matchByStrategy, STRATEGY_HINT, STRATEGY_LABEL } from './lib/match';
 import type { GdpItem, MatchStrategy } from './lib/match';
@@ -177,8 +177,8 @@ export default function App() {
     const centroidOfWorld = (id: string): [number, number] | null => {
       const f = world.features.find((x) => String(x.id) === id);
       if (!f) return null;
-      const c = geoCentroid(f as never);
-      return [c[0], c[1]];
+      // 用主体质心：整国的球面质心会被离岛带偏，弧线终点就落不到地方上
+      return featureMainCentroid(f);
     };
     // 弧线太多会糊成一团：只连最大的若干个
     const top = match.items.slice().sort((a, b) => b.gdp - a.gdp).slice(0, 12);

@@ -31,7 +31,8 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
   const pathRefs = useRef(new Map<string, SVGPathElement>());
   const shadowRefs = useRef(new Map<string, SVGPathElement>());
   const labelRefs = useRef(new Map<string, SVGTextElement>());
-  const arcRefs = useRef(new Map<string, SVGPolylineElement>());
+  const arcRefs = useRef(new Map<string, SVGPathElement>());
+  const originRef = useRef<SVGGElement | null>(null);
   const rotation = useRef<[number, number]>([110, -20]);
   const drag = useRef<{ x: number; y: number; lon: number; lat: number } | null>(null);
   const frame = useRef(0);
@@ -85,38 +86,76 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
       el.setAttribute('y', String(c[1]));
     }
 
-    // 弧线：球面两点之间的大圆插值，再向外鼓一点做出立体感
+    // 弧线：球面两点之间的大圆插值，再向外鼓一点做出立体感。
+    // 关键：被地球背面遮住的那一段不能连过去，否则线会横穿地图、端点对不上。
     for (const [i, arc] of arcs.entries()) {
       const el = arcRefs.current.get(String(i));
       if (!el) continue;
-      const pts: string[] = [];
       const [lon1, lat1] = arc.start;
       const [lon2, lat2] = arc.end;
       const φ1 = (lat1 * Math.PI) / 180;
       const λ1 = (lon1 * Math.PI) / 180;
       const φ2 = (lat2 * Math.PI) / 180;
       const λ2 = (lon2 * Math.PI) / 180;
-      const d = 2 * Math.asin(Math.sqrt(Math.sin((φ2 - φ1) / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin((λ2 - λ1) / 2) ** 2));
-      for (let s = 0; s <= 40; s += 1) {
-        const t = s / 40;
+      const d =
+        2 *
+        Math.asin(
+          Math.sqrt(
+            Math.sin((φ2 - φ1) / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin((λ2 - λ1) / 2) ** 2
+          )
+        );
+
+      const segments: string[][] = [];
+      let current: string[] = [];
+      for (let s = 0; s <= 48; s += 1) {
+        const t = s / 48;
+        let lon: number;
+        let lat: number;
         if (d < 1e-6) {
-          pts.push(`${projection([lon1, lat1])?.join(',')}`);
+          lon = lon1;
+          lat = lat1;
+        } else {
+          const A = Math.sin((1 - t) * d) / Math.sin(d);
+          const B = Math.sin(t * d) / Math.sin(d);
+          const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2);
+          const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2);
+          const z = A * Math.sin(φ1) + B * Math.sin(φ2);
+          lon = (Math.atan2(y, x) * 180) / Math.PI;
+          lat = (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI;
+        }
+        const p = projection([lon, lat]);
+        if (!p) {
+          // 背面不可见：断开，别把两段直线连起来
+          if (current.length > 1) segments.push(current);
+          current = [];
           continue;
         }
-        const A = Math.sin((1 - t) * d) / Math.sin(d);
-        const B = Math.sin(t * d) / Math.sin(d);
-        const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2);
-        const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2);
-        const z = A * Math.sin(φ1) + B * Math.sin(φ2);
-        const p = projection([(Math.atan2(y, x) * 180) / Math.PI, (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI]);
-        if (!p) continue;
-        const bulge = 1 + 0.055 * Math.sin(Math.PI * t);
+        const bulge = 1 + 0.05 * Math.sin(Math.PI * t);
         const cx = SIZE / 2 + (p[0] - SIZE / 2) * bulge;
         const cy = SIZE / 2 + (p[1] - SIZE / 2) * bulge;
-        pts.push(`${cx.toFixed(1)},${cy.toFixed(1)}`);
+        current.push(`${cx.toFixed(1)},${cy.toFixed(1)}`);
       }
-      el.setAttribute('points', pts.join(' '));
-      el.setAttribute('opacity', '1');
+      if (current.length > 1) segments.push(current);
+
+      el.setAttribute('d', segments.map((seg) => `M${seg.join('L')}`).join(' '));
+      el.setAttribute('opacity', segments.length ? '1' : '0');
+    }
+
+    // 起点标记：所有弧线都从参照地区出发，标出来才看得出「谁对谁」
+    const origin = originRef.current;
+    if (origin) {
+      const first = arcs[0];
+      if (first) {
+        const p = projection([first.start[0], first.start[1]]);
+        if (p) {
+          origin.setAttribute('transform', `translate(${p[0]}, ${p[1]})`);
+          origin.setAttribute('opacity', '1');
+        } else {
+          origin.setAttribute('opacity', '0');
+        }
+      } else {
+        origin.setAttribute('opacity', '0');
+      }
     }
   }, [arcs, features, labelTargets, path, projection]);
 
@@ -248,7 +287,7 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
 
         <g className="globe-arcs">
           {arcs.map((arc, i) => (
-            <polyline
+            <path
               key={i}
               ref={(el) => {
                 if (el) arcRefs.current.set(String(i), el);
@@ -264,8 +303,12 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
           ))}
         </g>
 
-        <g className="globe-labels">
-          {labelTargets.map((t) => (
+        <g ref={originRef} className="globe-origin" opacity="0">
+          <circle r={9} fill="none" stroke="#3fd0c9" strokeWidth={1.4} opacity={0.85} />
+          <circle r={3.2} fill="#3fd0c9" />
+        </g>
+
+        <g className="globe-labels">          {labelTargets.map((t) => (
             <text
               key={t.id}
               ref={(el) => {

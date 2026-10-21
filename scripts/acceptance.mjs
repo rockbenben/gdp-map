@@ -55,7 +55,29 @@ try {
   check('拼音搜索可用', searchHit >= 1 && searchHit < 10, `"henan" → ${searchHit} 条`);
   await page.locator('.search').fill('');
 
-  // 5. 2D 地图截图 + 导出 PNG
+  // 5. 对照方式：切换策略后结果应随之变化
+  const headlineBefore = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  await page.locator('.strategy-btn', { hasText: '大件优先' }).click();
+  await page.waitForTimeout(300);
+  const headlineBig = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  check('切换对照方式后结果变化', headlineBefore !== headlineBig, `${headlineBefore} → ${headlineBig}`);
+  const bigCount = await page.locator('.result-item').count();
+  check('大件优先的件数明显更少', bigCount > 0 && bigCount < 20, `${bigCount} 件`);
+
+  await page.locator('.strategy-btn', { hasText: '尽量打过' }).click();
+  await page.waitForTimeout(300);
+  const overGap = await page.locator('.result-sub').innerText();
+  check('尽量打过：合计不低于参照物', /超出/.test(overGap), overGap.replace(/\s+/g, ' '));
+
+  // 6. 微型经济体开关
+  await page.locator('.toggle input').uncheck();
+  await page.waitForTimeout(300);
+  const microCount = await page.locator('.result-item').count();
+  check('关闭微型过滤后件数变多', microCount > bigCount, `${bigCount} → ${microCount} 件`);
+  await page.locator('.toggle input').check();
+  await page.waitForTimeout(200);
+
+  // 7. 2D 地图截图 + 导出 PNG
   await page.screenshot({ path: resolve(SHOTS, 'map-2d.png'), fullPage: false });
 
   const [download] = await Promise.all([
@@ -67,7 +89,7 @@ try {
   const size = (await stat(pngPath)).size;
   check('导出 PNG 成功', size > 20000, `${download.suggestedFilename()} · ${(size / 1024).toFixed(0)} KB`);
 
-  // 6. 3D 地球视图
+  // 8. 3D 地球视图
   await page.locator('.segmented button', { hasText: '3D 地球' }).click();
   await page.waitForSelector('.globe-wrap svg .globe-country', { timeout: 15000 });
   await page.waitForTimeout(900);
@@ -75,6 +97,16 @@ try {
   check('3D 地球渲染国家多边形', globePaths > 100, `${globePaths} 条路径`);
   const globeLabels = await page.locator('.globe-wrap svg .globe-labels text').count();
   check('3D 地球标注国家名', globeLabels > 0, `${globeLabels} 个标注`);
+
+  // 弧线不能横穿地球：相邻采样点之间不该出现大跨度直线
+  const arcD = await page.locator('.globe-wrap svg .globe-arcs path').first().getAttribute('d');
+  const pts = (arcD ?? '').split(/[ML]/).filter(Boolean).map((p) => p.split(',').map(Number));
+  let maxJump = 0;
+  for (let i = 1; i < pts.length; i += 1) {
+    maxJump = Math.max(maxJump, Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  }
+  check('3D 弧线不横穿球体', maxJump < 120, `最大跨度 ${maxJump.toFixed(0)}px`);
+
   await page.screenshot({ path: resolve(SHOTS, 'globe-3d.png'), fullPage: false });
 
   const [download2] = await Promise.all([

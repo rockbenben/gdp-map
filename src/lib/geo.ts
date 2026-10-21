@@ -104,3 +104,32 @@ export function featureCentroid(f: GeoFeature): [number, number] {
     return [0, 0];
   }
 }
+
+/**
+ * 主体质心：只取面积最大的那个多边形。
+ * 直接用 geoCentroid 会把离岛（法属圭亚那、夏威夷之类）一起算进去，
+ * 质心会漂到海上，地图上的弧线就会「对不上地点」。
+ */
+export function featureMainCentroid(f: GeoFeature): [number, number] {
+  try {
+    const polys =
+      f.geometry.type === 'Polygon'
+        ? [f.geometry.coordinates as unknown]
+        : (f.geometry.coordinates as unknown[]);
+    let best: unknown = null;
+    let bestArea = -1;
+    for (const poly of polys) {
+      const one = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: poly } } as never;
+      const area = Math.abs(geoArea(one));
+      if (area > bestArea) {
+        bestArea = area;
+        best = one;
+      }
+    }
+    if (!best) return featureCentroid(f);
+    const c = geoCentroid(best as never);
+    return [c[0], c[1]];
+  } catch {
+    return featureCentroid(f);
+  }
+}
