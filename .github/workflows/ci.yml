@@ -1,0 +1,101 @@
+# CI：类型检查 → 单测 → 构建 → 浏览器级验收。
+#
+# ── 为什么是 ubuntu-latest ──
+#
+# 这是一个纯静态站：没有原生模块、没有平台相关代码、产物就是几个 JSON + 一个 JS 包。
+# 兄弟项目里 036-shuzhai 只跑 windows-latest，是因为那是 Electron 桌面应用（NSIS 打包、
+# `%APPDATA%` 下的 sqlite 库），跑 Linux 得到的是「与实际运行环境无关」的红。
+# 这里反过来：产物在哪跑都一模一样，所以用 ubuntu（runner 更快、免费额度更多）。
+#
+# ── 为什么 node-version 写死 '24' ──
+#
+# 不写 `node-version-file: package.json`，也不写成 `^24`：setup-node 会按范围装
+# **最新满足的**那个版本，写范围等于把 CI 交给未来的自己 ——
+# 哪天 Node 26 出来，CI 会悄悄跑到 26 上，而那次红可能跟代码无关。
+# 写死一条线，CI 跑的就是我们本地在跑的那条线。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 同一个分支/PR 连推几次，把前面还在跑的取消掉。
+# ⚠️ **main 上不取消**：那几次跑的是**已经合进去**的提交，取消掉等于那个提交
+# 从来没被验过。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# 这个 workflow 只读代码：不发包、不写 release、不碰 issue。
+# 默认令牌的权限比这大得多，收窄是白拿的。
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: typecheck · test · build
+    runs-on: ubuntu-latest
+    # 本地全套跑完不到一分钟，15 分钟已经宽得离谱——真超了就是卡死，不是慢。
+    timeout-minutes: 15
+    steps:
+      # 这两个 action 都是**第一方 `actions/*`**，钉在大版本标签上。
+      # 不钉 commit SHA——第一方 + 大版本标签是这类 workflow 的通行做法，
+      # SHA 钉死换来的那点供应链收益，代价是每次升级都要手动改哈希。
+      - uses: actions/checkout@v7
+
+      # ⚠️ **保留缓存。** setup-node 从 v7 起在自己文档里加了一句
+      # 「不需要就关掉自动缓存」（cache poisoning）。这里不关，理由是可验证的：
+      # 我们跑的是 `npm ci`，它对每个包按 `package-lock.json` 里的 `integrity`
+      # （SHA-512）校验，缓存里塞了被改过的东西会当场校验失败，而不是被装进去。
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # ⚠️ **不要在这里跑 `npm run data`。** 抓数据要访问 IMF 镜像、世界银行、
+      # 阿里云 DataV 三个外部源，任何一个挂掉或改接口都会让 CI 变红，
+      # 而红的原因跟代码没关系。产物（`public/data/`、`public/geo/`）是提交进仓库的，
+      # CI 直接用提交里的那份。
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  # 浏览器级验收：47 项，全是真点一遍界面。
+  # 单测验不了这些——地图画没画出来、导出的 PNG 是不是空的、
+  # 「假如 X 是一个国家」的名次卡有没有数字，都得真跑一个浏览器。
+  # 单独一个 job：这个 job 要装浏览器（几百 MB），verify 不该为它多等几分钟。
+  acceptance:
+    name: 浏览器验收
+    runs-on: ubuntu-latest
+    # 装浏览器 + 跑 47 项，比 verify 慢，单独放宽一点。
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # 装 Playwright 自带的 chromium。
+      # ⚠️ **验收脚本默认优先用系统 Chrome，但 CI 里必须强制走自带浏览器。**
+      # GitHub 的 ubuntu runner **预装了 Google Chrome**，默认那条路在 CI 里也会成功 ——
+      # 于是这一步装的东西白装了，而且 Playwright 并不保证自带浏览器与系统 Chrome 的
+      # 协议版本对得上（channel 模式属于「尽量能用」，官方支持的组合是自带浏览器）。
+      # `ACCEPTANCE_BROWSER=chromium` 让 CI 跑的就是这里下载下来的那个版本。
+      # `--with-deps` 会带上系统依赖，否则 Ubuntu runner 上会缺字体和共享库，
+      # 页面能开但字全是方块。
+      - run: npx playwright install --with-deps chromium
+
+      # `npm run acceptance` 会伺服 dist/ 并在结束时关掉它：
+      # dist/ 不存在时它自己先跑 `npm run build`（build 里含 typecheck）。
+      - run: npm run acceptance
+        env:
+          ACCEPTANCE_BROWSER: chromium
