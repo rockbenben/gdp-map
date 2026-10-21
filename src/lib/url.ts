@@ -30,7 +30,7 @@ const DEFAULTS: AppState = {
 const STRATEGIES: MatchStrategy[] = ['many', 'over', 'big', 'nearest'];
 const METRICS: MetricId[] = METRIC_ORDER;
 
-const VIEWS: ViewMode[] = ['map', 'globe', 'square', 'bracket'];
+const VIEWS: ViewMode[] = ['map', 'globe', 'square', 'bracket', 'rank'];
 
 function readState(): AppState {
   if (typeof window === 'undefined') return DEFAULTS;

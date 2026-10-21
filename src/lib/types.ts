@@ -94,5 +94,5 @@ export interface FeatureCollection {
   features: GeoFeature[];
 }
 
-export type ViewMode = 'map' | 'globe' | 'square' | 'bracket';
+export type ViewMode = 'map' | 'globe' | 'square' | 'bracket' | 'rank';
 export type CompareMode = 'region-to-world' | 'world-to-region';

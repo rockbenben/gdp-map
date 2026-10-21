@@ -5,6 +5,8 @@ import { Bracket } from './components/Bracket';
 import { RegionPicker } from './components/RegionPicker';
 import { ResultPanel } from './components/ResultPanel';
 import { SquareCartogram } from './components/SquareCartogram';
+import { RankingView } from './components/RankingView';
+import type { RankEntry } from './components/RankingView';
 import { SouthSeaBox } from './components/SouthSeaBox';
 import { TargetComparison } from './components/TargetComparison';
 import { WorldMap } from './components/WorldMap';
@@ -475,6 +477,21 @@ export default function App() {
     return new Set((match?.items ?? []).map((i) => i.id));
   }, [puzzle, match]);
 
+  /** 排行榜：把「能选的对象」按当前指标排开，选中的那条高亮。
+      它给的是名次卡给不了的东西——前后邻居到底有多大。 */
+  const rankingEntries = useMemo<RankEntry[]>(
+    () =>
+      sourcePool.map((r) => ({
+        id: r.id,
+        zh: r.zh,
+        value: metricValue(r, metric),
+        selected: selected.includes(r.id),
+        matched: highlightedIds.has(r.id),
+        group: r.parentName
+      })),
+    [sourcePool, metric, selected, highlightedIds]
+  );
+
   const globeHighlights = useMemo(() => {
     const m = new Map<string, { id: string; label: string; gdp?: number; color: string }>();
     const items = puzzle
@@ -698,6 +715,9 @@ export default function App() {
             </button>
             <button type="button" className={view === 'bracket' ? 'active' : ''} onClick={() => setView('bracket')}>
               擂台
+            </button>
+            <button type="button" className={view === 'rank' ? 'active' : ''} onClick={() => setView('rank')}>
+              排行
             </button>
           </div>
 
@@ -990,7 +1010,24 @@ export default function App() {
 
         <main className="stage">
           <div className="stage-inner">
-            {view === 'square' ? (
+            {view === 'rank' ? (
+              <div className="map-holder rank-holder">
+                <RankingView
+                  entries={rankingEntries}
+                  format={metricDef.format}
+                  noteFor={(e) => (e.selected ? '当前选中' : undefined)}
+                  onSelect={(id) => {
+                    setSelected([id]);
+                    touchedRef.current = true;
+                  }}
+                />
+                <p className="view-caption">
+                  {isRegionMode
+                    ? '中国省级行政区与美国各州，按「' + metricDef.label + '」排在一起。点一条就选它。'
+                    : '所有经济体按「' + metricDef.label + '」排名。点一条就选它。'}
+                </p>
+              </div>
+            ) : view === 'square' ? (
               <div className="map-holder">
                 <SquareCartogram
                   items={countries.map((c) => ({

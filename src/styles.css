@@ -789,6 +789,114 @@ body {
   margin-top: -2px;
 }
 
+/* ---------- 排行榜 ---------- */
+.rank-holder {
+  overflow-y: auto;
+  max-height: 620px;
+}
+
+.ranking {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 30px minmax(90px, 150px) 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.rank-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.rank-row.is-selected {
+  background: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.45);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.rank-idx {
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 12px;
+}
+
+.rank-row.is-selected .rank-idx {
+  color: var(--accent);
+}
+
+.rank-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-name em {
+  margin-right: 6px;
+  padding: 1px 5px;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-mute);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+}
+
+.rank-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.rank-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  opacity: 0.72;
+}
+
+.rank-row.is-matched .rank-fill {
+  opacity: 1;
+}
+
+.rank-row.is-selected .rank-fill {
+  opacity: 1;
+}
+
+.rank-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.rank-note {
+  min-width: 56px;
+  font-size: 11.5px;
+  color: var(--accent);
+  text-align: right;
+}
+
 /* ---------- 方形图 / 对阵树 ---------- */
 .sq-label {
   font-size: 12px;
