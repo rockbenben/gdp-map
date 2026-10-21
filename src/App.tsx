@@ -172,7 +172,12 @@ export default function App() {
     (s: MatchStrategy): GdpItem[] =>
       s === 'big'
         ? bigPool
-        : comparePool.map((r) => ({ id: r.id, zh: r.zh, value: metricValue(r, metric) })),
+        : comparePool
+            // 面积口径要画剪影对照，29 个微型国家没有边界（世界底图是 110m 分辨率，
+            // 把它们漏掉了）。拿一个画不出来的国家当对照，剪影就整块消失——
+            // 所以面积口径下只用有边界的对象。
+            .filter((r) => metric !== 'area' || r.hasGeometry)
+            .map((r) => ({ id: r.id, zh: r.zh, value: metricValue(r, metric) })),
     [bigPool, comparePool, metric]
   );
 
@@ -243,12 +248,24 @@ export default function App() {
     });
   }, [target, poolForStrategy, sourceSelected, additive, metricDef]);
 
-  /** 参照物在「被比对象」里能排第几 */
+  /**
+   * 参照物在「被比对象」里能排第几。
+   *
+   * 比的是**它自己那一年**的经济体：省/州的数据是固定年份的（广东 2024、日本 2021），
+   * 拿它去和滑块选的那一年的经济体比，结论是假的——2024 年的广东排进 1990 年的表里
+   * 会显示「第 3 位」，而 1990 年的广东连前十都进不去。
+   */
+  const sourceYear = sourceSelected[0]?.year ?? String(worldYear);
+  const countriesAtSourceYear = useMemo(
+    () => (dataset ? splitDataset(dataset, sourceYear, year).countries : []),
+    [dataset, sourceYear, year]
+  );
+
   const worldRank = useMemo(() => {
     if (!target || !isRegionMode) return null;
-    const bigger = allCountries.filter((c) => metricValue(c, metric) > target).length;
-    return { rank: bigger + 1, total: allCountries.length, year: worldYear };
-  }, [target, isRegionMode, allCountries, metric, worldYear]);
+    const bigger = countriesAtSourceYear.filter((c) => metricValue(c, metric) > target).length;
+    return { rank: bigger + 1, total: countriesAtSourceYear.length, year: sourceYear };
+  }, [target, isRegionMode, countriesAtSourceYear, metric, sourceYear]);
 
   const matchedPopulation = useMemo(() => {
     if (!match) return 0;
@@ -261,11 +278,17 @@ export default function App() {
   // 几何查找表（省州与国家放在一起，按 id 取）
   const featureById = useMemo(() => {
     const map = new Map<string, GeoFeature>();
-    for (const f of [...(world?.features ?? []), ...(china?.features ?? []), ...(usStates?.features ?? [])]) {
+    for (const f of [
+      ...(world?.features ?? []),
+      ...(china?.features ?? []),
+      ...(usStates?.features ?? []),
+      // 欧洲 NUTS-1 与日本都道府县的边界是按需加载的，来了就一并收进查找表
+      ...(extraRegions?.features ?? [])
+    ]) {
       map.set(String(f.id), f);
     }
     return map;
-  }, [world, china, usStates]);
+  }, [world, china, usStates, extraRegions]);
 
   /** 省/州细分层：画在世界地图上（合规的南海诸岛也在这层里）
    *  欧洲 NUTS-1 与日本都道府县也在这层里，但它们标了 drawOnlyWhenHighlighted，
@@ -333,19 +356,19 @@ export default function App() {
 
   /** 「假如它是一个国家」：四项指标各自在世界上的名次 */
   const counterfactual = useMemo(() => {
-    if (!sourceSelected.length || !allCountries.length) return null;
+    if (!sourceSelected.length || !countriesAtSourceYear.length) return null;
     const rows = (['gdp', 'gdpPc', 'area', 'pop'] as const).map((id) => {
       const m = METRICS[id];
       const v = additive
         ? sourceSelected.reduce((s, r) => s + metricValue(r, id), 0)
         : metricValue(sourceSelected[0], id);
-      const bigger = allCountries.filter((c) => metricValue(c, id) > v).length;
+      const bigger = countriesAtSourceYear.filter((c) => metricValue(c, id) > v).length;
       return {
         id,
         label: m.label,
         value: m.format(v),
         rank: bigger + 1,
-        total: allCountries.length,
+        total: countriesAtSourceYear.length,
         isCurrent: id === metric
       };
     });
@@ -356,8 +379,8 @@ export default function App() {
   const startPuzzle = () => {
     const region = sourceSelected[0] ?? regions[Math.floor(Math.random() * regions.length)];
     if (!region) return;
-    // 人均不可累加，玩游戏时用总量
-    const m: MetricId = metric === 'gdpPc' ? 'gdp' : metric;
+    // 人均和密度都不可累加，玩游戏时用总量
+    const m: MetricId = additive ? metric : 'gdp';
     setMode('region-to-world');
     setMetric(m);
     setStrategy(METRIC_DEFAULT_STRATEGY[m]);
@@ -461,9 +484,31 @@ export default function App() {
     setSelected([c.id]);
   };
 
+  /**
+   * 换对照方向，但**别把题目换掉**。
+   *
+   * 原来的做法是清空选择，结果切过去是一片空白——和首屏直接给结论的做法不一致，
+   * 用户得从头再选一遍。现在顺着上下文换：选的是省/州，就换成它所属的国家；
+   * 选的是国家，就换成它下面按当前指标最大的那个省/州。像是「放大一级 / 缩小一级」。
+   */
   const switchMode = (next: CompareMode) => {
     setMode(next);
-    setSelected([]);
+    const current = sourceSelected[0];
+    if (next === 'world-to-region') {
+      const parent = current?.parentId;
+      if (parent && countryById.has(parent)) {
+        setSelected([parent]);
+        return;
+      }
+      setSelected(['USA']); // 没有上下文就用最大的经济体
+      return;
+    }
+    const biggest = current
+      ? regions
+          .filter((r) => r.parentId === current.id)
+          .sort((a, b) => metricValue(b, metric) - metricValue(a, metric))[0]
+      : undefined;
+    setSelected(biggest ? [biggest.id] : ['CN-440000']);
   };
 
   const randomPick = () => {
@@ -571,6 +616,35 @@ export default function App() {
     return m;
   }, [isRegionMode, sourceSelected]);
 
+  /**
+   * 参照物在 2D 地图上的高亮。
+   *
+   * 之前完全没传，地图上分不出「我选的是哪个」和「它等于哪些」——
+   * 选德州，51 个州长得一模一样；选日本的县，那个县连轮廓都不画。
+   * 现在：地方→世界时在细分层里标出来（青色），世界→地方时在国家层里标出来。
+   */
+  const sourceSubHighlights = useMemo(() => {
+    if (!isRegionMode) return [];
+    return sourceSelected.map((r, i) => ({
+      id: r.geometryId,
+      rank: i,
+      label: r.zh,
+      value: r.gdpUsd,
+      color: PALETTE.source
+    }));
+  }, [isRegionMode, sourceSelected]);
+
+  const sourceCountryHighlights = useMemo(() => {
+    if (isRegionMode) return [];
+    return sourceSelected.map((r, i) => ({
+      id: r.id,
+      rank: i,
+      label: r.zh,
+      value: r.gdpUsd,
+      color: PALETTE.source
+    }));
+  }, [isRegionMode, sourceSelected]);
+
   // ---------- 地球仪：世界国家 + 省/州合为一层 ----------
   const globePolygons = useMemo<FeatureCollection | null>(() => {
     if (!world || !subdivisions) return null;
@@ -631,10 +705,29 @@ export default function App() {
     );
   };
 
+  /**
+   * 拿要导出的那张 SVG。
+   *
+   * 排行视图是 HTML（条形榜）没有 SVG，直接查会拿到 null，导出按钮就报「地图未就绪」。
+   * 这时切回地图视图再拿——导出的本来就是地图，跟动图导出一个做法。
+   */
+  const exportSvg = async (): Promise<SVGSVGElement> => {
+    const find = () =>
+      document.querySelector<SVGSVGElement>(view === 'globe' ? '.globe-wrap svg' : '.map-holder svg');
+    let svg = find();
+    if (!svg) {
+      setView('map');
+      await nextPaint();
+      await new Promise((r) => setTimeout(r, 400));
+      svg = document.querySelector<SVGSVGElement>('.map-holder svg');
+    }
+    if (!svg) throw new Error('地图未就绪');
+    return svg;
+  };
+
   const handleExportCard = async () => {
     try {
-      const svg = document.querySelector<SVGSVGElement>(view === 'globe' ? '.globe-wrap svg' : '.map-holder svg');
-      if (!svg) throw new Error('地图未就绪');
+      const svg = await exportSvg();
       setToast('正在生成分享卡…');
       const facts = (counterfactual?.rows ?? []).map((r) => ({
         label: r.label,
@@ -662,8 +755,7 @@ export default function App() {
 
   const handleExportHires = async () => {
     try {
-      const svg = document.querySelector<SVGSVGElement>(view === 'globe' ? '.globe-wrap svg' : '.map-holder svg');
-      if (!svg) throw new Error('地图未就绪');
+      const svg = await exportSvg();
       setToast('正在生成高清图…');
       await exportPng({
         svg,
@@ -965,12 +1057,14 @@ export default function App() {
           </section>
 
           <RegionPicker
+            // 换方向时重建：否则上一次搜的词还留在框里，列表看着像空的
+            key={mode}
             title={isRegionMode ? '选择一个省 / 州' : '选择一个国家'}
             hint={
               isRegionMode
                 ? additive
-                  ? '中国的省级行政区与美国的州都有经济总量，可以直接跟世界比；多选会先加总。'
-                  : '中国的省级行政区与美国的州都有经济总量。人均不能相加，所以只能选一个。'
+                  ? '中国的省级行政区、美国的州、欧洲的一级区、日本的都道府县都有经济总量，可以直接跟世界比；多选会先加总。'
+                  : '这些省/州都有经济总量。人均与密度不能相加，所以只能选一个。'
                 : '选一个国家，看它相当于哪些省/州加起来。'
             }
             metric={metricDef}
@@ -1110,7 +1204,7 @@ export default function App() {
                 <RankingView
                   entries={rankingEntries}
                   format={metricDef.format}
-                  noteFor={(e, rank) => (e.selected ? `第 ${rank} 位` : undefined)}
+                  noteFor={(e) => (e.selected ? '当前选中' : undefined)}
                   onSelect={(id) => {
                     setSelected([id]);
                     touchedRef.current = true;
@@ -1176,9 +1270,11 @@ export default function App() {
                     <WorldMap
                       geo={world}
                       highlights={countryHighlights}
+                      sources={[]}
                       totalRanks={Math.max(1, countryHighlights.length)}
                       formatValue={metricDef.format}
                       subdivisions={subdivisions ?? undefined}
+                      subHighlights={sourceSubHighlights}
                       southSea={china ? <SouthSeaBox geo={china} x={MAP_W - 126} y={MAP_H - 146} width={108} height={128} /> : null}
                       onSelect={handleMapClick}
                       chinaInset={
@@ -1199,6 +1295,7 @@ export default function App() {
                   <WorldMap
                     geo={world ?? { type: 'FeatureCollection', features: [] }}
                     highlights={[]}
+                    sources={sourceCountryHighlights}
                     totalRanks={1}
                     formatValue={metricDef.format}
                     subdivisions={subdivisions ?? undefined}

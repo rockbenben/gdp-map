@@ -9,6 +9,8 @@ interface Highlight {
   rank: number;
   label: string;
   value?: number;
+  /** 指定颜色（不给就按名次取渐变） */
+  color?: string;
 }
 
 interface Props {
@@ -148,7 +150,7 @@ export function WorldMap({
               <path
                 key={String(f.id)}
                 d={path(f as never) ?? ''}
-                fill={h ? colorFor(h) : 'none'}
+                fill={h ? (h.color ?? colorFor(h)) : 'none'}
                 fillOpacity={h ? 0.95 : 0}
                 stroke={h ? 'rgba(255,255,255,0.6)' : 'rgba(120,145,195,0.35)'}
                 strokeWidth={h ? 0.7 : 0.3}

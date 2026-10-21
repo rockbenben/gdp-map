@@ -501,7 +501,9 @@ const objects = [
         gdpPc: { [year]: r.pop ? Math.round((r.gdpUsd / r.pop) * 100) / 100 : undefined },
         pop: { [year]: r.pop },
         area: r.area,
-        ppp: undefined
+        // 同样没有官方 PPP 口径：用所属国家的 PPP 换算因子估算（跟中国省、美国州一样）。
+        // 不给的话「平价 GDP」这个指标下这 141 个地区全是 0，选中就是一片空白。
+        ppp: pppForRegion(r.parentId, { [year]: r.gdpUsd })
       },
       source: r.source,
       search: searchKey(r.zh, r.en)

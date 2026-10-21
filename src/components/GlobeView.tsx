@@ -255,6 +255,9 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
             const h = highlights.get(id);
             const s = sources.get(id);
             const active = Boolean(h || s);
+            // 欧洲 NUTS-1 与日本都道府县：不被高亮就不画。
+            // 跟 2D 地图一个道理——一百多个区一起画会把欧洲糊成马赛克。
+            if (!active && f.properties?.drawOnlyWhenHighlighted) return null;
             return (
               <g key={id}>
                 {active ? (

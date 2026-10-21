@@ -51,6 +51,7 @@ export function toRegion(obj: RegionObject, year: string): Region {
     zh: obj.zh,
     en: obj.en,
     parentId: obj.parentId,
+    year: y,
     gdpUsd: obj.metrics.gdp.nominal[y] ?? 0,
     pppUsd: obj.metrics.ppp?.[y],
     gdpPerCapitaUsd: obj.metrics.gdpPc?.[y],
@@ -74,7 +75,11 @@ export function splitDataset(
   const regions = all.filter((r) => r.kind === 'region');
   // 给省/州补上所属国家名，选择器里按国家分组显示
   const nameById = new Map(countries.map((c) => [c.id, c.zh]));
-  for (const r of regions) r.parentName = r.parentId ? nameById.get(r.parentId) : undefined;
+  for (const r of regions) {
+    r.parentName = r.parentId ? nameById.get(r.parentId) : undefined;
+    // 搜「德国」要能搜到巴伐利亚：把所属国家的名字也塞进搜索键
+    if (r.parentName) r.search = `${r.search} ${r.parentName.toLowerCase()}`;
+  }
   return { countries, regions };
 }
 

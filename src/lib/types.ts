@@ -61,6 +61,8 @@ export interface Region {
   /** 所属国家（省州才有），用于选择器分组 */
   parentId: string | null;
   parentName?: string;
+  /** 这个对象的数据是哪一年的（省/州各自不同，国家跟着滑块走） */
+  year: string;
   gdpUsd: number;
   /** 购买力平价 GDP（现价国际元） */
   pppUsd?: number;

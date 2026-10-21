@@ -59,6 +59,8 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
     <div className="ranking">
       {rows.map((e, i) => {
         const ratio = e.value / max;
+        // 显示真正的名次，不是它在榜上的位置——选中的那条可能排在 limit 之外
+        const rank = rankOf.get(e.id) ?? i + 1;
         return (
           <button
             key={e.id}
@@ -69,7 +71,7 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
             onClick={() => onSelect?.(e.id)}
             title={`${e.zh} · ${format(e.value)}`}
           >
-            <span className="rank-idx">{i + 1}</span>
+            <span className="rank-idx">{rank}</span>
             <span className="rank-name">
               {e.group ? <em>{e.group}</em> : null}
               {e.zh}
@@ -78,7 +80,7 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
               <span className="rank-fill" style={{ width: `${(ratio * 100).toFixed(2)}%` }} />
             </span>
             <span className="rank-value">{format(e.value)}</span>
-            <span className="rank-note">{noteFor?.(e, rankOf.get(e.id) ?? i + 1) ?? ''}</span>
+            <span className="rank-note">{noteFor?.(e, rank) ?? ''}</span>
           </button>
         );
       })}

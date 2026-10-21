@@ -24,8 +24,8 @@ interface Props {
   metric: Metric;
   /** 当前对照方式的名称 */
   strategyLabel: string;
-  /** 参照物在被比对象里能排第几 */
-  worldRank?: { rank: number; total: number; year?: number } | null;
+  /** 参照物在被比对象里能排第几（year 是它自己那一年的年份） */
+  worldRank?: { rank: number; total: number; year?: string } | null;
   /** 匹配到的对象一共多少人 */
   matchedPopulation?: number;
   /** 最接近的单个对象 */

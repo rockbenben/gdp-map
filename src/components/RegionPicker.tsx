@@ -44,7 +44,12 @@ export function RegionPicker({
     return groups
       .map((g) => ({
         label: g.label,
-        items: q ? g.items.filter((r) => r.search.includes(q)) : g.items
+        // 组名就是国家名：搜「德国」要把整组都留下
+        items: q
+          ? g.label.toLowerCase().includes(q)
+            ? g.items
+            : g.items.filter((r) => r.search.includes(q))
+          : g.items
       }))
       .filter((g) => g.items.length > 0);
   }, [groups, query]);
