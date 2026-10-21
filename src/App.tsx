@@ -57,6 +57,8 @@ export default function App() {
   const [strategy, setStrategy] = useState<MatchStrategy>(initial.strategy);
   const [ignoreMicro, setIgnoreMicro] = useState(initial.ignoreMicro);
   const [worldYear, setWorldYear] = useState(initial.worldYear);
+  /** 年份是否在自动播放 */
+  const [playing, setPlaying] = useState(false);
   const [puzzle, setPuzzle] = useState<{
     target: number;
     label: string;
@@ -88,6 +90,35 @@ export default function App() {
   }, []);
 
   const year = dataset?.meta.defaultYear ?? '2024';
+
+  // 播放：让年份自己往前走，结论数字与地图高亮随之滚动。
+  // 走到 2025（IMF 预测值）就停——但**要先让 2025 显示出来**再停，
+  // 所以停止判断在 timeout 里做，不在 effect 开头做。
+  useEffect(() => {
+    if (!playing) return;
+    const t = setTimeout(() => {
+      if (worldYear >= 2025) setPlaying(false);
+      else setWorldYear(worldYear + 1);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [playing, worldYear]);
+
+  /** 手动拨年份就把播放停掉：用户想自己控制节奏 */
+  const setYear = (y: number) => {
+    setPlaying(false);
+    setWorldYear(y);
+  };
+
+  const togglePlay = () => {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    // 播放是「从头看一遍」：总是从 1990 起，播到 2025 停。
+    // 不然默认停在 2024 时只剩一步可走，这个按钮等于没用。
+    setWorldYear(1990);
+    setPlaying(true);
+  };
 
   const { countries: allCountries, regions } = useMemo(
     () => (dataset ? splitDataset(dataset, String(worldYear), year) : { countries: [], regions: [] }),
@@ -774,7 +805,18 @@ export default function App() {
 
               <div className="picker-head" style={{ marginTop: 12 }}>
                 <h2>拿哪一年的世界来比</h2>
-                <span className="year-now">{worldYear}</span>
+                <span className="year-tools">
+                  <button
+                    type="button"
+                    className={playing ? 'play-btn on' : 'play-btn'}
+                    onClick={togglePlay}
+                    aria-pressed={playing}
+                    title="从 1990 年播到 2025 年，看这个地方的体量怎么变"
+                  >
+                    {playing ? '⏸ 暂停' : '▶ 播放'}
+                  </button>
+                  <span className="year-now">{worldYear}</span>
+                </span>
               </div>
               <input
                 className="year-slider"
@@ -783,26 +825,26 @@ export default function App() {
                 max={2025}
                 step={1}
                 value={worldYear}
-                onChange={(e) => setWorldYear(Number(e.target.value))}
+                onChange={(e) => setYear(Number(e.target.value))}
                 aria-label="国家数据年份"
               />
               <div className="year-ticks">
-                <button type="button" onClick={() => setWorldYear(1990)}>
+                <button type="button" onClick={() => setYear(1990)}>
                   1990
                 </button>
-                <button type="button" onClick={() => setWorldYear(2000)}>
+                <button type="button" onClick={() => setYear(2000)}>
                   2000
                 </button>
-                <button type="button" onClick={() => setWorldYear(2010)}>
+                <button type="button" onClick={() => setYear(2010)}>
                   2010
                 </button>
-                <button type="button" onClick={() => setWorldYear(2024)}>
+                <button type="button" onClick={() => setYear(2024)}>
                   2024
                 </button>
               </div>
               <p className="picker-hint">
                 国家数据可回溯到 1990 年（2025 为 IMF 预测值），省级数据固定 {year} 年。
-                往后拨，能看出「今天这个地方放在当年是什么水平」。
+                往后拨，能看出「今天这个地方放在当年是什么水平」；按「播放」让它从 1990 自己走到 2025。
               </p>
             </details>
           </section>

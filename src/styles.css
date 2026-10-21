@@ -509,6 +509,40 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.year-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 播放：让年份自己走一遍 */
+.play-btn {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text-dim);
+  background: var(--bg-panel);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.play-btn:hover {
+  color: var(--text);
+  border-color: var(--line);
+}
+
+.play-btn.on {
+  color: #12182a;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 .year-slider {
   appearance: none;
   width: 100%;
