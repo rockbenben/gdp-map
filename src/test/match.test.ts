@@ -62,10 +62,26 @@ describe('matchByStrategy', () => {
     expect(r.sum).toBeGreaterThanOrEqual(100);
   });
 
-  it('big：先选大件', () => {
+  it('big：挑装得下目标的最小的那个（分数不过 100%）', () => {
     const r = matchByStrategy(100, pool, 'big');
-    expect(r.items[0].id).toBe('big');
-    expect(r.sum).toBeLessThanOrEqual(100);
+    expect(r.count).toBe(1);
+    // 60 装不下 100（那会写出「60 的 167%」），所以要往上看
+    expect(r.items[0].id).toBe('huge');
+    expect(100 / r.sum).toBeLessThanOrEqual(1);
+  });
+
+  it('big：目标比最大的大件还大时，加上别的大国', () => {
+    const provinces = [item('a', 60), item('b', 30), item('c', 10)];
+    const r = matchByStrategy(95, provinces, 'big');
+    expect(r.count).toBeGreaterThan(1);
+    expect(r.sum).toBeGreaterThanOrEqual(95);
+    expect(95 / r.sum).toBeLessThanOrEqual(1);
+  });
+
+  it('big：目标比池里最小的一个还小时，答案是装得下它的最小那个', () => {
+    const r = matchByStrategy(5, pool, 'big');
+    expect(r.items[0].id).toBe('small'); // 8 是装得下 5 的最小的一个
+    expect(5 / r.sum).toBeLessThanOrEqual(1);
   });
 
   it('nearest：只给一个最接近的', () => {
@@ -87,12 +103,12 @@ describe('matchByStrategy', () => {
     expect(r.items[0].id).toBe('a');
   });
 
-  it('big：只在给定的「大件池」里找最接近的一个', () => {
+  it('big：只在给定的「大件池」里找装得下的最小的那个', () => {
     const pool = [item('huge', 900), item('big', 500), item('mid', 120)];
     const bigPool = topByValue(pool, 2); // 取前 2：huge、big
     const r = matchByStrategy(100, bigPool, 'big');
     expect(r.count).toBe(1);
-    expect(r.items[0].id).toBe('big'); // 500 比 900 更接近 100
+    expect(r.items[0].id).toBe('big'); // 500 是装得下 100 的最小的一个
   });
 
   it('topByValue：按数值取前 N', () => {

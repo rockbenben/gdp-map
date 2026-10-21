@@ -233,14 +233,14 @@ export default function App() {
       const r = matchByStrategy(target, poolForStrategy(id), id, { exclude });
       const err = relativeError(r);
       const gapText = `${r.gap >= 0 ? '多' : '少'} ${(err * 100).toFixed(1)}%`;
-      // 「比大国家」说的是「它是其中哪一个的几分之几」
-      const fraction =
-        id === 'big' && r.count === 1 && r.items[0].value > 0 ? target / r.items[0].value : null;
+      // 「比大国家」说的是「它是其中哪几个的几分之几」（分数不过 100%）
+      const fraction = id === 'big' && r.count > 0 && r.sum > 0 ? target / r.sum : null;
+      const fractionNames = r.items.map((x) => x.zh).join(' + ');
       const preview =
         r.count === 0
           ? '没有能匹配的对象'
           : fraction != null
-            ? `${r.items[0].zh} 的 ${(fraction * 100).toFixed(0)}%`
+            ? `${fractionNames} 的 ${(fraction * 100).toFixed(0)}%`
             : r.count === 1
               ? `${r.items[0].zh} · ${metricDef.format(r.sum)}（${gapText}）`
               : `${r.count} 个 · ${metricDef.format(r.sum)}（${gapText}）`;
@@ -301,22 +301,32 @@ export default function App() {
     };
   }, [china, usStates, extraRegions]);
 
-  /** 「比大国家」时，标题写成「它是其中哪一个的几分之几」 */
+  /**
+   * 「比大国家」时，标题写成「它是其中哪几个的几分之几」。
+   *
+   * ⚠️ 分数不能超过 100%——「占巴西的 115%」是句错话。
+   * 所以这里用的是**被选中的大件合计**做分母：单个大件装不下时，
+   * 匹配会加上别的大国（见 match.ts 的 matchBig），分数自然落回 100% 以内。
+   */
   const bigFraction = useMemo(() => {
-    if (!match || effectiveStrategy !== 'big' || match.count !== 1 || !match.items[0].value) return null;
-    return target / match.items[0].value;
+    if (!match || effectiveStrategy !== 'big' || !match.count || !match.sum) return null;
+    return {
+      of: match.items.map((x) => x.zh).join(' + '),
+      value: target / match.sum
+    };
   }, [match, effectiveStrategy, target]);
 
   const sourceLabel = sourceSelected.length ? sourceSelected.map((r) => r.zh).join(' + ') : '（未选择）';
 
   const headline = useMemo<MetricTitle | null>(() => {
     if (!match || !sourceSelected.length || bigFraction == null) return null;
-    const isMultiple = bigFraction >= 1;
+    // 正常情况下分数 ≤ 100%；只有「比所有大件加起来还大」时才会超过
+    const isMultiple = bigFraction.value > 1;
     return {
-      before: `${sourceLabel} ≈ ${match.items[0].zh}的 `,
+      before: `${sourceLabel} ≈ ${bigFraction.of}的 `,
       eq: '',
       // 不足 1 倍时写成百分比，否则写成倍数——数字本身是要滚动的那个
-      value: isMultiple ? bigFraction : bigFraction * 100,
+      value: isMultiple ? bigFraction.value : bigFraction.value * 100,
       format: (v) => (isMultiple ? (v < 10 ? v.toFixed(1) : v.toFixed(0)) : v.toFixed(0)),
       suffix: isMultiple ? ' 倍' : '%',
       after: ''

@@ -43,8 +43,8 @@ interface Props {
   comparison?: React.ReactNode;
   /** 「假如它是一个国家」的排名卡 */
   counterfactual?: { name: string; rows: RankRow[] } | null;
-  /** 「比大国家」时：参照物是对方的几分之几 */
-  fraction?: number | null;
+  /** 「比大国家」时：它是其中哪几个的百分之几 */
+  fraction?: { value: number; of: string } | null;
 }
 
 export function ResultPanel({
@@ -94,7 +94,12 @@ export function ResultPanel({
             fraction != null ? (
               <>
                 {' '}
-                · 是它的 <strong>{fraction >= 1 ? `${fraction.toFixed(fraction < 10 ? 1 : 0)} 倍` : `${(fraction * 100).toFixed(0)}%`}</strong>
+                · 是{fraction.of}的{' '}
+                <strong>
+                  {fraction.value >= 1
+                    ? `${fraction.value.toFixed(fraction.value < 10 ? 1 : 0)} 倍`
+                    : `${(fraction.value * 100).toFixed(0)}%`}
+                </strong>
               </>
             ) : (
               <>

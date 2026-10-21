@@ -168,8 +168,8 @@ try {
 
   await page.locator('.choice', { hasText: '比大国家' }).click();
   await page.waitForTimeout(300);
-  const bigHeadline = await settleHeadline();
-  check('比大国家：写成「几分之几」', /≈\s*.+的\s*\d+(\.\d+)?%/.test(bigHeadline), bigHeadline);
+  const bigPctHeadline = await settleHeadline();
+  check('比大国家：写成「几分之几」', /≈\s*.+的\s*\d+(\.\d+)?%/.test(bigPctHeadline), bigPctHeadline);
   const bigItems = await page.locator('.result-item .name').allInnerTexts();
   check('比大国家只给一个大对象', bigItems.length === 1, bigItems.join('、'));
 
@@ -544,6 +544,18 @@ try {
   });
   check('窄屏下排行条形还在', narrowBar > 100, `${narrowBar}px`);
   await page.setViewportSize({ width: 1440, height: 900 });
+
+  // 18. 「比大国家」的分数不能超过 100%（「占日本的 115%」是句错话）
+  await page.goto(`${BASE}/?sel=CN-410000,US-48&st=big`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.result-headline h1', { timeout: 15000 });
+  await page.waitForTimeout(600);
+  const bigFractionHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  const bigPcts = [...bigFractionHeadline.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((m) => Number(m[1]));
+  check(
+    '比大国家的分数不过 100%',
+    bigPcts.length > 0 && bigPcts.every((p) => p <= 100),
+    bigFractionHeadline
+  );
 
   check('无运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {

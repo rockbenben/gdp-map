@@ -7,8 +7,9 @@
  *
  *   many   尽量多件：优先用小件，件数最多，合计不超过目标
  *   over   尽量打过：沿自然顺序累加，装不下的那一个也算进去，合计 ≥ 目标
- *   big    比大国家：只在大件池（当前指标前 10）里找最接近的那一个，
- *                 结果写成「它是其中哪一个的几分之几」
+ *   big    比大国家：只在大件池（当前指标前 10）里比，
+ *                 挑装得下目标的最小的那个，写成「它是其中哪一个的几分之几」；
+ *                 目标比最大的大件还大时，凑上别的大国，分数仍然不过 100%
  *   nearest 最接近  ：只看单个最接近的对象（河南 ≈ 波兰）
  *
  * 注意：这些口径对「可累加」的量（总量、面积、人口）才有意义。
@@ -54,7 +55,7 @@ export const STRATEGY_LABEL: Record<MatchStrategy, string> = {
 export const STRATEGY_HINT: Record<MatchStrategy, string> = {
   many: '从最小的国家往上加，能加多少个算多少个 —— 件数最多，但多是些小国。',
   over: '同样从小往大加，只是装不下的那一个也算进去 —— 保证总量至少这么大。',
-  big: '只跟体量最大的 10 个对象比，看它是其中哪一个的几分之几。',
+  big: '只跟体量最大的 10 个对象比，看它是其中哪一个的几分之几（一个装不下就加上别的大国）。',
   nearest: '不凑，只挑最接近的那一个。'
 };
 
@@ -135,10 +136,39 @@ export function closestSingle(target: number, pool: GdpItem[], options: Accumula
 }
 
 /**
+ * 「比大国家」：跟大件池里的对象比，结果写成「它是其中哪一个（或哪几个）的几分之几」。
+ *
+ * ⚠️ **分数不能超过 100%**——「占某个大国的 115%」这句话本身是错的：
+ * 一个省不可能占掉一个国家的 115%。所以规则是：
+ *
+ *   1. 先在**装得下目标**的对象里挑最小的那一个（分数最贴近 100%，也最贴近目标）；
+ *   2. 一个都装不下（目标比最大的那个还大）→ 从大到小凑到覆盖为止，
+ *      答案写成「美国 + 中国的 61%」——**加别的大国的部分**，
+ *      而不是硬凑一个 115% 出来。
+ */
+export function matchBig(
+  target: number,
+  pool: GdpItem[],
+  options: AccumulateOptions = {}
+): MatchResult {
+  const items = prepare(pool, options);
+  if (!items.length || !target) return { items: [], sum: 0, target, gap: -target, count: 0 };
+
+  const covering = items.filter((x) => x.value >= target).sort((a, b) => a.value - b.value);
+  if (covering.length) {
+    const one = covering[0];
+    return toResult(target, [{ ...one, cumulative: one.value }]);
+  }
+
+  // 都装不下：从大到小凑到覆盖为止（合计 ≥ 目标，分数仍然 ≤ 100%）
+  return accumulate(target, items, { order: 'desc', rule: 'over' });
+}
+
+/**
  * 按策略匹配。三种累加口径与方向无关，两个方向用同一套语义：
  *   many   小件优先，件最多，合计不超过目标
  *   over   小件优先，装不下的那一个也算进去，合计 ≥ 目标
- *   big    只在「大件池」里找最接近的一个（由调用方把池收窄到前 10）
+ *   big    只在「大件池」里比：挑装得下目标的最小的那个，凑不下就加上别的大国
  *   nearest  单个最接近
  */
 export function matchByStrategy(
@@ -149,11 +179,13 @@ export function matchByStrategy(
 ): MatchResult {
   if (!target) return { items: [], sum: 0, target, gap: -target, count: 0 };
 
-  if (strategy === 'nearest' || strategy === 'big') {
+  if (strategy === 'nearest') {
     const one = closestSingle(target, pool, options);
     if (!one) return { items: [], sum: 0, target, gap: -target, count: 0 };
     return { items: [{ ...one, cumulative: one.value }], sum: one.value, target, gap: one.value - target, count: 1 };
   }
+
+  if (strategy === 'big') return matchBig(target, pool, options);
 
   if (strategy === 'many') {
     // 件数最多：小件优先，装得下就加
