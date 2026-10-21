@@ -15,7 +15,9 @@ const SOURCES = {
   'china-provinces.geo.json': 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json',
   'china-outline.geo.json': 'https://geo.datav.aliyun.com/areas_v3/bound/100000.json',
   // 国家统计局《中国统计年鉴2025》表 3-9 地区生产总值(2024年)
-  'nbs-yearbook-2025-C03-09.jpg': 'https://www.stats.gov.cn/sj/ndsj/2025/html/C03-09.jpg'
+  'nbs-yearbook-2025-C03-09.jpg': 'https://www.stats.gov.cn/sj/ndsj/2025/html/C03-09.jpg',
+  // 国家面积表（Natural Earth 口径 + 修正），用于「面积对比」
+  'countries-area.json': 'https://raw.githubusercontent.com/mledoze/countries/master/countries.json'
 };
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126' };

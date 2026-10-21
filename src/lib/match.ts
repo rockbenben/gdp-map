@@ -1,5 +1,5 @@
 /**
- * 核心算法：把一个「经济体量」翻译成一组可数的国家（或省份）。
+ * 核心算法：把一个「量」翻译成一组可数的对象（国家或省份）。
  *
  * 之所以做成「多种对照方式」，是因为单一策略的结果太单一：
  * 纯贪心从小到大累加，永远是图瓦卢、瑙鲁、马绍尔群岛这一串微型国家，
@@ -9,12 +9,16 @@
  *   over   尽量打过：沿自然顺序累加，装不下的那一个也算进去，合计 ≥ 目标
  *   big    大件优先：优先用大件（可辨识的经济体），合计不超过目标
  *   nearest 最接近  ：只看单个最接近的对象（河南 ≈ 波兰）
+ *
+ * 注意：这些口径对「可累加」的量（总量、面积、人口）才有意义。
+ * 人均 GDP 不可加，只能取单个最接近的对象 —— 见 metrics.ts 的 additive 标记。
  */
 
 export interface GdpItem {
   id: string;
   zh: string;
-  gdp: number;
+  /** 待比较的量（单位随指标而定） */
+  value: number;
 }
 
 export interface MatchItem extends GdpItem {
@@ -55,14 +59,14 @@ export interface AccumulateOptions {
   exclude?: string[];
 }
 
-function sortByGdp(pool: GdpItem[], direction: 'asc' | 'desc'): GdpItem[] {
+function sortByValue(pool: GdpItem[], direction: 'asc' | 'desc'): GdpItem[] {
   const sign = direction === 'asc' ? 1 : -1;
-  return [...pool].sort((a, b) => sign * (a.gdp - b.gdp) || a.id.localeCompare(b.id));
+  return [...pool].sort((a, b) => sign * (a.value - b.value) || a.id.localeCompare(b.id));
 }
 
 function prepare(pool: GdpItem[], options: AccumulateOptions): GdpItem[] {
   const excluded = new Set(options.exclude ?? []);
-  return pool.filter((x) => !excluded.has(x.id) && x.gdp > 0);
+  return pool.filter((x) => !excluded.has(x.id) && x.value > 0);
 }
 
 function toResult(target: number, items: MatchItem[]): MatchResult {
@@ -84,19 +88,19 @@ export function accumulate(
 ): MatchResult {
   const order = options.order ?? 'asc';
   const rule = options.rule ?? 'skip';
-  const sorted = sortByGdp(prepare(pool, options), order);
+  const sorted = sortByValue(prepare(pool, options), order);
 
   const acc: MatchItem[] = [];
   let sum = 0;
 
   for (const item of sorted) {
-    if (rule === 'over' && sum > 0 && sum + item.gdp > target) {
+    if (rule === 'over' && sum > 0 && sum + item.value > target) {
       // 把装不下的这一个也算进去，然后收工 —— 合计 ≥ 目标
-      acc.push({ ...item, cumulative: sum + item.gdp });
+      acc.push({ ...item, cumulative: sum + item.value });
       return toResult(target, acc);
     }
-    if (sum + item.gdp > target) continue; // 装不下就跳过
-    sum += item.gdp;
+    if (sum + item.value > target) continue; // 装不下就跳过
+    sum += item.value;
     acc.push({ ...item, cumulative: sum });
   }
 
@@ -108,14 +112,14 @@ export function accumulate(
  * 逐项累加并记录绝对差最小的前缀；越过目标后停止（再往下只会更远）。
  */
 export function accumulateAscending(target: number, pool: GdpItem[], options: AccumulateOptions = {}): MatchResult {
-  const sorted = sortByGdp(prepare(pool, options), 'asc');
+  const sorted = sortByValue(prepare(pool, options), 'asc');
 
   let best: MatchResult = { items: [], sum: 0, target, gap: -target, count: 0 };
   let sum = 0;
   const acc: MatchItem[] = [];
 
   for (const item of sorted) {
-    sum += item.gdp;
+    sum += item.value;
     acc.push({ ...item, cumulative: sum });
     const diff = Math.abs(sum - target);
     if (diff < Math.abs(best.gap)) {
@@ -128,10 +132,10 @@ export function accumulateAscending(target: number, pool: GdpItem[], options: Ac
   if (best.items.length === 0 && sorted.length) {
     const first = sorted[0];
     best = {
-      items: [{ ...first, cumulative: first.gdp }],
-      sum: first.gdp,
+      items: [{ ...first, cumulative: first.value }],
+      sum: first.value,
       target,
-      gap: first.gdp - target,
+      gap: first.value - target,
       count: 1
     };
   }
@@ -144,14 +148,14 @@ export function accumulateAscending(target: number, pool: GdpItem[], options: Ac
  * 逐项累加并记录绝对差最小的前缀；达到目标后停止。
  */
 export function accumulateDescending(target: number, pool: GdpItem[], options: AccumulateOptions = {}): MatchResult {
-  const sorted = sortByGdp(prepare(pool, options), 'desc');
+  const sorted = sortByValue(prepare(pool, options), 'desc');
 
   let best: MatchResult = { items: [], sum: 0, target, gap: -target, count: 0 };
   let sum = 0;
   const acc: MatchItem[] = [];
 
   for (const item of sorted) {
-    sum += item.gdp;
+    sum += item.value;
     acc.push({ ...item, cumulative: sum });
     const diff = Math.abs(sum - target);
     if (diff < Math.abs(best.gap)) {
@@ -168,7 +172,7 @@ export function closestSingle(target: number, pool: GdpItem[], options: Accumula
   let best: GdpItem | null = null;
   let bestDiff = Infinity;
   for (const item of prepare(pool, options)) {
-    const diff = Math.abs(item.gdp - target);
+    const diff = Math.abs(item.value - target);
     if (diff < bestDiff) {
       bestDiff = diff;
       best = item;
@@ -195,7 +199,7 @@ export function matchByStrategy(
   if (strategy === 'nearest') {
     const one = closestSingle(target, pool, options);
     if (!one) return { items: [], sum: 0, target, gap: -target, count: 0 };
-    return { items: [{ ...one, cumulative: one.gdp }], sum: one.gdp, target, gap: one.gdp - target, count: 1 };
+    return { items: [{ ...one, cumulative: one.value }], sum: one.value, target, gap: one.value - target, count: 1 };
   }
 
   if (strategy === 'many') {

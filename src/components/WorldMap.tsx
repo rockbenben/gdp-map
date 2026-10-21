@@ -8,7 +8,7 @@ export interface Highlight {
   /** 累加顺序，0 为最小 */
   rank: number;
   label: string;
-  gdp?: number;
+  value?: number;
 }
 
 interface Props {
@@ -20,6 +20,8 @@ interface Props {
   onSelect?: (id: string) => void;
   /** 当前选中的 id，描边加粗 */
   selectedIds?: string[];
+  /** 数值格式化（悬停提示用） */
+  formatValue?: (value: number) => string;
   /** 世界地图左下角的中国小图 */
   chinaInset?: React.ReactNode;
   width?: number;
@@ -33,6 +35,7 @@ export function WorldMap({
   totalRanks,
   onSelect,
   selectedIds = [],
+  formatValue,
   chinaInset,
   width = 1000,
   height = 520
@@ -115,7 +118,7 @@ export function WorldMap({
             >
               <title>
                 {`${h?.label ?? s?.label ?? f.properties.name ?? id}${
-                  h?.gdp ? ` · GDP ${(h.gdp / 1e12).toFixed(2)} 万亿美元` : ''
+                  h?.value != null && formatValue ? ` · ${formatValue(h.value)}` : ''
                 }`}
               </title>
             </path>

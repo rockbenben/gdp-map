@@ -11,6 +11,8 @@ interface Props {
   totalRanks: number;
   onSelect?: (id: string) => void;
   selectedIds?: string[];
+  /** 数值格式化（悬停提示用） */
+  formatValue?: (value: number) => string;
   width?: number;
   height?: number;
 }
@@ -22,6 +24,7 @@ export function ChinaMap({
   totalRanks,
   onSelect,
   selectedIds = [],
+  formatValue,
   width = 820,
   height = 640
 }: Props) {
@@ -85,7 +88,7 @@ export function ChinaMap({
             >
               <title>
                 {`${h?.label ?? s?.label ?? f.properties.name ?? id}${
-                  h?.gdp ? ` · GDP ${(h.gdp / 1e12).toFixed(2)} 万亿美元` : ''
+                  h?.value != null && formatValue ? ` · ${formatValue(h.value)}` : ''
                 }`}
               </title>
             </path>

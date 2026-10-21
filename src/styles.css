@@ -236,6 +236,50 @@ body {
   padding: 14px;
 }
 
+.metric-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 10px;
+  padding: 3px;
+  background: #0a1120;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.metric-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 8px 2px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.metric-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.metric-btn.active {
+  background: linear-gradient(120deg, rgba(63, 208, 201, 0.24), rgba(246, 196, 83, 0.18));
+  color: #fff;
+}
+
+.strategy-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+.strategy-btn:disabled:hover {
+  color: var(--text-dim);
+  background: transparent;
+}
+
 .strategy-options {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

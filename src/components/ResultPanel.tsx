@@ -1,20 +1,27 @@
-import { formatPercent, formatUsd, formatUsdShort } from '../lib/format';
+import { formatPercent } from '../lib/format';
 import type { MatchResult } from '../lib/match';
+import type { Metric } from '../lib/metrics';
 
 interface Props {
   /** 主标题，例如「河南省」 */
   sourceLabel: string;
-  /** 参照物的 GDP 合计 */
+  /** 参照物的指标值合计 */
   target: number;
   /** 参照物金额的可读写法 */
   targetText: string;
   result: MatchResult;
   /** 匹配出来的对象叫「国家」还是「省份」 */
   unitName: string;
+  /** 当前指标 */
+  metric: Metric;
   /** 当前对照方式的名称 */
   strategyLabel: string;
+  /** 参照物在被比对象里能排第几 */
+  worldRank?: { rank: number; total: number } | null;
+  /** 匹配到的对象一共多少人 */
+  matchedPopulation?: number;
   /** 最接近的单个对象 */
-  closest?: { zh: string; gdp: number } | null;
+  closest?: { zh: string; value: number } | null;
 }
 
 export function ResultPanel({
@@ -23,27 +30,22 @@ export function ResultPanel({
   targetText,
   result,
   unitName,
+  metric,
   strategyLabel,
+  worldRank,
+  matchedPopulation = 0,
   closest
 }: Props) {
   const error = target ? Math.abs(result.gap) / target : 0;
   const over = result.gap >= 0;
+  const only = result.items[0];
 
   return (
     <section className="result">
       <div className="result-headline">
-        <h1>
-          {sourceLabel} <span className="eq">≈</span>{' '}
-          {result.count === 1 ? (
-            <span className="single">{result.items[0].zh}</span>
-          ) : (
-            <>
-              <span className="count">{result.count}</span> 个{unitName}
-            </>
-          )}
-        </h1>
+        <h1>{metric.title(sourceLabel, result.count, only?.zh ?? '', unitName)}</h1>
         <p className="result-sub">
-          {targetText} · 合计 <strong>{formatUsd(result.sum)}</strong>
+          {targetText} · 合计 <strong>{metric.format(result.sum)}</strong>
           {result.count > 0 ? (
             <>
               {' '}
@@ -53,10 +55,23 @@ export function ResultPanel({
         </p>
         {closest ? (
           <p className="result-single">
-            单个最接近：<strong>{closest.zh}</strong>（{formatUsd(closest.gdp)}）
+            单个最接近：<strong>{closest.zh}</strong>（{metric.format(closest.value)}）
           </p>
         ) : null}
-        <p className="result-strategy">对照方式：{strategyLabel}</p>
+        <p className="result-strategy">
+          {metric.valueLabel}｜对照方式：{strategyLabel}
+          {worldRank ? `｜在 ${worldRank.total} 个经济体里排第 ${worldRank.rank} 位` : ''}
+        </p>
+        {result.count > 1 && matchedPopulation > 0 ? (
+          <p className="result-single">
+            这 {result.count} 个{unitName}加起来住着 <strong>{metric.format(matchedPopulation)}</strong>
+          </p>
+        ) : null}
+        {result.count === 1 && only && only.value > 0 ? (
+          <p className="result-single">
+            换算成倍数：<strong>{(target / only.value).toFixed(2)} 倍</strong>（以{only.zh}为 1）
+          </p>
+        ) : null}
       </div>
 
       {result.items.length ? (
@@ -70,7 +85,7 @@ export function ResultPanel({
                 <span className="bar">
                   <span className="bar-fill" style={{ width: `${(ratio * 100).toFixed(1)}%` }} />
                 </span>
-                <span className="gdp">{formatUsdShort(item.gdp)}</span>
+                <span className="gdp">{metric.short(item.value)}</span>
               </li>
             );
           })}
@@ -80,7 +95,7 @@ export function ResultPanel({
       )}
 
       {result.count === 1 ? (
-        <p className="result-hint">想看「几个国家加起来」，换一种对照方式或多选几个地区。</p>
+        <p className="result-hint">想看「几个加起来」，换一种对照方式或多选几个地区。</p>
       ) : null}
     </section>
   );

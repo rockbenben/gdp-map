@@ -9,7 +9,7 @@ import {
 } from '../lib/match';
 import type { GdpItem } from '../lib/match';
 
-const item = (id: string, gdp: number): GdpItem => ({ id, zh: id.toUpperCase(), gdp });
+const item = (id: string, value: number): GdpItem => ({ id, zh: id.toUpperCase(), value });
 
 describe('accumulate', () => {
   it('asc + skip：件尽量多，合计不超过目标', () => {

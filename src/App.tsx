@@ -5,14 +5,15 @@ import { GlobeView } from './components/GlobeView';
 import { RegionPicker } from './components/RegionPicker';
 import { ResultPanel } from './components/ResultPanel';
 import { WorldMap } from './components/WorldMap';
-import { loadChina, loadDataset, loadWorld, provinceToRegion, toRegion } from './lib/data';
+import { loadChina, loadDataset, loadWorld, metricValue, provinceToRegion, toRegion } from './lib/data';
 import { copyText, exportPng } from './lib/export';
 import { createChinaProjection, featureMainCentroid, mixColor, PALETTE } from './lib/geo';
-import { formatUsd } from './lib/format';
 import { closestSingle, matchByStrategy, STRATEGY_HINT, STRATEGY_LABEL } from './lib/match';
 import type { GdpItem, MatchStrategy } from './lib/match';
+import { METRICS, METRIC_DEFAULT_STRATEGY, METRIC_HINT, METRIC_ORDER } from './lib/metrics';
+import type { MetricId } from './lib/metrics';
 import { loadState, shareUrl, writeState } from './lib/url';
-import type { CompareMode, FeatureCollection, GeoFeature, Region, ViewMode } from './lib/types';
+import type { CompareMode, FeatureCollection, Region, ViewMode } from './lib/types';
 
 const PRESETS = [
   { id: 'CN-440000', label: '广东' },
@@ -33,9 +34,12 @@ export default function App() {
   const [mode, setMode] = useState<CompareMode>(initial.mode);
   const [view, setView] = useState<ViewMode>(initial.view);
   const [selected, setSelected] = useState<string[]>(initial.selected);
+  const [metric, setMetric] = useState<MetricId>(initial.metric);
   const [strategy, setStrategy] = useState<MatchStrategy>(initial.strategy);
   const [ignoreMicro, setIgnoreMicro] = useState(initial.ignoreMicro);
   const [toast, setToast] = useState<string | null>(null);
+
+  const metricDef = METRICS[metric];
 
   useEffect(() => {
     Promise.all([loadDataset(), loadWorld(), loadChina()])
@@ -48,8 +52,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    writeState({ mode, view, selected, strategy, ignoreMicro });
-  }, [mode, view, selected, strategy, ignoreMicro]);
+    writeState({ mode, view, selected, metric, strategy, ignoreMicro });
+  }, [mode, view, selected, metric, strategy, ignoreMicro]);
 
   const year = dataset?.meta.defaultYear ?? '2024';
 
@@ -76,36 +80,52 @@ export default function App() {
     [selected, sourceRegions]
   );
 
-  const target = sourceSelected.reduce((sum, r) => sum + r.gdpUsd, 0);
+  const target = sourceSelected.reduce((sum, r) => sum + metricValue(r, metric), 0);
 
   const match = useMemo(() => {
     if (!target) return null;
     const exclude = sourceSelected.map((r) => r.id);
-    if (isRegionMode) {
-      return matchByStrategy(
-        target,
-        countries.map((c) => ({ id: c.id, zh: c.zh, gdp: c.gdpUsd })),
-        strategy,
-        { exclude }
-      );
-    }
-    return matchByStrategy(
-      target,
-      provinces.map((p) => ({ id: p.id, zh: p.zh, gdp: p.gdpUsd })),
-      strategy,
-      { exclude }
-    );
-  }, [target, isRegionMode, countries, provinces, sourceSelected, strategy]);
+    const pool: GdpItem[] = (isRegionMode ? countries : provinces).map((r) => ({
+      id: r.id,
+      zh: r.zh,
+      value: metricValue(r, metric)
+    }));
+    return matchByStrategy(target, pool, strategy, { exclude });
+  }, [target, isRegionMode, countries, provinces, sourceSelected, metric, strategy]);
 
   const closest = useMemo(() => {
     if (!target) return null;
     const pool: GdpItem[] = (isRegionMode ? countries : provinces).map((r) => ({
       id: r.id,
       zh: r.zh,
-      gdp: r.gdpUsd
+      value: metricValue(r, metric)
     }));
     return closestSingle(target, pool, { exclude: sourceSelected.map((r) => r.id) });
-  }, [target, isRegionMode, countries, provinces, sourceSelected]);
+  }, [target, isRegionMode, countries, provinces, sourceSelected, metric]);
+
+  /** 参照物在「被比对象」里能排第几 —— 例如河南的 GDP 在世界上排第几十 */
+  const worldRank = useMemo(() => {
+    if (!target || !isRegionMode) return null;
+    // 排名用全部国家，不受「忽略微型经济体」开关影响
+    const bigger = allCountries.filter((c) => metricValue(c, metric) > target).length;
+    return { rank: bigger + 1, total: allCountries.length };
+  }, [target, isRegionMode, allCountries, metric]);
+
+  /** 匹配到的对象合计住了多少人（拿 GDP 比的时候特别有意思） */
+  const matchedPopulation = useMemo(() => {
+    if (!match) return 0;
+    return match.items.reduce((sum, item) => {
+      const region = isRegionMode
+        ? countries.find((c) => c.id === item.id)
+        : provinces.find((p) => p.id === item.id);
+      return sum + (region?.pop ?? 0);
+    }, 0);
+  }, [match, isRegionMode, countries, provinces]);
+
+  const switchMetric = (next: MetricId) => {
+    setMetric(next);
+    setStrategy(METRIC_DEFAULT_STRATEGY[next]);
+  };
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -125,19 +145,10 @@ export default function App() {
     setSelected([pick.id]);
   };
 
-  // ---------- 地球仪：世界国家 + 中国分省（合并为一个图层）----------
-  const globePolygons = useMemo<FeatureCollection | null>(() => {
-    if (!world || !china) return null;
-    const features: GeoFeature[] = [
-      ...world.features.filter((f) => String(f.id) !== 'CHN'),
-      ...china.features.filter((f) => !f.properties.isSouthSea)
-    ];
-    return { type: 'FeatureCollection', features };
-  }, [world, china]);
-
+  // ---------- 地图高亮 ----------
   const worldHighlights = useMemo(() => {
     if (!match || !isRegionMode) return [];
-    return match.items.map((item, idx) => ({ id: item.id, rank: idx, label: item.zh, gdp: item.gdp }));
+    return match.items.map((item, idx) => ({ id: item.id, rank: idx, label: item.zh, gdp: item.value }));
   }, [match, isRegionMode]);
 
   const chinaHighlights = useMemo(() => {
@@ -146,7 +157,7 @@ export default function App() {
       id: provinceById.get(item.id)?.geometryId ?? item.id,
       rank: idx,
       label: item.zh,
-      gdp: item.gdp
+      gdp: item.value
     }));
   }, [match, isRegionMode, provinceById]);
 
@@ -156,7 +167,12 @@ export default function App() {
     items.forEach((item, idx) => {
       const t = items.length <= 1 ? 0 : idx / (items.length - 1);
       const geoId = isRegionMode ? item.id : (provinceById.get(item.id)?.geometryId ?? item.id);
-      m.set(geoId, { id: geoId, label: item.zh, gdp: item.gdp, color: mixColor(PALETTE.matchedLow, PALETTE.matchedHigh, t) });
+      m.set(geoId, {
+        id: geoId,
+        label: item.zh,
+        gdp: item.value,
+        color: mixColor(PALETTE.matchedLow, PALETTE.matchedHigh, t)
+      });
     });
     return m;
   }, [match, isRegionMode, provinceById]);
@@ -171,6 +187,16 @@ export default function App() {
     return m;
   }, [isRegionMode, sourceSelected]);
 
+  // ---------- 地球仪：世界国家 + 中国分省合为一层 ----------
+  const globePolygons = useMemo<FeatureCollection | null>(() => {
+    if (!world || !china) return null;
+    const features = [
+      ...world.features.filter((f) => String(f.id) !== 'CHN'),
+      ...china.features.filter((f) => !f.properties.isSouthSea)
+    ];
+    return { type: 'FeatureCollection', features };
+  }, [world, china]);
+
   const arcs = useMemo(() => {
     if (!match || !world || !china) return [];
     const out: Array<{ start: [number, number]; end: [number, number]; color: string }> = [];
@@ -181,7 +207,7 @@ export default function App() {
       return featureMainCentroid(f);
     };
     // 弧线太多会糊成一团：只连最大的若干个
-    const top = match.items.slice().sort((a, b) => b.gdp - a.gdp).slice(0, 12);
+    const top = match.items.slice().sort((a, b) => b.value - a.value).slice(0, 12);
 
     if (isRegionMode) {
       const start = sourceSelected[0] ? chinaCentroid(china, sourceSelected[0].geometryId) : null;
@@ -208,13 +234,17 @@ export default function App() {
   // ---------- 导出 ----------
   const handleExport = async () => {
     try {
-      const unit = isRegionMode ? '国家' : '省份';
       const title = sourceSelected.length
-        ? `${sourceSelected.map((r) => r.zh).join(' + ')} ≈ ${
-            match && match.count === 1 ? match.items[0].zh : `${match?.count ?? 0} 个${unit}`
-          }`
+        ? metricDef.title(
+            sourceSelected.map((r) => r.zh).join(' + '),
+            match?.count ?? 0,
+            match?.items[0]?.zh ?? '',
+            isRegionMode ? '国家' : '省份'
+          )
         : 'GDP 等价地图';
-      const subtitle = sourceSelected.length ? `${formatUsd(target)} · 数据年份 ${year}` : '选择一个地区开始';
+      const subtitle = sourceSelected.length
+        ? `${metricDef.format(target)} · ${metricDef.valueLabel} · 数据年份 ${year}`
+        : '选择一个地区开始';
       const footnote = dataset
         ? `国家：${dataset.meta.countrySource}｜省份：${dataset.meta.provinceSource}`
         : '';
@@ -237,7 +267,7 @@ export default function App() {
 
   const handleCopyLink = () => {
     setToast('正在复制链接…');
-    copyText(shareUrl({ mode, view, selected, strategy, ignoreMicro })).then(
+    copyText(shareUrl({ mode, view, selected, metric, strategy, ignoreMicro })).then(
       (ok) => setToast(ok ? '链接已复制到剪贴板' : '复制失败，请手动复制地址栏'),
       () => setToast('复制失败，请手动复制地址栏')
     );
@@ -268,14 +298,14 @@ export default function App() {
               className={mode === 'region-to-country' ? 'active' : ''}
               onClick={() => switchMode('region-to-country')}
             >
-              地方 → 国家
+              地方 → 世界
             </button>
             <button
               type="button"
               className={mode === 'country-to-region' ? 'active' : ''}
               onClick={() => switchMode('country-to-region')}
             >
-              国家 → 地方
+              世界 → 地方
             </button>
           </div>
 
@@ -301,15 +331,35 @@ export default function App() {
         <aside className="sidebar">
           <section className="strategy">
             <div className="picker-head">
-              <h2>对照方式</h2>
+              <h2>比什么</h2>
+            </div>
+            <div className="metric-options" role="radiogroup" aria-label="对比指标">
+              {METRIC_ORDER.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={metric === m}
+                  className={`metric-btn${metric === m ? ' active' : ''}`}
+                  onClick={() => switchMetric(m)}
+                >
+                  {METRICS[m].label}
+                </button>
+              ))}
+            </div>
+            <p className="picker-hint">{METRIC_HINT[metric]}</p>
+
+            <div className="picker-head" style={{ marginTop: 12 }}>
+              <h2>怎么比</h2>
             </div>
             <div className="strategy-options" role="radiogroup" aria-label="对照方式">
-              {(Object.keys(STRATEGY_LABEL) as MatchStrategy[]).map((s) => (
+              {(['many', 'over', 'big', 'nearest'] as MatchStrategy[]).map((s) => (
                 <button
                   key={s}
                   type="button"
                   role="radio"
                   aria-checked={strategy === s}
+                  disabled={!metricDef.additive && s !== 'nearest'}
                   className={`strategy-btn${strategy === s ? ' active' : ''}`}
                   onClick={() => setStrategy(s)}
                 >
@@ -317,7 +367,9 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <p className="picker-hint">{STRATEGY_HINT[strategy]}</p>
+            <p className="picker-hint">
+              {metricDef.additive ? STRATEGY_HINT[strategy] : '人均不可累加，只能跟单个对象比。'}
+            </p>
             <label className="toggle">
               <input
                 type="checkbox"
@@ -332,9 +384,10 @@ export default function App() {
             title={isRegionMode ? '选择中国的一个或多个地区' : '选择一个国家'}
             hint={
               isRegionMode
-                ? '可以多选：多个地区先加总，再去找等价的国家。'
+                ? '可以多选：多个地区先加总，再去找等价的对照对象。'
                 : '选一个国家，看它相当于中国哪几个省加起来。'
             }
+            metric={metricDef}
             items={sourceRegions}
             selected={selected}
             onToggle={toggle}
@@ -364,15 +417,18 @@ export default function App() {
             <ResultPanel
               sourceLabel={sourceLabel}
               target={target}
-              targetText={formatUsd(target)}
+              targetText={metricDef.format(target)}
+              metric={metricDef}
               result={match}
               unitName={isRegionMode ? '国家' : '省份'}
               strategyLabel={STRATEGY_LABEL[strategy]}
-              closest={closest && strategy !== 'nearest' ? { zh: closest.zh, gdp: closest.gdp } : null}
+              worldRank={worldRank}
+              matchedPopulation={matchedPopulation}
+              closest={closest && strategy !== 'nearest' ? { zh: closest.zh, value: closest.value } : null}
             />
           ) : (
             <section className="result placeholder">
-              <p>在左侧挑一个地区，地图上就会亮出它等价的国家。</p>
+              <p>在左侧挑一个地区，地图上就会亮出它等价的对照对象。</p>
             </section>
           )}
         </aside>
@@ -387,6 +443,7 @@ export default function App() {
                       geo={world}
                       highlights={worldHighlights}
                       totalRanks={Math.max(1, worldHighlights.length)}
+                      formatValue={metricDef.format}
                       onSelect={(id) => {
                         setMode('country-to-region');
                         setSelected([id]);
@@ -408,6 +465,7 @@ export default function App() {
                     geo={china}
                     highlights={chinaHighlights}
                     totalRanks={Math.max(1, chinaHighlights.length)}
+                    formatValue={metricDef.format}
                     onSelect={(id) => {
                       const p = provinces.find((x) => x.geometryId === id);
                       if (p) {
@@ -454,7 +512,8 @@ export default function App() {
             </div>
             {dataset ? (
               <p className="sources">
-                数据年份 {dataset.meta.provinceYear}｜国家：{dataset.meta.countrySource}｜省份：{dataset.meta.provinceSource}
+                数据年份 {dataset.meta.provinceYear}｜国家：{dataset.meta.countrySource}｜省份：
+                {dataset.meta.provinceSource}
                 {dataset.meta.provinceSourceUrl ? (
                   <>
                     {' '}
@@ -489,7 +548,16 @@ function ChinaInset({ china, highlightIds }: { china: FeatureCollection; highlig
 
   return (
     <g transform="translate(20, 292)">
-      <rect x={-9} y={-9} width={width + 18} height={height + 30} rx={9} fill="rgba(8,12,22,0.74)" stroke="#26314f" strokeWidth={0.8} />
+      <rect
+        x={-9}
+        y={-9}
+        width={width + 18}
+        height={height + 30}
+        rx={9}
+        fill="rgba(8,12,22,0.74)"
+        stroke="#26314f"
+        strokeWidth={0.8}
+      />
       {features.map((f) => {
         const id = String(f.id);
         const active = highlightIds.has(id);

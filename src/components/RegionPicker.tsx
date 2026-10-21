@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
-import { formatUsdShort } from '../lib/format';
+import type { Metric } from '../lib/metrics';
+import { metricValue } from '../lib/data';
 import type { Region } from '../lib/types';
 
 interface Props {
   title: string;
   hint: string;
+  /** 当前指标，决定列表里显示什么数 */
+  metric: Metric;
   items: Region[];
   selected: string[];
   onToggle: (id: string) => void;
@@ -16,6 +19,7 @@ interface Props {
 export function RegionPicker({
   title,
   hint,
+  metric,
   items,
   selected,
   onToggle,
@@ -69,7 +73,7 @@ export function RegionPicker({
                 {active ? '✓' : ''}
               </span>
               <span className="picker-name">{r.zh}</span>
-              <span className="picker-gdp">{formatUsdShort(r.gdpUsd)}</span>
+              <span className="picker-gdp">{metric.short(metricValue(r, metric.id))}</span>
             </button>
           );
         })}

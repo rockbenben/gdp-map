@@ -48,7 +48,42 @@ function searchKey(zh, en) {
 const weo = await readJson(resolve(RAW, 'weo-2025-04.json'));
 const worldGeo = await readJson(resolve(RAW, 'world.geo.json'));
 const chinaGeo = await readJson(resolve(RAW, 'china-provinces.geo.json'));
+const areaTable = await readJson(resolve(RAW, 'countries-area.json'));
 const provYear = await readJson(resolve(ROOT, 'data/provincial-gdp-2024.json'));
+
+// ---------- 中国省级边界 ----------
+// DataV 的多边形环绕向与 d3-geo 的球面约定相反，直接渲染会被当成「球面补集」，
+// 所以这里统一反转每个环（外环/内环一起反转，绕向相对关系不变）。
+function reverseRings(geometry) {
+  const flip = (ring) => [...ring].reverse();
+  if (geometry.type === 'Polygon') {
+    return { type: 'Polygon', coordinates: geometry.coordinates.map(flip) };
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return { type: 'MultiPolygon', coordinates: geometry.coordinates.map((poly) => poly.map(flip)) };
+  }
+  return geometry;
+}
+
+// ---------- 面积：从几何算球面面积 ----------
+// 省级用 DataV 的高精度边界直接算；国家用 mledoze/countries 的面积表（更准，保留小国）。
+const EARTH_R = 6371.0088;
+const { geoArea } = await import('d3-geo');
+function geometryAreaKm2(geometry) {
+  const polys = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  let total = 0;
+  for (const poly of polys) {
+    total += Math.abs(
+      geoArea({ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: poly } })
+    );
+  }
+  return total * EARTH_R * EARTH_R;
+}
+const countryArea = new Map();
+for (const c of areaTable) {
+  const code = c.cca3 || c.ccn3;
+  if (code && typeof c.area === 'number') countryArea.set(code, c.area);
+}
 
 const fx = {};
 for (const y of YEARS) fx[y] = await fetchExchangeRate(y);
@@ -72,6 +107,11 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
   }
   const en = weo.labels?.[iso3] ?? iso3;
   const zh = zhCountryName(iso3);
+  const area = countryArea.get(iso3) ?? null;
+  const gdpPc = {};
+  for (const y of YEARS) {
+    if (nominal[y] != null && pop[y]) gdpPc[y] = nominal[y] / pop[y];
+  }
   countryList.push({
     id: iso3,
     zh: zh ?? en,
@@ -79,6 +119,8 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
     hasGeometry: worldIds.has(iso3),
     gdp: { nominal },
     pop,
+    gdpPc,
+    area,
     search: searchKey(zh ?? en, en)
   });
 }
@@ -88,8 +130,14 @@ countryList.sort((a, b) => b.gdp.nominal[DEFAULT_YEAR] - a.gdp.nominal[DEFAULT_Y
 
 // ---------- 中国省级 ----------
 const adcodeToName = new Map(chinaGeo.features.map((f) => [String(f.properties.adcode), f.properties.name]));
+// 面积要用「反转绕向后」的几何来算：原始绕向会被 d3-geo 当成球面补集，算出 5 亿 km²
+const provinceGeometry = new Map(
+  chinaGeo.features.map((f) => [String(f.properties.adcode), reverseRings(f.geometry)])
+);
 const provinceList = provYear.provinces.map((p) => {
   const rate = fx[provYear.meta.year].cnyPerUsd;
+  const gdpUsd = (p.gdp * 1e8) / rate; // 亿元人民币 → 美元
+  const geometry = provinceGeometry.get(String(p.adcode));
   return {
     id: `CN-${p.adcode}`,
     adcode: p.adcode,
@@ -97,9 +145,19 @@ const provinceList = provYear.provinces.map((p) => {
     en: p.name,
     gdp: {
       nominal: {
-        [provYear.meta.year]: (p.gdp * 1e8) / rate // 亿元人民币 → 美元
+        [provYear.meta.year]: gdpUsd
       }
     },
+    // 人均：年鉴直接给了人民币口径，除以年均汇率折美元
+    gdpPc: {
+      [provYear.meta.year]: p.gdpPerCapita / rate
+    },
+    // 人口由「总量 ÷ 人均」反推（年鉴未单列常住人口）
+    pop: {
+      [provYear.meta.year]: p.gdpPerCapita ? (p.gdp * 1e8) / p.gdpPerCapita : null
+    },
+    // 面积：按 DataV 边界估算
+    area: geometry ? Math.round(geometryAreaKm2(geometry)) : null,
     gdpPerCapita: p.gdpPerCapita,
     search: searchKey(p.name, p.name)
   };
@@ -117,12 +175,16 @@ for (const x of CN_EXTRA) {
   if (!c) continue;
   const nominal = {};
   for (const y of YEARS) if (c.gdp.nominal[y] != null) nominal[y] = c.gdp.nominal[y];
+  const geometry = provinceGeometry.get(String(x.adcode));
   provinceList.push({
     id: x.id,
     adcode: x.adcode,
     zh: x.zh,
     en: x.en,
     gdp: { nominal },
+    gdpPc: c.gdpPc,
+    pop: c.pop,
+    area: geometry ? Math.round(geometryAreaKm2(geometry)) : c.area,
     gdpPerCapita: undefined,
     source: `${weo.source}（非年鉴口径，年鉴不单列港澳台）`,
     search: searchKey(x.zh, x.en)
@@ -153,19 +215,7 @@ if (chn && twn) {
   target.geometry = { type: 'MultiPolygon', coordinates: polys };
 }
 
-// ---------- 中国省级边界 ----------
-// DataV 的多边形环绕向与 d3-geo 的球面约定相反，直接渲染会被当成「球面补集」，
-// 所以这里统一反转每个环（外环/内环一起反转，绕向相对关系不变）。
-function reverseRings(geometry) {
-  const flip = (ring) => [...ring].reverse();
-  if (geometry.type === 'Polygon') {
-    return { type: 'Polygon', coordinates: geometry.coordinates.map(flip) };
-  }
-  if (geometry.type === 'MultiPolygon') {
-    return { type: 'MultiPolygon', coordinates: geometry.coordinates.map((poly) => poly.map(flip)) };
-  }
-  return geometry;
-}
+
 
 const chinaFeatures = chinaGeo.features.map((f) => ({
   type: 'Feature',

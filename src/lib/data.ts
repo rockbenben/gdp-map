@@ -1,4 +1,5 @@
 import type { Dataset, FeatureCollection, Region } from './types';
+import type { MetricId } from './metrics';
 
 const base = import.meta.env.BASE_URL ?? './';
 
@@ -35,7 +36,9 @@ export function toRegion(item: Dataset['countries'][number], year: string): Regi
     zh: item.zh,
     en: item.en,
     gdpUsd: item.gdp.nominal[year] ?? 0,
+    gdpPerCapitaUsd: item.gdpPc?.[year],
     pop: item.pop?.[year],
+    areaKm2: item.area ?? undefined,
     geometryId: item.id,
     search: item.search
   };
@@ -48,8 +51,24 @@ export function provinceToRegion(item: Dataset['provinces'][number], year: strin
     zh: item.zh,
     en: item.en,
     gdpUsd: item.gdp.nominal[year] ?? 0,
-    gdpPerCapita: item.gdpPerCapita,
+    gdpPerCapitaUsd: item.gdpPc?.[year],
+    pop: item.pop?.[year],
+    areaKm2: item.area ?? undefined,
     geometryId: String(item.adcode),
     search: item.search
   };
+}
+
+/** 取某个地区在某个指标上的数值 */
+export function metricValue(region: Region, metric: MetricId): number {
+  switch (metric) {
+    case 'gdp':
+      return region.gdpUsd;
+    case 'gdpPc':
+      return region.gdpPerCapitaUsd ?? 0;
+    case 'area':
+      return region.areaKm2 ?? 0;
+    case 'pop':
+      return region.pop ?? 0;
+  }
 }

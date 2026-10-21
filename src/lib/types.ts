@@ -11,6 +11,10 @@ export interface Country {
   gdp: GdpSeries;
   /** 人口（人），按年份索引 */
   pop?: Record<string, number>;
+  /** 人均 GDP（美元），按年份索引 */
+  gdpPc?: Record<string, number>;
+  /** 面积（平方公里） */
+  area?: number | null;
   search: string;
 }
 
@@ -20,6 +24,12 @@ export interface Province {
   zh: string;
   en: string;
   gdp: GdpSeries;
+  /** 人均 GDP（美元），按年份索引 */
+  gdpPc?: Record<string, number>;
+  /** 人口（人），按年份索引 */
+  pop?: Record<string, number>;
+  /** 面积（平方公里） */
+  area?: number | null;
   gdpPerCapita?: number;
   source?: string;
   search: string;
@@ -51,9 +61,12 @@ export interface Region {
   zh: string;
   en: string;
   gdpUsd: number;
-  gdpPerCapita?: number;
+  /** 人均 GDP（美元） */
+  gdpPerCapitaUsd?: number;
   /** 人口（人） */
   pop?: number;
+  /** 面积（平方公里） */
+  areaKm2?: number;
   /** 地图高亮时使用的几何 id（世界地图用 ISO3，中国地图用 adcode） */
   geometryId: string;
   search: string;
