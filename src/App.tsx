@@ -34,6 +34,9 @@ import type { CompareMode, FeatureCollection, GeoFeature, Region, ViewMode } fro
 const MAP_W = 1000;
 const MAP_H = 520;
 
+/** 拼图最多能选几个国家 */
+const PUZZLE_MAX = 3;
+
 export default function App() {
   const [dataset, setDataset] = useState<Awaited<ReturnType<typeof loadDataset>> | null>(null);
   const [world, setWorld] = useState<FeatureCollection | null>(null);
@@ -49,6 +52,13 @@ export default function App() {
   const [strategy, setStrategy] = useState<MatchStrategy>(initial.strategy);
   const [ignoreMicro, setIgnoreMicro] = useState(initial.ignoreMicro);
   const [worldYear, setWorldYear] = useState(initial.worldYear);
+  const [puzzle, setPuzzle] = useState<{
+    target: number;
+    label: string;
+    metric: MetricId;
+    picked: string[];
+    done: boolean;
+  } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const metricDef = METRICS[metric];
@@ -215,6 +225,94 @@ export default function App() {
     return <TargetComparison a={sourceSelected[0]} b={sourceSelected[1]} current={metricDef} />;
   }, [sourceSelected, metricDef]);
 
+  /** 「假如它是一个国家」：四项指标各自在世界上的名次 */
+  const counterfactual = useMemo(() => {
+    if (!sourceSelected.length || !allCountries.length) return null;
+    const rows = (['gdp', 'gdpPc', 'area', 'pop'] as const).map((id) => {
+      const m = METRICS[id];
+      const v = additive
+        ? sourceSelected.reduce((s, r) => s + metricValue(r, id), 0)
+        : metricValue(sourceSelected[0], id);
+      const bigger = allCountries.filter((c) => metricValue(c, id) > v).length;
+      return {
+        id,
+        label: m.label,
+        value: m.format(v),
+        rank: bigger + 1,
+        total: allCountries.length,
+        isCurrent: id === metric
+      };
+    });
+    return { name: sourceLabel, rows };
+  }, [sourceSelected, allCountries, metric, additive, sourceLabel]);
+
+  // ---------- 拼图玩法：点国家凑出目标 ----------
+  const startPuzzle = () => {
+    const region = sourceSelected[0] ?? regions[Math.floor(Math.random() * regions.length)];
+    if (!region) return;
+    // 人均不可累加，玩游戏时用总量
+    const m: MetricId = metric === 'gdpPc' ? 'gdp' : metric;
+    setMode('region-to-world');
+    setMetric(m);
+    setStrategy(METRIC_DEFAULT_STRATEGY[m]);
+    setSelected([region.id]);
+    setPuzzle({
+      target: metricValue(region, m),
+      label: `${region.zh}的${METRICS[m].label}`,
+      metric: m,
+      picked: [],
+      done: false
+    });
+  };
+
+  const togglePicked = (countryId: string) => {
+    if (!puzzle || puzzle.done) return;
+    if (puzzle.picked.includes(countryId)) {
+      setPuzzle({ ...puzzle, picked: puzzle.picked.filter((x) => x !== countryId) });
+      return;
+    }
+    if (puzzle.picked.length >= PUZZLE_MAX) {
+      setToast(`最多只能选 ${PUZZLE_MAX} 个国家`);
+      return;
+    }
+    const picked = [...puzzle.picked, countryId];
+    setPuzzle({ ...puzzle, picked, done: picked.length >= PUZZLE_MAX });
+  };
+
+  const puzzleSum = useMemo(() => {
+    if (!puzzle) return 0;
+    let sum = 0;
+    for (const id of puzzle.picked) {
+      const c = allCountries.find((x) => x.id === id);
+      if (c) sum += metricValue(c, puzzle.metric);
+    }
+    return sum;
+  }, [puzzle, allCountries]);
+
+  /** 最优解：最多 3 个国家、合计不超过目标，取最大的一组 */
+  const puzzleBest = useMemo(() => {
+    if (!puzzle) return null;
+    const vals = allCountries
+      .map((c) => ({ id: c.id, zh: c.zh, v: metricValue(c, puzzle.metric) }))
+      .filter((x) => x.v > 0 && x.v <= puzzle.target)
+      .sort((a, b) => b.v - a.v);
+    let best = { sum: 0, ids: [] as string[], names: [] as string[] };
+    for (const a of vals) if (a.v > best.sum) best = { sum: a.v, ids: [a.id], names: [a.zh] };
+    for (let i = 0; i < vals.length; i += 1) {
+      for (let j = i + 1; j < vals.length; j += 1) {
+        const s2 = vals[i].v + vals[j].v;
+        if (s2 > puzzle.target) break;
+        if (s2 > best.sum) best = { sum: s2, ids: [vals[i].id, vals[j].id], names: [vals[i].zh, vals[j].zh] };
+        for (let k = j + 1; k < vals.length; k += 1) {
+          const s3 = s2 + vals[k].v;
+          if (s3 > puzzle.target) break;
+          if (s3 > best.sum) best = { sum: s3, ids: [vals[i].id, vals[j].id, vals[k].id], names: [vals[i].zh, vals[j].zh, vals[k].zh] };
+        }
+      }
+    }
+    return best;
+  }, [puzzle, allCountries]);
+
   const switchMetric = (next: MetricId) => {
     setMetric(next);
     setStrategy(METRIC_DEFAULT_STRATEGY[next]);
@@ -229,6 +327,18 @@ export default function App() {
       if (!additive || !isRegionMode) return [id];
       return [...prev, id];
     });
+  };
+
+  /** 地图上的点击：拼图时是「选上/取消」，平时是反向查这个国家 */
+  const handleMapClick = (id: string) => {
+    if (puzzle) {
+      togglePicked(id);
+      return;
+    }
+    const c = allCountries.find((x) => x.id === id);
+    if (!c) return;
+    setMode('world-to-region');
+    setSelected([c.id]);
   };
 
   const switchMode = (next: CompareMode) => {
@@ -256,9 +366,16 @@ export default function App() {
 
   // ---------- 高亮 ----------
   const countryHighlights = useMemo(() => {
+    // 拼图模式：地图上高亮的是玩家已经选中的国家
+    if (puzzle) {
+      return puzzle.picked.map((id, idx) => {
+        const c = allCountries.find((x) => x.id === id);
+        return { id, rank: idx, label: c?.zh ?? id, value: c ? metricValue(c, puzzle.metric) : undefined };
+      });
+    }
     if (!match || !isRegionMode) return [];
     return match.items.map((item, idx) => ({ id: item.id, rank: idx, label: item.zh, value: item.value }));
-  }, [match, isRegionMode]);
+  }, [match, isRegionMode, puzzle, allCountries]);
 
   const regionHighlights = useMemo(() => {
     if (!match || isRegionMode) return [];
@@ -617,7 +734,69 @@ export default function App() {
             <button type="button" className="chip ghost" onClick={randomQuestion}>
               今日一题
             </button>
+            <button type="button" className="chip ghost" onClick={startPuzzle}>
+              玩一局
+            </button>
           </div>
+
+          {puzzle ? (
+            <section className="puzzle">
+              <h3>凑一凑：{puzzle.label}</h3>
+              <p className="picker-hint">
+                在地图上点最多 {PUZZLE_MAX} 个国家，合计不能超过目标，越接近越好。
+              </p>
+              <div className="puzzle-meter">
+                <div className="puzzle-bar">
+                  <span
+                    style={{
+                      width: `${Math.min(100, (puzzleSum / puzzle.target) * 100).toFixed(1)}%`,
+                      background: puzzleSum > puzzle.target ? '#ef4d4d' : undefined
+                    }}
+                  />
+                </div>
+                <div className="puzzle-nums">
+                  <span>
+                    已选 {puzzle.picked.length}/{PUZZLE_MAX} · 合计 {METRICS[puzzle.metric].short(puzzleSum)}
+                  </span>
+                  <span>目标 {METRICS[puzzle.metric].short(puzzle.target)}</span>
+                </div>
+              </div>
+              {puzzle.done && puzzleBest ? (
+                <div className="puzzle-result">
+                  <p className={puzzleSum > puzzle.target ? 'puzzle-over' : 'puzzle-win'}>
+                    {puzzleSum > puzzle.target
+                      ? `超了 ${METRICS[puzzle.metric].short(puzzleSum - puzzle.target)}`
+                      : puzzleSum === puzzleBest.sum
+                        ? '满分！和最优解一样'
+                        : `还差 ${METRICS[puzzle.metric].short(puzzleBest.sum - puzzleSum)}`}
+                  </p>
+                  <p className="puzzle-best">
+                    最优解（{puzzleBest.ids.length} 个）：{puzzleBest.names.join(' + ')} ={' '}
+                    {METRICS[puzzle.metric].short(puzzleBest.sum)}
+                  </p>
+                </div>
+              ) : (
+                <p className="picker-hint">
+                  还可以点 {PUZZLE_MAX - puzzle.picked.length} 个。
+                </p>
+              )}
+              <div className="quick-row">
+                <button type="button" className="chip" onClick={startPuzzle}>
+                  换一题
+                </button>
+                <button
+                  type="button"
+                  className="chip ghost"
+                  onClick={() => setPuzzle((p) => (p ? { ...p, done: true } : p))}
+                >
+                  看答案
+                </button>
+                <button type="button" className="chip ghost" onClick={() => setPuzzle(null)}>
+                  结束
+                </button>
+              </div>
+            </section>
+          ) : null}
 
           {match ? (
             <ResultPanel
@@ -625,6 +804,7 @@ export default function App() {
               headline={headline}
               fraction={bigFraction}
               comparison={comparison}
+              counterfactual={counterfactual}
               target={target}
               targetText={metricDef.format(target)}
               metric={metricDef}
@@ -660,13 +840,7 @@ export default function App() {
                       formatValue={metricDef.format}
                       subdivisions={subdivisions ?? undefined}
                       southSea={china ? <SouthSeaBox geo={china} x={MAP_W - 126} y={MAP_H - 146} width={108} height={128} /> : null}
-                      onSelect={(id) => {
-                        const c = allCountries.find((x) => x.id === id);
-                        if (c) {
-                          setMode('world-to-region');
-                          setSelected([c.id]);
-                        }
-                      }}
+                      onSelect={handleMapClick}
                       chinaInset={
                         sourceSelected[0]?.parentId === 'CHN' ? (
                           <ChinaInset
@@ -690,13 +864,7 @@ export default function App() {
                     subdivisions={subdivisions ?? undefined}
                     subHighlights={regionHighlights}
                     southSea={china ? <SouthSeaBox geo={china} x={MAP_W - 126} y={MAP_H - 146} width={108} height={128} /> : null}
-                    onSelect={(id) => {
-                      const c = allCountries.find((x) => x.id === id);
-                      if (c) {
-                        setMode('world-to-region');
-                        setSelected([c.id]);
-                      }
-                    }}
+                    onSelect={handleMapClick}
                   />
                 </div>
               ) : (
@@ -709,6 +877,10 @@ export default function App() {
                 sources={globeSources}
                 arcs={arcs}
                 onSelect={(id) => {
+                  if (puzzle) {
+                    togglePicked(id);
+                    return;
+                  }
                   if (!isRegionMode) return;
                   const c = allCountries.find((x) => x.id === id);
                   if (c) {

@@ -166,6 +166,31 @@ try {
   check('滑块可切到 1990', (await page.url()).includes('y=1990'), await page.url());
   await page.locator('.strategy').screenshot({ path: resolve(SHOTS, 'panel-year.png') });
 
+  // 10.7 「假如它是一个国家」排名卡
+  await page.goto(`${BASE}/?sel=CN-410000`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.counterfactual', { timeout: 15000 });
+  const cf = (await page.locator('.counterfactual').innerText()).replace(/\s+/g, ' ');
+  check('给出「假如它是一个国家」的排名', /假如.*是一个国家/.test(cf) && /第\s*\d+\s*位/.test(cf), cf.slice(0, 110));
+  const cfRows = await page.locator('.counterfactual li').count();
+  check('四项指标都给出名次', cfRows === 4, `${cfRows} 行`);
+
+  // 10.8 拼图玩法
+  await page.locator('.chip', { hasText: '玩一局' }).click();
+  await page.waitForSelector('.puzzle', { timeout: 10000 });
+  const puzzleText = await page.locator('.puzzle').innerText();
+  check('拼图给出目标', /凑一凑/.test(puzzleText), puzzleText.split('\n')[0]);
+  for (const id of ['KOR', 'PER', 'CHL']) {
+    await page.locator(`.map-holder svg .countries path[data-id="${id}"]`).click({ force: true });
+    await page.waitForTimeout(150);
+  }
+  const after = (await page.locator('.puzzle').innerText()).replace(/\s+/g, ' ');
+  check('拼图统计已选个数与合计', /已选\s*\d\/3/.test(after), after.slice(0, 120));
+  await page.locator('.chip', { hasText: '看答案' }).click();
+  await page.waitForTimeout(300);
+  const withBest = (await page.locator('.puzzle').innerText()).replace(/\s+/g, ' ');
+  check('拼图公布最优解', /最优解/.test(withBest), withBest.slice(0, 150));
+  await page.locator('.puzzle').screenshot({ path: resolve(SHOTS, 'card-puzzle.png') });
+
   // 10.5 两个目标的直接对比
   await page.goto(`${BASE}/?sel=CN-410000,CN-440000`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.target-compare', { timeout: 15000 });

@@ -2,6 +2,8 @@ import { formatPercent } from '../lib/format';
 import type { MatchResult } from '../lib/match';
 import type { Metric } from '../lib/metrics';
 import { AreaSilhouette } from './AreaSilhouette';
+import { CounterfactualCard } from './CounterfactualCard';
+import type { RankRow } from './CounterfactualCard';
 import type { GeoFeature } from '../lib/types';
 
 interface Props {
@@ -37,6 +39,8 @@ interface Props {
   } | null;
   /** 两个目标的直接对比 */
   comparison?: React.ReactNode;
+  /** 「假如它是一个国家」的排名卡 */
+  counterfactual?: { name: string; rows: RankRow[] } | null;
   /** 「比大国家」时：参照物是对方的几分之几 */
   fraction?: number | null;
 }
@@ -55,6 +59,7 @@ export function ResultPanel({
   closest,
   silhouette,
   comparison,
+  counterfactual,
   fraction = null
 }: Props) {
   const error = target ? Math.abs(result.gap) / target : 0;
@@ -90,6 +95,9 @@ export function ResultPanel({
             )
           ) : null}
         </p>
+        {counterfactual ? (
+          <CounterfactualCard name={counterfactual.name} rows={counterfactual.rows} />
+        ) : null}
         {closest ? (
           <p className="result-single">
             单个最接近：<strong>{closest.zh}</strong>（{metric.format(closest.value)}）
