@@ -88,6 +88,27 @@ page.on('console', (m) => {
   if (m.type() === 'error') errors.push(m.text());
 });
 
+/**
+ * 读结论句，但要等它**滚完**。
+ *
+ * 结论里的数字是会动的（从旧值滚到新值），刚换指标就 innerText 会读到半路的数
+ * （比如「河南省 ≈ 7 个国家之和」），日志就成了假的。这里连续读两次，
+ * 两次一样才算落定。
+ */
+async function settleHeadline(timeout = 4000) {
+  const loc = page.locator('.result-headline h1');
+  let last = '';
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeout) {
+    last = await loc.innerText();
+    await page.waitForTimeout(120);
+    const again = await loc.innerText();
+    if (again === last) return again.replace(/\s+/g, ' ');
+    last = again;
+  }
+  return last.replace(/\s+/g, ' ');
+}
+
 try {
   // 1. 首屏 + 数据加载
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
@@ -115,8 +136,14 @@ try {
   // 2. 选一个省 → 出结果
   await page.locator('.picker-item', { hasText: '河南省' }).first().click();
   await page.waitForSelector('.result-headline h1', { timeout: 8000 });
-  const headline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  const headline = await settleHeadline();
   check('选择地区后给出等价国家数', /≈\s*\d+\s*个国家/.test(headline), headline);
+
+  // 结论里的件数是单独一个元素（.count），换指标时它会从旧值滚到新值——
+  // 这条守着「数字可被单独驱动」这个前提。
+  // ⚠️ 只在「凑出多个」的口径下成立：最像的一个那种结论里根本没有件数。
+  const countEl = page.locator('.result-headline h1 .count');
+  check('结论里的数字单独成元素', (await countEl.count()) === 1);
 
   // 3. URL 同步
   await page.waitForTimeout(300);
@@ -140,7 +167,7 @@ try {
 
   await page.locator('.choice', { hasText: '比大国家' }).click();
   await page.waitForTimeout(300);
-  const bigHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  const bigHeadline = await settleHeadline();
   check('比大国家：写成「几分之几」', /≈\s*.+的\s*\d+(\.\d+)?%/.test(bigHeadline), bigHeadline);
   const bigItems = await page.locator('.result-item .name').allInnerTexts();
   check('比大国家只给一个大对象', bigItems.length === 1, bigItems.join('、'));
@@ -165,7 +192,7 @@ try {
   // 7. 面积指标 + 剪影对照
   await page.locator('.metric-btn', { hasText: '面积' }).click();
   await page.waitForTimeout(500);
-  const areaHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  const areaHeadline = await settleHeadline();
   check('切换到面积指标', /面积/.test(areaHeadline), areaHeadline);
   const areaRank = await page.locator('.result-strategy').innerText();
   check('给出世界排名', /排第/.test(areaRank), areaRank.replace(/\s+/g, ' '));
@@ -176,7 +203,7 @@ try {
   // 8. 人均指标：只能跟单个比
   await page.locator('.metric-btn', { hasText: '人均 GDP' }).click();
   await page.waitForTimeout(400);
-  const pcHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
+  const pcHeadline = await settleHeadline();
   check('切换到人均指标', /人均/.test(pcHeadline), pcHeadline);
   check('人均下只留一个口径', (await page.locator('.choice').count()) === 1);
 
