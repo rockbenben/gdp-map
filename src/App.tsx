@@ -26,6 +26,7 @@ import {
   BIG_POOL_SIZE,
   closestSingle,
   matchByStrategy,
+  relativeError,
   STRATEGY_HINT,
   STRATEGY_LABEL,
   topByValue
@@ -225,7 +226,7 @@ export default function App() {
     const list: MatchStrategy[] = additive ? ['many', 'over', 'big', 'nearest'] : ['nearest'];
     return list.map((id) => {
       const r = matchByStrategy(target, poolForStrategy(id), id, { exclude });
-      const err = target ? Math.abs(r.gap) / target : 0;
+      const err = relativeError(r);
       const gapText = `${r.gap >= 0 ? '多' : '少'} ${(err * 100).toFixed(1)}%`;
       // 「比大国家」说的是「它是其中哪一个的几分之几」
       const fraction =
@@ -957,7 +958,7 @@ export default function App() {
               </div>
               <p className="picker-hint">
                 国家数据可回溯到 1990 年（2025 为 IMF 预测值）；省/州数据按各自年份（中国与美国 2024、
-                欧洲 NUTS-1 2024、日本都道府县 2021）。
+                欧洲 NUTS-1 2024、日本都道府县 2023）。
                 往后拨，能看出「今天这个地方放在当年是什么水平」；按「播放」让它从 1990 自己走到 2025。
               </p>
             </details>

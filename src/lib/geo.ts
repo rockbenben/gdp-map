@@ -21,14 +21,13 @@ function parseRgb(input: string): number[] {
 }
 
 export const PALETTE = {
-  ocean: '#0b1120',
   land: '#18213a',
   landStroke: '#26314f',
+  /** 3D 地球的陆地色比 2D 地图浅一档：球面有海洋渐变压着，用同一个色会糊成一团 */
+  globeLand: '#2a3a5e',
   matchedLow: '#f6c453',
   matchedHigh: '#ef4d4d',
-  source: '#3fd0c9',
-  label: '#eef2ff',
-  labelDim: '#9aa7c7'
+  source: '#3fd0c9'
 };
 
 export function createWorldProjection(width: number, height: number) {
@@ -48,11 +47,6 @@ export function createWorldPath(width: number, height: number) {
     path: geoPath(projection),
     graticule: geoPath(projection)(geoGraticule10())
   };
-}
-
-/** 中国主图（不含南海诸岛） */
-export function chinaMainFeatures(geo: FeatureCollection): GeoFeature[] {
-  return geo.features.filter((f) => !f.properties.isSouthSea);
 }
 
 export function chinaSouthSeaFeature(geo: FeatureCollection): GeoFeature | null {

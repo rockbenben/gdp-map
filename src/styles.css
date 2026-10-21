@@ -709,10 +709,6 @@ body {
   color: var(--text-mute);
 }
 
-.result-headline .single {
-  color: var(--accent);
-}
-
 /* ---------- 两个目标对比 ---------- */
 .target-compare {
   margin-top: 14px;
@@ -726,33 +722,11 @@ body {
   color: var(--text);
 }
 
-.tc-head,
 .tc-rows li {
   display: grid;
   grid-template-columns: 58px 1fr 1fr;
   gap: 6px;
   align-items: baseline;
-}
-
-.tc-head {
-  margin-bottom: 4px;
-}
-
-.tc-name {
-  grid-column: auto;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.tc-name.a {
-  grid-column: 2;
-  color: var(--teal);
-}
-
-.tc-name.b {
-  grid-column: 3;
-  color: var(--accent);
 }
 
 .tc-rows {
@@ -1435,19 +1409,6 @@ body {
   display: block;
 }
 
-.globe-hover {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  display: none;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: rgba(8, 12, 22, 0.85);
-  border: 1px solid var(--line);
-  font-size: 13px;
-  pointer-events: none;
-}
-
 .globe-tip {
   position: absolute;
   right: 14px;
@@ -1543,14 +1504,6 @@ body {
   z-index: 50;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
-
 @media (max-width: 1080px) {
   .layout {
     grid-template-columns: 1fr;
@@ -1616,8 +1569,7 @@ body {
 }
 
 @media (max-width: 560px) {
-  .metric-options,
-  .strategy-options {
+  .metric-options {
     grid-template-columns: repeat(3, 1fr);
   }
 
@@ -1627,5 +1579,22 @@ body {
 
   .result-headline h1 {
     font-size: 19px;
+  }
+}
+
+/* ── 减少动态效果：系统开了这个开关，所有动效一律关掉 ──
+   为什么不逐个把 transition 塞进 prefers-reduced-motion: no-preference 里：
+   那样每加一处动效都得记得包一层，漏一处就前功尽弃。这里改成反向兜底——
+   只要系统说了「别动」，全站（含以后新加的）都不动。
+   ⚠️ `!important` 是必须的：它要压过各处 transition 的优先级。
+   ⚠️ 时长给 0.01ms 而不是 0：0 会让依赖 transitionend 的逻辑收不到事件。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
   }
 }

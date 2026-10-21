@@ -43,7 +43,7 @@ export function loadExtraRegions(): Promise<FeatureCollection> {
 
 /** 把数据集中的统一对象转成应用用的 Region */
 export function toRegion(obj: RegionObject, year: string): Region {
-  // 对象自带年份的用它自己的（日本的府县数据是 2021），没有才用池子的默认年份
+  // 对象自带年份的用它自己的（日本的府县数据是 2023），没有才用池子的默认年份
   const y = obj.year ?? year;
   return {
     id: obj.id,

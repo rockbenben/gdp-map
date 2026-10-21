@@ -1,4 +1,5 @@
 import { formatPercent } from '../lib/format';
+import { relativeError } from '../lib/match';
 import type { MatchResult } from '../lib/match';
 import type { Metric, MetricTitle } from '../lib/metrics';
 import { AreaSilhouette } from './AreaSilhouette';
@@ -63,7 +64,7 @@ export function ResultPanel({
   counterfactual,
   fraction = null
 }: Props) {
-  const error = target ? Math.abs(result.gap) / target : 0;
+  const error = relativeError(result);
   const over = result.gap >= 0;
   const only = result.items[0];
   const title = headline ?? metric.title(sourceLabel, result.count, only?.zh ?? '', unitName);

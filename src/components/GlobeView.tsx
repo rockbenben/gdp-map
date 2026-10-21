@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { geoGraticule10, geoOrthographic, geoPath } from 'd3-geo';
-import { featureArea } from '../lib/geo';
+import { featureArea, PALETTE } from '../lib/geo';
 import type { FeatureCollection, GeoFeature } from '../lib/types';
 
 export interface GlobeHighlight {
@@ -200,7 +200,7 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
     drag.current = null;
   };
 
-  const colorOf = (id: string) => highlights.get(id)?.color ?? sources.get(id)?.color ?? PALETTE_LAND;
+  const colorOf = (id: string) => highlights.get(id)?.color ?? sources.get(id)?.color ?? PALETTE.globeLand;
 
   return (
     <div className="globe-wrap">
@@ -275,7 +275,7 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
                     else pathRefs.current.delete(id);
                   }}
                   className="globe-country"
-                  fill={active ? colorOf(id) : PALETTE_LAND}
+                  fill={active ? colorOf(id) : PALETTE.globeLand}
                   fillOpacity={active ? 1 : 0.92}
                   stroke="rgba(6,10,20,0.6)"
                   strokeWidth={0.35}
@@ -333,5 +333,3 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
     </div>
   );
 }
-
-const PALETTE_LAND = '#2a3a5e';

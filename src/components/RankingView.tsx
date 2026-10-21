@@ -63,12 +63,7 @@ export function RankingView({ entries, format, noteFor, limit = 60, onSelect }: 
           <button
             key={e.id}
             type="button"
-            className={[
-              'rank-row',
-              e.selected ? 'is-selected' : '',
-              e.matched ? 'is-matched' : '',
-              e.selected ? 'is-picked' : ''
-            ]
+            className={['rank-row', e.selected ? 'is-selected' : '', e.matched ? 'is-matched' : '']
               .filter(Boolean)
               .join(' ')}
             onClick={() => onSelect?.(e.id)}

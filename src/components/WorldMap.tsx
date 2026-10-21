@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { createWorldPath, featureArea, mixColor, PALETTE } from '../lib/geo';
 import type { FeatureCollection, GeoFeature } from '../lib/types';
 
-export interface Highlight {
+interface Highlight {
   /** 几何 id（世界地图用 ISO3） */
   id: string;
   /** 累加顺序，0 为最小 */
