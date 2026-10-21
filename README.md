@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | 总 GDP | ≈ 52 个国家之和（超出 1.4%） | ≈ 82 个国家之和 |
 | 平价 GDP | ≈ 45 个国家之和（1.86 万亿国际元） | 口径不同，结论也不同 |
-| 人均 GDP | ≈ 格鲁吉亚（9,141 美元/人） | ≈ 马耳他（34,212 美元/人） |
+| 人均 GDP | ≈ 格鲁吉亚（9,141 美元/人） | ≈ 挪威（86,612 美元/人） |
 | GDP 密度 | ≈ 特立尼达和多巴哥（每平方公里产出） | 每平方公里的产出密度 |
 | 面积 | ≈ 突尼斯（16.4 万 km²） | ≈ 缅甸（67.8 万 km²） |
 | 人口 | ≈ 越南（1.01 亿人） | ≈ 巴基斯坦 + 孟加拉国 |
@@ -44,7 +44,7 @@
 | **比大国家** | **巴西的 41%** | 只跟体量最大的 10 个比，看它是其中哪一个的几分之几 |
 | 最像的一个 | 波兰 · 9,086 亿（多 2.8%） | 不凑，只挑最接近的那一个 |
 
-「比大国家」里的**大国 = 按当前指标排名前 10**（GDP 口径就是 GDP 前十：美、中、德、日、印、英、法、意、巴、加），
+「比大国家」里的**大国 = 按当前指标排名前 10**（GDP 口径就是 GDP 前十：美、中、德、日、印、英、法、意、加、巴），
 结果直接写成「河南省 ≈ 巴西的 41%」这种几分之几的说法。
 
 再配合「忽略微型经济体（人口不足 100 万）」开关，可以把图瓦卢、瑙鲁这类微型国家从结果里剔掉。
@@ -56,6 +56,8 @@
 - **3D 地球**：正射投影球面，自动旋转、可拖动，参照地区与等价对象之间连大圆弧线（被球体背面遮住的部分会断开，不会横穿地球）
 - **方形图**：世界按当前指标重画，每块的大小就是它的份额（squarify 铺排）
 - **擂台**：两个地方逐项 PK 打出比分（总 GDP / 平价 / 人均 / 密度 / 面积 / 人口），右边是省/州前 16 名的对阵树
+- **排行榜**：把对象按当前指标排成条形榜。它回答名次卡回答不了的那句「我选的这个，在同类里到底排第几」——
+  不只给名次，还把前后邻居有多大摆出来
 - **年份回溯**：国家侧的数据可回到 1990 年。把滑块往前拨，看「今天这个地方放在当年是什么水平」——
   2024 年的河南相当于 1990 年的 75 个国家，排名也在面板里写明是第几年的第几名。
   按「▶ 播放」让它**从 1990 自己走到 2025**，看这个地方的体量怎么变（结论数字会滚动、地图高亮会渐变）
@@ -67,6 +69,7 @@
   - 复制链接——选择状态、指标、口径、年份都写进 URL，对方打开就是同一张图
   - 下载分享卡——竖版 2400px 宽（标题 + 四项排名 + 地图 + 出处），适合发群
   - 下载高清图——横版 3600px 宽
+  - 下载动图——把 1990→2025 的年份回溯导成 GIF，一帧一年
 - **界面顺序**按新用户动线排：先选指标 → 直接给结论 → 再换地方 → 最后才是微调口径
   （手机上反过来：先给地图和结论，控件在下面）
 - **对比是动态的**：换指标、换口径、换年份时，结论里的数字从旧值滚到新值，结果列表的条形滑到新长度，
@@ -86,6 +89,10 @@
 | 面积剪影对照 | 拼图玩法 |
 | --- | --- |
 | ![面积剪影对照](docs/preview-area.png) | ![拼图玩法](docs/preview-puzzle.png) |
+
+| 排行榜 | 反向模式：国家 → 省/州 |
+| --- | --- |
+| ![排行榜](docs/preview-rank.png) | ![反向模式](docs/preview-world-to-region.png) |
 
 | 反向模式：国家 → 省/州 | 「假如它是一个国家」排名卡 |
 | --- | --- |
@@ -177,27 +184,35 @@ CI（`.github/workflows/ci.yml`）跑的就是 typecheck → 单测 → 构建 �
 046/
 ├─ scripts/
 │  ├─ fetch-sources.mjs      # 抓原始数据源到 data/raw/
+│  ├─ fetch-regions.mjs      # 抓欧洲 NUTS-1 与日本都道府县
 │  ├─ build-data.mjs         # 合并成 public/data/regions.json + public/geo/*
 │  ├─ static-server.mjs      # 验收用的静态服务器（伺服 dist/）
 │  ├─ screenshots.mjs        # 重新生成 README 的预览图
+│  ├─ websearch.mjs          # 网页搜索 / 抓取（DeepSeek Search & Fetch API）
 │  └─ acceptance.mjs         # Playwright 浏览器级验收
 ├─ data/
 │  ├─ provincial-gdp-2024.json  # 年鉴表格读数（带出处）
+│  ├─ jp-prefecture-gdp-2023.json # 日本 5 个县的读数（内阁府汇总里缺的）
 │  ├─ us-states.json            # 美国 51 州中英文名对照
+│  ├─ region-names.json         # 欧洲 NUTS-1 与日本都道府县的中文名
+│  ├─ regions-eu-jp.json        # 上面两套地区的 GDP 与人口（脚本产物）
 │  └─ raw/                      # 原始抓取缓存（不入库）
 ├─ public/
 │  ├─ data/regions.json      # 统一对象池：国家 + 省/州（含中文名、搜索关键字、各项指标）
-│  └─ geo/{world,china,us-states}.json # 地图边界
+│  └─ geo/{world,china,us-states,extra-regions}.json # 地图边界
 └─ src/
+   ├─ App.tsx                 # 状态、模式、视图切换都在这
    ├─ lib/match.ts           # 核心算法（唯一自研部分）
    ├─ lib/metrics.ts         # 指标定义（格式、标题、能不能累加）
-   ├─ lib/{data,geo,format,url,export,types}.ts
+   ├─ lib/{data,geo,format,url,export,export-gif,types}.ts
+   ├─ test/match.test.ts     # 算法单测
    └─ components/
-      ├─ WorldMap / ChinaMap / GlobeView          # 地图、地球
-      ├─ SquareCartogram / Bracket                # 方形图、擂台
-      ├─ RegionPicker / ResultPanel               # 选择器、结果卡
-      ├─ CounterfactualCard / TargetComparison    # 排名卡、两个目标对比
-      └─ AreaSilhouette / SouthSeaBox             # 面积剪影、南海诸岛
+      ├─ WorldMap / GlobeView                   # 地图、地球
+      ├─ SquareCartogram / Bracket / RankingView # 方形图、擂台、排行榜
+      ├─ RegionPicker / ResultPanel             # 选择器、结果卡
+      ├─ CounterfactualCard / TargetComparison  # 排名卡、两个目标对比
+      ├─ CountUp                                # 数字滚动
+      └─ AreaSilhouette / SouthSeaBox           # 面积剪影、南海诸岛
 ```
 
 ## 数据更新
@@ -207,7 +222,8 @@ CI（`.github/workflows/ci.yml`）跑的就是 typecheck → 单测 → 构建 �
 
 ## 已知边界
 
-- 只做了**名义 GDP（当年价格美元）**。PPP 口径在原始数据里备着，但省级没有同口径的 PPP 源，暂不开放切换
+- **PPP 口径只有国家侧是官方数**：国家用 IMF 的 PPPGDP；省/州没有同口径的 PPP 源，
+  用所属国家的 PPP 换算因子估算（页面上写明了）
 - 省级数据只有 2024 年（年鉴一年一版）；国家侧可回溯到 1990 年
 - 省/州现在覆盖中国、美国、欧洲 94 个 NUTS-1 一级区与日本 47 个都道府县；
   欧洲 NUTS 之下的一级（NUTS-2）、日本的市町村暂未接入（管线加一份源文件即可扩）

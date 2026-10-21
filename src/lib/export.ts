@@ -9,6 +9,18 @@ const SVG_STYLE = `
   .country { transition: none; }
 `;
 
+/** 触发浏览器下载一个 blob。PNG、分享卡、GIF 三处都用它。 */
+export function downloadBlob(blob: Blob, fileName: string, revokeAfter = 1000): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), revokeAfter);
+}
+
 export interface ExportOptions {
   svg?: SVGSVGElement | null;
   canvas?: HTMLCanvasElement | null;
@@ -161,14 +173,7 @@ export async function exportPng(opts: ExportOptions): Promise<void> {
 
   const blob = await new Promise<Blob | null>((resolve) => out.toBlob(resolve, 'image/png'));
   if (!blob) throw new Error('导出 PNG 失败');
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(blob, fileName);
 }
 
 export interface ShareCardOptions {
@@ -256,14 +261,7 @@ export async function exportShareCard(opts: ShareCardOptions): Promise<void> {
 
   const blob = await new Promise<Blob | null>((resolve) => out.toBlob(resolve, 'image/png'));
   if (!blob) throw new Error('导出分享卡失败');
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = opts.fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBlob(blob, opts.fileName);
 }
 
 export async function copyText(text: string): Promise<boolean> {

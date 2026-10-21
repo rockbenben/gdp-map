@@ -7,7 +7,7 @@
  * 用 gifenc：纯 JS、5 KB、无依赖，浏览器里跑。
  */
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
-import { svgToImage } from './export';
+import { downloadBlob, svgToImage } from './export';
 
 export interface GifFrame {
   /** 这一帧要画的图（世界地图的 SVG） */
@@ -86,12 +86,6 @@ export async function exportGif(opts: GifOptions): Promise<void> {
 
   gif.finish();
   const blob = new Blob([gif.bytes() as BlobPart], { type: 'image/gif' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = opts.fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  // GIF 比较大，URL 晚点再回收
+  downloadBlob(blob, opts.fileName, 4000);
 }

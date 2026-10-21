@@ -587,4 +587,4 @@ const show = (zh) => {
 console.log('抽样：');
 ['广东省', '河南省', '得克萨斯州', '加利福尼亚州'].forEach(show);
 ['韩国', '日本', '英国', '印度'].forEach(show);
-console.log('\n已写入 public/data/regions.json, public/geo/{world,china,us-states}.json');
+console.log('\n已写入 public/data/regions.json, public/geo/{world,china,us-states,extra-regions}.json');

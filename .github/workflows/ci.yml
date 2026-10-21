@@ -65,14 +65,14 @@ jobs:
       - run: npm test
       - run: npm run build
 
-  # 浏览器级验收：48 项，全是真点一遍界面。
+  # 浏览器级验收：66 项，全是真点一遍界面。
   # 单测验不了这些——地图画没画出来、导出的 PNG 是不是空的、
   # 「假如 X 是一个国家」的名次卡有没有数字，都得真跑一个浏览器。
   # 单独一个 job：这个 job 要装浏览器（几百 MB），verify 不该为它多等几分钟。
   acceptance:
     name: 浏览器验收
     runs-on: ubuntu-latest
-    # 装浏览器 + 跑 48 项，比 verify 慢，单独放宽一点。
+    # 装浏览器 + 跑 66 项，比 verify 慢，单独放宽一点。
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7

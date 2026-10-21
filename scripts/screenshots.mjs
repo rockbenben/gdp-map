@@ -96,7 +96,9 @@ await shot('area', '/?sel=CN-410000&m=area&st=nearest', { selector: '.result' })
 await shot('counterfactual', '/?sel=CN-410000', { selector: '.counterfactual' });
 // 9. 反向模式：国家 → 省/州
 await shot('world-to-region', '/?mode=world-to-region&sel=JPN', { height: 1000 });
-// 10. 手机上的首屏
+// 10. 排行榜
+await shot('rank', '/?sel=CN-410000&view=rank', { height: 1000 });
+// 11. 手机上的首屏
 await shot('mobile', '/?sel=CN-410000', { width: 390, height: 844, mobile: true });
 
 /**
