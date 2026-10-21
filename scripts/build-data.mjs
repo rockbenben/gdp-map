@@ -16,6 +16,16 @@ const DEFAULT_YEAR = '2024';
 
 const readJson = async (p) => JSON.parse(await readFile(p, 'utf8'));
 
+// ---------- 数值收口 ----------
+// 源数据给的是「十亿美元」「百万人」这类带小数的量，乘/除之后会留下浮点尾巴：
+// 8577.549999999999 × 1e9 = 8577549999999.999。这串尾巴不是数据，却会：
+//   1. 让 regions.json 里出现一堆假精度（"1997": 8577549999999.999）；
+//   2. 把 JSON 撑大（每个数多几个字符，几千个值就是几十 KB）。
+// 发布前按「这个量本来是什么单位」收口：钱到元、人到人、人均到分。
+const money = (v) => Math.round(v);
+const people = (v) => Math.round(v);
+const perCapita = (v) => Math.round(v * 100) / 100;
+
 // ---------- 汇率（人民币 → 美元年均汇率）----------
 async function fetchExchangeRate(year) {
   const cache = resolve(RAW, `fx-usd-cny-${year}.json`);
@@ -109,7 +119,7 @@ function buildUsStates() {
     const row = usByName.get(f.properties.name) ?? usByName.get('Washington, D.C.');
     if (!row) continue;
     const area = Math.round(geometryAreaKm2(f.geometry));
-    const pop = row.gdpPc ? row.gdp / row.gdpPc : null;
+    const pop = row.gdpPc ? people(row.gdp / row.gdpPc) : null;
     usStates.push({
       id: `US-${fips}`,
       adcode: fips,
@@ -143,6 +153,30 @@ function reverseRings(geometry) {
   return geometry;
 }
 
+// ---------- 坐标精度 ----------
+// 源几何给到 14~15 位小数（约 0.1 毫米），而地图上一个像素约等于 8 公里——
+// 细了三个数量级，纯属白下载。5 位小数 ≈ 1.1 米，比像素细两个数量级，够用。
+// ⚠️ **只裁「写到前端的那一份」**：面积仍然用原始几何算（geometryAreaKm2 拿到的是
+// 未裁的），所以已经校验过的面积数字不会因为这次改动而漂移。
+const GEO_PRECISION = 5;
+function roundCoords(value) {
+  if (Array.isArray(value)) return value.map(roundCoords);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const k of Object.keys(value)) out[k] = roundCoords(value[k]);
+    return out;
+  }
+  if (typeof value === 'number') return Number(value.toFixed(GEO_PRECISION));
+  return value;
+}
+/** 只裁 geometry，id 与 properties 原样保留（id 有的是数字，别去动它） */
+function roundGeometry(fc) {
+  return {
+    type: 'FeatureCollection',
+    features: fc.features.map((f) => ({ ...f, geometry: roundCoords(f.geometry) }))
+  };
+}
+
 // ---------- 面积：从几何算球面面积 ----------
 // 省级用 DataV 的高精度边界直接算；国家用 mledoze/countries 的面积表（更准，保留小国）。
 const EARTH_R = 6371.0088;
@@ -165,7 +199,12 @@ for (const c of areaTable) {
 const { usStates, usFeatures } = buildUsStates();
 
 const fx = {};
-for (const y of YEARS) fx[y] = await fetchExchangeRate(y);
+for (const y of YEARS) {
+  const raw = await fetchExchangeRate(y);
+  // 汇率也要收口：World Bank 给的是 7.19749110789916 这种 14 位小数，
+  // 6 位小数（万分之六）已经远细于任何一年的年均汇率精度。
+  fx[y] = { ...raw, cnyPerUsd: Number(raw.cnyPerUsd?.toFixed(6)) };
+}
 
 // ---------- 国家 ----------
 // 港澳台按中国境内一级行政区处理（进入省级池），不重复出现在国家池
@@ -188,23 +227,23 @@ let countryList = [];
 for (const [iso3, rec] of Object.entries(weo.data)) {
   const nominal = {};
   for (const [y, v] of Object.entries(rec.NGDPD ?? {})) {
-    if (v != null) nominal[y] = v * 1e9; // WEO 单位：十亿美元 → 美元
+    if (v != null) nominal[y] = money(v * 1e9); // WEO 单位：十亿美元 → 美元
   }
   if (!nominal[DEFAULT_YEAR]) continue;
   const pop = {};
   for (const [y, v] of Object.entries(rec.LP ?? {})) {
-    if (v != null) pop[y] = v * 1e6; // WEO 单位：百万人 → 人
+    if (v != null) pop[y] = people(v * 1e6); // WEO 单位：百万人 → 人
   }
   const en = weo.labels?.[iso3] ?? iso3;
   const zh = zhCountryName(iso3);
   const area = countryArea.get(iso3) ?? null;
   const gdpPc = {};
   for (const y of Object.keys(nominal)) {
-    if (pop[y]) gdpPc[y] = nominal[y] / pop[y];
+    if (pop[y]) gdpPc[y] = perCapita(nominal[y] / pop[y]);
   }
   const ppp = {};
   for (const [y, v] of Object.entries(rec.PPPGDP ?? {})) {
-    if (v != null) ppp[y] = v * 1e9; // 十亿美元 → 美元
+    if (v != null) ppp[y] = money(v * 1e9); // 十亿美元 → 美元
   }
   countryList.push({
     id: iso3,
@@ -231,7 +270,7 @@ const provinceGeometry = new Map(
 );
 const provinceList = provYear.provinces.map((p) => {
   const rate = fx[provYear.meta.year].cnyPerUsd;
-  const gdpUsd = (p.gdp * 1e8) / rate; // 亿元人民币 → 美元
+  const gdpUsd = money((p.gdp * 1e8) / rate); // 亿元人民币 → 美元
   const geometry = provinceGeometry.get(String(p.adcode));
   return {
     id: `CN-${p.adcode}`,
@@ -245,11 +284,11 @@ const provinceList = provYear.provinces.map((p) => {
     },
     // 人均：年鉴直接给了人民币口径，除以年均汇率折美元
     gdpPc: {
-      [provYear.meta.year]: p.gdpPerCapita / rate
+      [provYear.meta.year]: perCapita(p.gdpPerCapita / rate)
     },
     // 人口由「总量 ÷ 人均」反推（年鉴未单列常住人口）
     pop: {
-      [provYear.meta.year]: p.gdpPerCapita ? (p.gdp * 1e8) / p.gdpPerCapita : null
+      [provYear.meta.year]: p.gdpPerCapita ? people((p.gdp * 1e8) / p.gdpPerCapita) : null
     },
     // 面积：按 DataV 边界估算
     area: geometry ? Math.round(geometryAreaKm2(geometry)) : null,
@@ -336,7 +375,7 @@ function pppForRegion(countryIso3, nominalByYear) {
   const out = {};
   for (const [y, v] of Object.entries(nominalByYear)) {
     const f = factor[y];
-    if (f) out[y] = v * f;
+    if (f) out[y] = money(v * f);
   }
   return out;
 }
@@ -417,11 +456,11 @@ const meta = {
 };
 
 await writeFile(resolve(OUT, 'data/regions.json'), JSON.stringify({ meta, objects }), 'utf8');
-await writeFile(resolve(OUT, 'geo/world.json'), JSON.stringify({ type: 'FeatureCollection', features: worldFeatures }), 'utf8');
-await writeFile(resolve(OUT, 'geo/china.json'), JSON.stringify({ type: 'FeatureCollection', features: chinaFeatures }), 'utf8');
+await writeFile(resolve(OUT, 'geo/world.json'), JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: worldFeatures })), 'utf8');
+await writeFile(resolve(OUT, 'geo/china.json'), JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: chinaFeatures })), 'utf8');
 await writeFile(
   resolve(OUT, 'geo/us-states.json'),
-  JSON.stringify({ type: 'FeatureCollection', features: usFeatures }),
+  JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: usFeatures })),
   'utf8'
 );
 
