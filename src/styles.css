@@ -1661,6 +1661,37 @@ body {
   .result-headline h1 {
     font-size: 19px;
   }
+
+  /* 排行条形在窄屏会被挤成 0 宽——榜就只剩一列数字，没意义了。
+     改成两行：上面是名次 / 名字 / 数值 / 备注，下面整行是条形。 */
+  .rank-row {
+    grid-template-columns: 26px minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'idx name value note'
+      'idx bar  bar  bar';
+    row-gap: 5px;
+    column-gap: 8px;
+  }
+
+  .rank-idx {
+    grid-area: idx;
+  }
+
+  .rank-name {
+    grid-area: name;
+  }
+
+  .rank-value {
+    grid-area: value;
+  }
+
+  .rank-note {
+    grid-area: note;
+  }
+
+  .rank-bar {
+    grid-area: bar;
+  }
 }
 
 /* ── 减少动态效果：系统开了这个开关，所有动效一律关掉 ──

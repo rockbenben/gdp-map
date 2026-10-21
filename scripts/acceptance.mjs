@@ -533,6 +533,18 @@ try {
   }
   check('点榜上的国家会切方向', page.url().includes('mode=world-to-region'), page.url().split('?')[1] ?? '');
 
+  // 17. 窄屏下排行条形不能被挤没（榜就只剩一列数字，没意义了）
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/?sel=CN-440000&view=rank`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.rank-row', { timeout: 15000 });
+  await page.waitForTimeout(500);
+  const narrowBar = await page.evaluate(() => {
+    const bar = document.querySelector('.rank-bar');
+    return bar ? Math.round(bar.getBoundingClientRect().width) : 0;
+  });
+  check('窄屏下排行条形还在', narrowBar > 100, `${narrowBar}px`);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   check('无运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {
   check('验收脚本执行', false, String(e).slice(0, 200));

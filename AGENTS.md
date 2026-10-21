@@ -15,7 +15,7 @@
 ## 2. 现状
 
 已经跑起来了：数据管线、2D 地图、3D 地球、搜索、URL 分享、PNG 导出全部可用，
-浏览器级验收 71 项全过，CI（typecheck / 单测 / 构建 / 浏览器验收）已接上。
+浏览器级验收 72 项全过，CI（typecheck / 单测 / 构建 / 浏览器验收）已接上。
 
 ```
 046/
@@ -207,7 +207,7 @@
 
 - `npm run typecheck` 无错
 - `npm run test` 全绿（核心算法单测）
-- `npm run acceptance` 71 项全过（**自带服务器**，不用先起 dev server；
+- `npm run acceptance` 72 项全过（**自带服务器**，不用先起 dev server；
   想对着 dev server 跑就 `node scripts/acceptance.mjs http://localhost:5173`）
 - `npm run build` 成功产出 `dist/`
 - 页脚数据来源与官方原表链接可点、可见
