@@ -90,10 +90,10 @@ export default function App() {
   const [yearFromText, yearToText] = dataset?.meta.yearRange ?? ['1990', '2025'];
   const yearFrom = Number(yearFromText);
   const yearTo = Number(yearToText);
-  /** 滑块上的快捷年份：起点 + 每 20 年 + 最后一个实际年 */
+  /** 滑块上的快捷年份：起点 + 每 20 年 + 最后一个实际年（离得太近的不重复） */
   const yearTicks = useMemo(() => {
     const out: number[] = [];
-    for (let y = yearFrom; y <= yearTo - 1; y += 20) out.push(y);
+    for (let y = yearFrom; y <= yearTo - 10; y += 20) out.push(y);
     out.push(yearTo - 1);
     return out;
   }, [yearFrom, yearTo]);
