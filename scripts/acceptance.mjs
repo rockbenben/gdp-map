@@ -178,8 +178,7 @@ try {
   const overSub = await page.locator('.result-sub').innerText();
   check('宁可超出：合计不低于参照物', /超出/.test(overSub), overSub.replace(/\s+/g, ' '));
 
-  // 6. 微型经济体开关（在「更多选项」里）
-  await page.locator('.more > summary').click();
+  // 6. 微型经济体开关（现在直接露在口径列表下面，不用展开什么）
   await page.locator('.choice', { hasText: '尽量多凑' }).click();
   await page.waitForTimeout(300);
   const manyCount = await page.locator('.result-item').count();
@@ -305,7 +304,6 @@ try {
   check('名次按参照物自己的年份算', /2024\s*年/.test(rank2010), rank2010);
   const count2010 = await page.locator('.result-item').count();
   check('换一个年份匹配结果不同', count2010 > 0, `2010 年：${count2010} 件`);
-  await page.locator('.more > summary').click();
   await page.locator('.year-ticks button', { hasText: '1990' }).click();
   await page.waitForTimeout(400);
   check('滑块可切到 1990', (await page.url()).includes('y=1990'), await page.url());
@@ -581,7 +579,14 @@ try {
     `${raceBefore[0].name} → ${raceAfter[0].name}`
   );
 
-  // 20. 排行板：省/州行标着「≈ N 国」，名次变了要有标记
+  // 20. 关键控件不用展开就能看见（以前「▶ 播放」藏在「更多选项」里，找不到）
+  await page.goto(`${BASE}/?sel=CN-440000`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.play-btn', { timeout: 15000 });
+  const playVisible = await page.locator('.play-btn').isVisible();
+  const sliderVisible = await page.locator('.year-slider').isVisible();
+  check('播放与年份滑块直接可见', playVisible && sliderVisible);
+
+  // 21. 排行板：省/州行标着「≈ N 国」，名次变了要有标记
   await page.goto(`${BASE}/?sel=CN-440000&view=rank`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.rank-row', { timeout: 15000 });
   await page.waitForTimeout(600);

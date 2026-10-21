@@ -991,38 +991,40 @@ export default function App() {
             </button>
           </div>
 
-          <button type="button" className="ghost-btn" onClick={handleCopyLink}>
-            复制链接
-          </button>
-          <div className="share-wrap">
-            <button
-              type="button"
-              className="primary-btn"
-              onClick={() => setShareOpen((v) => !v)}
-              aria-expanded={shareOpen}
-            >
-              分享 ▾
+          <div className="header-actions">
+            <button type="button" className="ghost-btn" onClick={handleCopyLink}>
+              复制链接
             </button>
-            {shareOpen ? (
-              <div className="share-menu">
-                <button type="button" onClick={handleCopyLink}>
-                  <b>复制链接</b>
-                  <span>对方打开就是同一张图</span>
-                </button>
-                <button type="button" onClick={handleExportCard}>
-                  <b>下载分享卡</b>
-                  <span>竖版 2400px 宽，适合发群</span>
-                </button>
-                <button type="button" onClick={handleExportHires}>
-                  <b>下载高清图</b>
-                  <span>横版 3600px 宽</span>
-                </button>
-                <button type="button" onClick={handleExportGif}>
-                  <b>下载动图</b>
-                  <span>1990→2025 看它怎么变</span>
-                </button>
-              </div>
-            ) : null}
+            <div className="share-wrap">
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={() => setShareOpen((v) => !v)}
+                aria-expanded={shareOpen}
+              >
+                分享 ▾
+              </button>
+              {shareOpen ? (
+                <div className="share-menu">
+                  <button type="button" onClick={handleCopyLink}>
+                    <b>复制链接</b>
+                    <span>对方打开就是同一张图</span>
+                  </button>
+                  <button type="button" onClick={handleExportCard}>
+                    <b>下载分享卡</b>
+                    <span>竖版 2400px 宽，适合发群</span>
+                  </button>
+                  <button type="button" onClick={handleExportHires}>
+                    <b>下载高清图</b>
+                    <span>横版 3600px 宽</span>
+                  </button>
+                  <button type="button" onClick={handleExportGif}>
+                    <b>下载动图</b>
+                    <span>1990→2025 看它怎么变</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </header>
@@ -1084,64 +1086,67 @@ export default function App() {
                 </div>
               </div>
             )}
-            <details className="more">
-              <summary>更多选项</summary>
-              {isRegionMode ? (
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={ignoreMicro}
-                    onChange={(e) => setIgnoreMicro(e.target.checked)}
-                  />
-                  <span>忽略微型经济体（人口不足 100 万）</span>
-                </label>
-              ) : null}
+            {isRegionMode ? (
+              <label className="toggle inline">
+                <input
+                  type="checkbox"
+                  checked={ignoreMicro}
+                  onChange={(e) => setIgnoreMicro(e.target.checked)}
+                />
+                <span>忽略微型经济体（人口不足 100 万）</span>
+              </label>
+            ) : null}
+          </section>
 
-              <div className="picker-head" style={{ marginTop: 12 }}>
-                <h2>拿哪一年的世界来比</h2>
-                <span className="year-tools">
-                  <button
-                    type="button"
-                    className={playing ? 'play-btn on' : 'play-btn'}
-                    onClick={togglePlay}
-                    aria-pressed={playing}
-                    title="从 1990 年播到 2025 年，看这个地方的体量怎么变"
-                  >
-                    {playing ? '⏸ 暂停' : '▶ 播放'}
-                  </button>
-                  <span className="year-now">{worldYear}</span>
-                </span>
-              </div>
-              <input
-                className="year-slider"
-                type="range"
-                min={1990}
-                max={2025}
-                step={1}
-                value={worldYear}
-                onChange={(e) => setYear(Number(e.target.value))}
-                aria-label="国家数据年份"
-              />
-              <div className="year-ticks">
-                <button type="button" onClick={() => setYear(1990)}>
-                  1990
+          {/*
+            年份条：以前藏在「更多选项」里，要展开才看得见「▶ 播放」——
+            可它直接决定结论是哪一年的（面板里那句「在 2024 年的 189 个经济体里排第 22 位」）。
+            所以提到结论卡正下方，直接露出来。
+          */}
+          <section className="year-panel">
+            <div className="picker-head">
+              <h2>拿哪一年的世界来比</h2>
+              <span className="year-tools">
+                <button
+                  type="button"
+                  className={playing ? 'play-btn on' : 'play-btn'}
+                  onClick={togglePlay}
+                  aria-pressed={playing}
+                  title="从 1990 年播到 2025 年，看这个地方的体量怎么变"
+                >
+                  {playing ? '⏸ 暂停' : '▶ 播放'}
                 </button>
-                <button type="button" onClick={() => setYear(2000)}>
-                  2000
-                </button>
-                <button type="button" onClick={() => setYear(2010)}>
-                  2010
-                </button>
-                <button type="button" onClick={() => setYear(2024)}>
-                  2024
-                </button>
-              </div>
-              <p className="picker-hint">
-                国家数据可回溯到 1990 年（2025 为 IMF 预测值）；省/州数据按各自年份（中国与美国 2024、
-                欧洲 NUTS-1 2024、日本都道府县 2023）。
-                往后拨，能看出「今天这个地方放在当年是什么水平」；按「播放」让它从 1990 自己走到 2025。
-              </p>
-            </details>
+                <span className="year-now">{worldYear}</span>
+              </span>
+            </div>
+            <input
+              className="year-slider"
+              type="range"
+              min={1990}
+              max={2025}
+              step={1}
+              value={worldYear}
+              onChange={(e) => setYear(Number(e.target.value))}
+              aria-label="国家数据年份"
+            />
+            <div className="year-ticks">
+              <button type="button" onClick={() => setYear(1990)}>
+                1990
+              </button>
+              <button type="button" onClick={() => setYear(2000)}>
+                2000
+              </button>
+              <button type="button" onClick={() => setYear(2010)}>
+                2010
+              </button>
+              <button type="button" onClick={() => setYear(2024)}>
+                2024
+              </button>
+            </div>
+            <p className="picker-hint">
+              国家数据可回溯到 1990 年（2025 为 IMF 预测值），省/州按各自年份。
+              往后拨能看出「今天这个地方放在当年是什么水平」，按「播放」让它自己走一遍。
+            </p>
           </section>
 
           <RegionPicker
@@ -1166,38 +1171,43 @@ export default function App() {
             multi={isRegionMode && additive}
           />
 
-          <div className="quick-row">
-            {isRegionMode ? (
-              <>
-                {['CN-440000', 'CN-410000', 'US-06', 'US-48'].map((id) => {
-                  const r = regionById.get(id);
-                  if (!r) return null;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      className={`chip${selected.includes(id) ? ' active' : ''}`}
-                      onClick={() => setSelected([id])}
-                    >
-                      {r.zh.replace(/(省|州|自治区)$/, '')}
-                    </button>
-                  );
-                })}
-              </>
-            ) : null}
-            <button type="button" className="chip ghost" onClick={randomPick}>
-              随机来一个
-            </button>
-            <button type="button" className="chip ghost" onClick={randomQuestion}>
-              今日一题
-            </button>
-            <button type="button" className="chip ghost" onClick={dailyPick}>
-              今日一省
-            </button>
-            <button type="button" className="chip ghost" onClick={startPuzzle}>
-              玩一局
-            </button>
-          </div>
+          <section className="quick-panel">
+            <div className="picker-head">
+              <h2>换换口味</h2>
+            </div>
+            <div className="quick-row">
+              {isRegionMode ? (
+                <>
+                  {['CN-440000', 'CN-410000', 'US-06', 'US-48'].map((id) => {
+                    const r = regionById.get(id);
+                    if (!r) return null;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className={`chip${selected.includes(id) ? ' active' : ''}`}
+                        onClick={() => setSelected([id])}
+                      >
+                        {r.zh.replace(/(省|州|自治区)$/, '')}
+                      </button>
+                    );
+                  })}
+                </>
+              ) : null}
+              <button type="button" className="chip ghost" onClick={randomPick}>
+                随机来一个
+              </button>
+              <button type="button" className="chip ghost" onClick={randomQuestion}>
+                今日一题
+              </button>
+              <button type="button" className="chip ghost" onClick={dailyPick}>
+                今日一省
+              </button>
+              <button type="button" className="chip ghost" onClick={startPuzzle}>
+                玩一局
+              </button>
+            </div>
+          </section>
 
           {puzzle ? (
             <section className="puzzle">

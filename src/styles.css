@@ -88,6 +88,13 @@ body {
   flex-wrap: wrap;
 }
 
+/* 复制链接与分享捆在一起：窄屏换行时别把「分享」单独甩到一行 */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .segmented {
   display: inline-flex;
   padding: 3px;
@@ -224,22 +231,26 @@ body {
   max-height: calc(100vh - 63px);
 }
 
-/* 侧栏顺序：先选指标 → 直接给结论 → 再换地方 → 最后才是微调口径 */
+/* 侧栏顺序：先选指标 → 年份（它直接决定结论是哪一年的，必须一眼看见）→
+   再给结论 → 再换地方 → 最后才是微调口径 */
 .sidebar > .strategy {
   order: 0;
 }
-.sidebar > .result,
-.sidebar > .puzzle {
+.sidebar > .year-panel {
   order: 1;
 }
-.sidebar > .picker {
+.sidebar > .result,
+.sidebar > .puzzle {
   order: 2;
 }
-.sidebar > .compare-panel {
+.sidebar > .picker {
   order: 3;
 }
-.sidebar > .quick-row {
+.sidebar > .compare-panel {
   order: 4;
+}
+.sidebar > .quick-panel {
+  order: 5;
 }
 
 /* 折叠的进阶选项 */
@@ -640,6 +651,27 @@ body {
   color: var(--text);
 }
 
+/* 口径列表以前看着像一段说明文字，不像能点的。
+   前面加一颗「单选点」，选中的那颗填上颜色——点不点得出来，一眼就知道。 */
+.choice-title::before {
+  content: '';
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  vertical-align: 1px;
+  transition:
+    background 0.16s,
+    border-color 0.16s;
+}
+
+.choice.active .choice-title::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .choice-preview {
   display: block;
   margin-top: 1px;
@@ -668,6 +700,30 @@ body {
   color: var(--text-dim);
   cursor: pointer;
   user-select: none;
+}
+
+/* 放在口径列表下面、直接可见的开关 */
+.toggle.inline {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* ---------- 年份条：单独一块，放在结论卡下面 ---------- */
+.year-panel {
+  padding: 12px 13px 13px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.year-panel .picker-head {
+  margin-bottom: 9px;
+}
+
+/* ---------- 换换口味 ---------- */
+.quick-panel .picker-head {
+  margin-bottom: 8px;
 }
 
 .toggle input {
@@ -1667,6 +1723,10 @@ body {
     order: 1;
   }
 
+  .sidebar > .year-panel {
+    order: 2;
+  }
+
   .stage-inner {
     padding: 12px 12px 4px;
   }
@@ -1689,11 +1749,22 @@ body {
 
   .controls {
     width: 100%;
-    justify-content: flex-start;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
   }
 
   .segmented {
     flex: 1 1 auto;
+  }
+
+  /* 一行一组：方向一行、视图一行、分享一行，别东一个西一个 */
+  .controls .segmented button {
+    flex: 1;
+  }
+
+  .header-actions {
+    justify-content: flex-end;
   }
 
   .segmented button {
