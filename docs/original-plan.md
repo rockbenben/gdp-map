@@ -176,7 +176,7 @@ export function closestCountries(target: number, countries: Region[], metric: Me
 ## 7. 目录结构
 
 ```
-gdp-equivalence-map/
+gdp-map/
 ├─ data-pipeline/
 │  ├─ fetch_worldbank.py      # wbgapi 拉取国家 GDP、汇率
 │  ├─ fetch_regions.py        # 各国地区 GDP（统计局 / BEA / Eurostat）
