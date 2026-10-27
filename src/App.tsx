@@ -63,6 +63,33 @@ import type { CompareMode, FeatureCollection, GeoFeature, Region, ViewMode } fro
 const MAP_W = 1000;
 const MAP_H = 520;
 
+/**
+ * 源码仓库地址。
+ *
+ * 顶栏的 GitHub 图标与页脚的「源码」链接都指向它——
+ * 一个数据项目应该让人能找到它的数据是怎么来的。
+ */
+const REPO_URL = 'https://github.com/rockbenben/gdp-map';
+
+/**
+ * GitHub 官方 mark（24×24 那版路径，缩到 16px 显示）。
+ *
+ * ⚠️ **必须用 24 单位的路径 + `viewBox="0 0 24 24"`**：
+ * 网上常见的「16×16 版」路径画出来只有 8.9 宽（半边），
+ * 另一版 16 单位路径又画到 21 高（尾巴出框）——两种都会缺一块。
+ * 这版量过：包围盒 23.8×23.7，正好落在框里。
+ */
+function GitHubMark() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 4 16.615 4 16.615c0-1.38.965-2.385 2.24-2.385 1.2 0 1.795.78 1.795.78 1.05 1.8 2.805 1.305 3.495.998.108-.776.42-1.305.763-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"
+      />
+    </svg>
+  );
+}
+
 /** 等界面把一次状态变更画完（两次 rAF：第一帧提交，第二帧才是画好的） */
 const nextPaint = () =>
   new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -2456,6 +2483,17 @@ export default function App() {
           <button type="button" className="ghost-btn" onClick={handleCopyLink}>
             复制链接
           </button>
+          {/* 源码入口：一个图标按钮就够，占的地方越小越好（窄屏顶栏本来就挤） */}
+          <a
+            className="ghost-btn icon-btn"
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="在 GitHub 上看源码"
+            title="在 GitHub 上看源码"
+          >
+            <GitHubMark />
+          </a>
           <div className="share-wrap">
             <button
               type="button"
@@ -3213,6 +3251,14 @@ export default function App() {
                   {dataset.meta.extraRegionSource ? dataset.meta.extraRegionSource : null}
                   <br />
                   {dataset.meta.note}
+                </p>
+                {/* 源码也写在这儿：这是个数据项目，
+                    「这些数字是怎么来的」包括「代码和数据在哪」 */}
+                <p className="sources">
+                  源码：{' '}
+                  <a href={REPO_URL} target="_blank" rel="noreferrer">
+                    github.com/rockbenben/gdp-map
+                  </a>
                 </p>
               </details>
             ) : null}

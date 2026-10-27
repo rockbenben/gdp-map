@@ -169,6 +169,29 @@ body {
   color: var(--text-dim);
 }
 
+/* 顶栏的 GitHub 图标按钮：只放图标，所以是方的。
+   跟着 ghost-btn 的外观走（同样的边框与底色），只是宽高固定成方块。 */
+.ghost-btn.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.ghost-btn.icon-btn:hover {
+  color: var(--text);
+}
+
+/* 键盘操作看得见焦点在哪 */
+.ghost-btn.icon-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .primary-btn:hover,
 .ghost-btn:hover {
   transform: translateY(-1px);
