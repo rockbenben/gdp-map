@@ -16,6 +16,97 @@ const DEFAULT_YEAR = '2024';
 
 const readJson = async (p) => JSON.parse(await readFile(p, 'utf8'));
 
+/** 年鉴的网页是 GB2312 编码的，Node 自带 gbk 解码器 */
+const gbk = new TextDecoder('gbk');
+
+/**
+ * 中国省级：历年的地区生产总值（国家统计局年鉴的 HTML 表）。
+ *
+ * ⚠️ `data.stats.gov.cn` 的「分省年度数据」接口被 WAF 按 **IP** 挡了
+ *    （403，reason: UrlACL）——真浏览器、CDP 都过不去，别再试了。
+ *    但年鉴的网页版（`www.stats.gov.cn/sj/ndsj/`）是通的 ✓。
+ * ⚠️ **2015 年及以后的版本，表是图片**（`C03-09.jpg`，得靠人眼读）；
+ *    2014 及以前是 HTML（`C0214C.HTM` 这类），每版覆盖 5 年。
+ *    所以程序能拿的是 **2000–2013**；2014–2024 那个缺口得另外补。
+ */
+const YB_EDITIONS = ['2005', '2006', '2007', '2008', '2009', '2010', '2011', '2012', '2013', '2014'];
+
+/** 抓一张年鉴的表：目录里找标题含关键字的那张，返回解析好的行 */
+async function fetchYearbookTable(edition, keyword) {
+  const tocUrl = `https://www.stats.gov.cn/sj/ndsj/${edition}/left.htm`;
+  let toc;
+  try {
+    const r = await fetch(tocUrl, { headers: { 'User-Agent': 'gdp-map/1.0' } });
+    if (!r.ok) return null;
+    toc = gbk.decode(await r.arrayBuffer());
+  } catch {
+    return null;
+  }
+  const hit = [...toc.matchAll(/<a[^>]*href\s*=\s*["']?([^"' >]+)[^>]*>([\s\S]{0,200}?)<\/a>/gi)]
+    .map((m) => ({ href: m[1], text: m[2].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() }))
+    .find((x) => x.text.includes(keyword) && /\.htm/i.test(x.href));
+  if (!hit) return null;
+  const href = hit.href.replace(/^\/?/, '').replace(/\\/g, '/');
+  const url = `https://www.stats.gov.cn/sj/ndsj/${edition}/${href}`;
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'gdp-map/1.0' } });
+    if (!r.ok) return null;
+    const html = gbk.decode(await r.arrayBuffer());
+    // 表格行：单元格文字
+    const rows = [...html.matchAll(/<tr[\s\S]*?<\/tr>/gi)].map((m) =>
+      m[0]
+        .split(/<\/?t[dh][^>]*>/i)
+        .join('\x01')
+        .split('\x01')
+        .map((s) => s.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim())
+        .filter((s) => s.length)
+    );
+    // 年份表头：像 ["2005","2006",...] 的那一行。
+    // ⚠️ 人口表的表头前面还带一个「地 区」标签格（["地 区","2000",...]），
+    //    所以不能要求整行都是年份，放宽成「绝大多数格子是年份」。
+    const head = rows.find((r) => {
+      const ys = r.filter((c) => /^\d{4}$/.test(c));
+      return ys.length >= 2 && ys.length >= r.length - 1;
+    });
+    if (!head) return null;
+    // ⚠️ 「绝对数 + 指数」两张表并排放，年份会出现**两遍**（[2005..2009, 2005..2009]）。
+    //    两半一样时，绝对数的那一半在前——不切一半的话，后面的指数会覆盖前面的数
+    //    （河南 2005 会变成 114 亿，正确值是 1,059 亿）。
+    let years = head.filter((c) => /^\d{4}$/.test(c)).map(Number);
+    if (years.length % 2 === 0) {
+      const half = years.length / 2;
+      if (years.slice(0, half).join(',') === years.slice(half).join(',')) {
+        years = years.slice(0, half);
+      }
+    }
+    return { url, years, rows };
+  } catch {
+    return null;
+  }
+}
+
+/** 把一张「地区生产总值」表拆成 { 省名: { 年: 值 } }（只取绝对数那一半） */
+function parseYearbookProvinceRows(table, nameToAdcode) {
+  const n = table.years.length;
+  const out = {};
+  for (const row of table.rows) {
+    const name = (row[0] ?? '').replace(/\s+/g, '');
+    const adcode = nameToAdcode.get(name);
+    if (!adcode) continue;
+    const values = row.slice(1).map(Number);
+    // 表头里年份出现两遍时，years 已经切成一半；这里取前 n 个（绝对数），
+    // 后半段的「指数」不要。只有绝对数的表 values.length 也是 n，结果一样。
+    const absolute = values.slice(0, n);
+    const series = {};
+    table.years.forEach((y, i) => {
+      const v = absolute[i];
+      if (Number.isFinite(v)) series[String(y)] = v;
+    });
+    if (Object.keys(series).length) out[adcode] = series;
+  }
+  return out;
+}
+
 // ---------- 数值收口 ----------
 // 源数据给的是「十亿美元」「百万人」这类带小数的量，乘/除之后会留下浮点尾巴：
 // 8577.549999999999 × 1e9 = 8577549999999.999。这串尾巴不是数据，却会：
@@ -30,21 +121,61 @@ const perCapita = (v) => Math.round(v * 100) / 100;
 async function fetchExchangeRate(year) {
   const cache = resolve(RAW, `fx-usd-cny-${year}.json`);
   try {
-    return JSON.parse(await readFile(cache, 'utf8'));
+    const cached = JSON.parse(await readFile(cache, 'utf8'));
+    // 旧版本在接口失败时会把 null 写进缓存；坏缓存不能当数据用
+    if (typeof cached?.cnyPerUsd === 'number' && Number.isFinite(cached.cnyPerUsd)) return cached;
   } catch {
     /* 未缓存则去取 */
   }
   const url = `https://api.worldbank.org/v2/country/CHN/indicator/PA.NUS.FCRF?format=json&date=${year}`;
   const r = await fetch(url, { headers: { 'User-Agent': 'gdp-map/1.0' } });
+  if (!r.ok) throw new Error(`汇率接口 HTTP ${r.status}：${url}`);
   const j = await r.json();
   const value = j?.[1]?.[0]?.value ?? null;
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`汇率接口没有有效值：${url}`);
+  }
   const payload = { year: Number(year), cnyPerUsd: value, source: 'World Bank PA.NUS.FCRF (official exchange rate, annual average)' };
   await writeFile(cache, JSON.stringify(payload, null, 1), 'utf8');
   return payload;
 }
 
+/** 一整段年份的汇率（一次请求拿到多年） */
+async function fetchExchangeRates(from, to) {
+  const cache = resolve(RAW, `fx-usd-cny-${from}-${to}.json`);
+  try {
+    const cached = JSON.parse(await readFile(cache, 'utf8'));
+    // 一个空对象是「上次接口失败」留下的：重新抓，别让省级历史整段消失
+    if (cached && typeof cached === 'object' && Object.keys(cached).length) return cached;
+  } catch {
+    /* 未缓存则去取 */
+  }
+  const url = `https://api.worldbank.org/v2/country/CHN/indicator/PA.NUS.FCRF?format=json&date=${from}:${to}`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'gdp-map/1.0' } });
+  if (!r.ok) throw new Error(`汇率接口 HTTP ${r.status}：${url}`);
+  const j = await r.json();
+  if (!Array.isArray(j?.[1]) || !j[1].length) {
+    throw new Error(`汇率接口没有返回数据：${url}`);
+  }
+  const out = {};
+  for (const row of j[1]) {
+    const y = Number(row.date);
+    if (Number.isFinite(y) && typeof row.value === 'number') out[y] = row.value;
+  }
+  if (!Object.keys(out).length) throw new Error(`汇率接口没有有效年份：${url}`);
+  await writeFile(cache, JSON.stringify(out, null, 1), 'utf8');
+  return out;
+}
+
 // ---------- 中文国名 ----------
+// ⚠️ 有几个经济体的代码不是标准 ISO 3166-1（IMF 用 UVK 表示科索沃），
+// i18n-iso-countries 里查不到，只能手写；不改的话界面上会露出英文名。
+const ZH_OVERRIDES = {
+  UVK: '科索沃'
+};
+
 function zhCountryName(iso3) {
+  if (ZH_OVERRIDES[iso3]) return ZH_OVERRIDES[iso3];
   const zh = countries.getName(iso3, 'zh-Hans', { select: 'official' }) ?? countries.getName(iso3, 'zh', { select: 'official' });
   return zh || null;
 }
@@ -64,11 +195,16 @@ const areaTable = await readJson(resolve(RAW, 'countries-area.json'));
 const provYear = await readJson(resolve(ROOT, 'data/provincial-gdp-2024.json'));
 
 // ---------- 美国各州 ----------
-// GDP / 人均来自维基百科转录的 BEA 表（2024 年），人口由「GDP ÷ 人均」反推，
+// 主源是 BEA 的官方数：各州 1997–2025 的现价美元 GDP 与人口
+// （scripts/fetch-regions.mjs 抓的，写在 data/us-states-series.json）。
+// 维基百科转录的 BEA 表（2024 年）只当兜底：它有人均，人口由「GDP ÷ 人均」反推。
 // 面积按 us-atlas 的州界几何算。
 const usStatesRaw = await readJson(resolve(RAW, 'us-states-gdp.wiki.json'));
 const usTopo = await readJson(resolve(RAW, 'us-states-10m.json'));
 const usStatesZh = await readJson(resolve(ROOT, 'data/us-states.json'));
+// BEA 的官方数：各州 1997–2025 的现价美元 GDP 与人口
+// （scripts/fetch-regions.mjs 抓的，写在 data/us-states-series.json）
+const usStatesSeries = await readJson(resolve(ROOT, 'data/us-states-series.json'));
 const usGeo = feature(usTopo, usTopo.objects.states);
 
 function parseUsStateTable(text) {
@@ -116,18 +252,37 @@ function buildUsStates() {
     const fips = String(f.id).padStart(2, '0');
     const zh = usStatesZh[fips];
     if (!zh) continue; // 波多黎各等属地不进
+    // BEA 的官方数（现价美元 GDP + 人口，1997–2025），维基的转录只当兜底
+    const bea = usStatesSeries[f.properties.name] ?? null;
     const row = usByName.get(f.properties.name) ?? usByName.get('Washington, D.C.');
-    if (!row) continue;
+    if (!row && !bea) continue;
     const area = Math.round(geometryAreaKm2(f.geometry));
-    const pop = row.gdpPc ? people(row.gdp / row.gdpPc) : null;
+    const nominal = {};
+    const popMap = {};
+    for (const [y, v] of Object.entries(bea?.gdp ?? {})) {
+      if (!Number.isFinite(v)) continue;
+      nominal[y] = money(v * 1e6); // 百万美元 → 美元
+      const p = bea.pop[y];
+      if (Number.isFinite(p)) popMap[y] = people(p);
+    }
+    // 缺 2024（或某个州整段缺失）时用维基百科转录的值补上
+    if (!nominal[DEFAULT_YEAR] && row) {
+      nominal[DEFAULT_YEAR] = row.gdp;
+      popMap[DEFAULT_YEAR] = row.gdpPc ? people(row.gdp / row.gdpPc) : null;
+    }
+    const gdpPcMap = {};
+    for (const [y, g] of Object.entries(nominal)) {
+      const p = popMap[y];
+      if (p) gdpPcMap[y] = Math.round((g / p) * 100) / 100;
+    }
     usStates.push({
       id: `US-${fips}`,
       adcode: fips,
       zh: zh.zh,
       en: zh.en,
-      gdp: { nominal: { [DEFAULT_YEAR]: row.gdp } },
-      gdpPc: { [DEFAULT_YEAR]: row.gdpPc },
-      pop: { [DEFAULT_YEAR]: pop },
+      gdp: { nominal },
+      gdpPc: gdpPcMap,
+      pop: popMap,
       area,
       search: searchKey(zh.zh, zh.en)
     });
@@ -205,6 +360,12 @@ for (const y of YEARS) {
   // 6 位小数（万分之六）已经远细于任何一年的年均汇率精度。
   fx[y] = { ...raw, cnyPerUsd: Number(raw.cnyPerUsd?.toFixed(6)) };
 }
+// 分省历史要用 2000–2024 的汇率：一次请求拿多年（逐年请求太慢）
+const fxHistory = await fetchExchangeRates('2000', '2024');
+for (const [y, v] of Object.entries(fxHistory)) {
+  if (fx[y]) continue;
+  fx[y] = { year: Number(y), cnyPerUsd: v, source: 'World Bank PA.NUS.FCRF (official exchange rate, annual average)' };
+}
 
 // ---------- 国家 ----------
 // 港澳台按中国境内一级行政区处理（进入省级池），不重复出现在国家池
@@ -236,13 +397,17 @@ try {
 let countryList = [];
 for (const [iso3, rec] of Object.entries(weo.data)) {
   const nominal = {};
+  // ⚠️ WEO 的缺失值是字符串 "NA"，`v != null` 拦不住它：
+  //    "NA" * 1e9 是 NaN，JSON 里会落成 null，年份清单却还留着这一年。
   for (const [y, v] of Object.entries(rec.NGDPD ?? {})) {
-    if (v != null) nominal[y] = money(v * 1e9); // WEO 单位：十亿美元 → 美元
+    const n = Number(v);
+    if (Number.isFinite(n)) nominal[y] = money(n * 1e9); // WEO 单位：十亿美元 → 美元
   }
   if (!nominal[DEFAULT_YEAR]) continue;
   const pop = {};
   for (const [y, v] of Object.entries(rec.LP ?? {})) {
-    if (v != null) pop[y] = people(v * 1e6); // WEO 单位：百万人 → 人
+    const n = Number(v);
+    if (Number.isFinite(n)) pop[y] = people(n * 1e6); // WEO 单位：百万人 → 人
   }
   // 1990 之前：世界银行口径（只补 WEO 没有的年份，两段不打架）
   const wbRec = wb?.data?.[iso3];
@@ -263,7 +428,8 @@ for (const [iso3, rec] of Object.entries(weo.data)) {
   }
   const ppp = {};
   for (const [y, v] of Object.entries(rec.PPPGDP ?? {})) {
-    if (v != null) ppp[y] = money(v * 1e9); // 十亿美元 → 美元
+    const n = Number(v);
+    if (Number.isFinite(n)) ppp[y] = money(n * 1e9); // 十亿美元 → 美元
   }
   // 1990 年前没有官方 PPP：用该国 1990 年的换算因子近似（PPP 因子变化很慢）
   const f1990 = pppFactor.get(iso3)?.['1990'];
@@ -295,32 +461,117 @@ const adcodeToName = new Map(chinaGeo.features.map((f) => [String(f.properties.a
 const provinceGeometry = new Map(
   chinaGeo.features.map((f) => [String(f.properties.adcode), reverseRings(f.geometry)])
 );
+/**
+ * 中国省级：历年的地区生产总值与人口。
+ *
+ * 两个来源，合起来才是完整的一条序列：
+ * ① 2000–2011：年鉴**网页版**的 HTML 表（程序解析，见 fetchYearbookTable）。
+ * ② 2010–2024：年鉴的**表格图片**（人工读数，落在 data/provincial-gdp-history.json）。
+ *    —— 2015 版起表就是图片（`C03-09.jpg`），解析不了；2013/2014 版只有 BIFF 的 .xls。
+ * 重叠的年份以 ② 为准（版本更新）：两边对同一年的数是一致的（2010、2011–2014 都逐个核对过）。
+ *
+ * ⚠️ `data.stats.gov.cn` 的「分省年度数据」接口被 WAF 按 **IP** 挡了
+ *    （403，reason: UrlACL）——真浏览器、CDP 都过不去，别再试了。
+ *    但年鉴的网页版（`www.stats.gov.cn/sj/ndsj/`）是通的 ✓。
+ */
+const cnNameToAdcode = new Map(
+  provYear.provinces.map((p) => [p.name.replace(/(省|市|自治区|维吾尔|壮族|回族)/g, ''), p.adcode])
+);
+const cnHistory = {};
+{
+  // ① HTML 表
+  const gdpTables = {};
+  const popTables = {};
+  for (const ed of YB_EDITIONS) {
+    const gdpTable = await fetchYearbookTable(ed, '地区生产总值和指数');
+    if (gdpTable) {
+      for (const [adcode, series] of Object.entries(parseYearbookProvinceRows(gdpTable, cnNameToAdcode))) {
+        gdpTables[adcode] = { ...(gdpTables[adcode] ?? {}), ...series };
+      }
+    }
+    // 人口：「各地区年末人口数」（单位万人）
+    const popTable =
+      (await fetchYearbookTable(ed, '各地区年末人口数')) ?? (await fetchYearbookTable(ed, '分地区年末人口数'));
+    if (popTable) {
+      for (const [adcode, series] of Object.entries(parseYearbookProvinceRows(popTable, cnNameToAdcode))) {
+        popTables[adcode] = { ...(popTables[adcode] ?? {}), ...series };
+      }
+    }
+  }
+  const years = new Set();
+  for (const s of Object.values(gdpTables)) for (const y of Object.keys(s)) years.add(y);
+  for (const y of years) {
+    const rows = {};
+    for (const [adcode, series] of Object.entries(gdpTables)) {
+      const v = series[y];
+      const p = popTables[adcode]?.[y];
+      // GDP 与人口**都有**的年份才发布：少一项的话「人均 GDP」会是 0，
+      // 那比没有这个年份更糟
+      if (v == null || p == null) continue;
+      rows[adcode] = { gdp: v, pop: p * 1e4 }; // 亿元 / 万人 → 元 / 人
+    }
+    if (Object.keys(rows).length) cnHistory[y] = rows;
+  }
+  // ② 图片读数（更新的版本，覆盖同一年份的 HTML 值）
+  const cnImg = await readJson(resolve(ROOT, 'data/provincial-gdp-history.json'));
+  for (const [year, v] of Object.entries(cnImg.years)) {
+    const pop = cnImg.population[year] ?? {};
+    const rows = {};
+    for (const [code, p] of Object.entries(v.provinces)) {
+      const popWan = pop[code];
+      if (popWan == null) continue;
+      rows[code] = { gdp: p.gdp, pop: popWan * 1e4 };
+    }
+    if (Object.keys(rows).length) cnHistory[year] = { ...(cnHistory[year] ?? {}), ...rows };
+  }
+  // 2024 有两处读数（仓库里的 provincial-gdp-2024.json 与图片读数），对一下
+  const y2024 = cnHistory[String(provYear.meta.year)] ?? {};
+  const drift = provYear.provinces.filter((p) => y2024[p.adcode] && y2024[p.adcode].gdp !== p.gdp);
+  if (drift.length) {
+    console.warn(
+      `  ! 2024 的两处读数对不上：${drift
+        .map((p) => `${p.name} ${p.gdp} vs ${y2024[p.adcode].gdp}`)
+        .join('；')}`
+    );
+  }
+  const got = Object.keys(cnHistory).sort();
+  console.log(
+    `  · 中国省级历史：${got.length} 个年份（${got[0]}–${got[got.length - 1]}），` +
+      `${Object.keys(gdpTables).length} 个省` +
+      (got.length ? `（${got.join('、')}）` : '')
+  );
+}
+
 const provinceList = provYear.provinces.map((p) => {
-  const rate = fx[provYear.meta.year].cnyPerUsd;
-  const gdpUsd = money((p.gdp * 1e8) / rate); // 亿元人民币 → 美元
   const geometry = provinceGeometry.get(String(p.adcode));
+  // 逐年：年鉴的 GDP（亿元）与人口（人），按当年年均汇率折美元
+  const nominal = {};
+  const popMap = {};
+  const gdpPcMap = {};
+  for (const [y, rows] of Object.entries(cnHistory)) {
+    const h = rows[p.adcode];
+    const r = fx[y]?.cnyPerUsd;
+    if (!h || !r) continue;
+    nominal[y] = money((h.gdp * 1e8) / r); // 亿元人民币 → 美元
+    popMap[y] = people(h.pop);
+    // ⚠️ **人均一律按「GDP ÷ 人口」算**，不直接用年鉴公布的人均：
+    //    公布的人均用的是当年的**年均**人口，我们发布的是**年末**人口。
+    //    旧年份（七普后人口被上修、广东/浙江/天津这些能差 9%）两者对不上，
+    //    而页面上「GDP ÷ 人口 = 人均」必须成立，否则三个指标自相矛盾。
+    gdpPcMap[y] = perCapita(nominal[y] / popMap[y]);
+  }
   return {
     id: `CN-${p.adcode}`,
     adcode: p.adcode,
     zh: p.name,
     en: p.name,
-    gdp: {
-      nominal: {
-        [provYear.meta.year]: gdpUsd
-      }
-    },
-    // 人均：年鉴直接给了人民币口径，除以年均汇率折美元
-    gdpPc: {
-      [provYear.meta.year]: perCapita(p.gdpPerCapita / rate)
-    },
-    // 人口由「总量 ÷ 人均」反推（年鉴未单列常住人口）
-    pop: {
-      [provYear.meta.year]: p.gdpPerCapita ? people((p.gdp * 1e8) / p.gdpPerCapita) : null
-    },
+    gdp: { nominal },
+    gdpPc: gdpPcMap,
+    pop: popMap,
     // 面积：按 DataV 边界估算
     area: geometry ? Math.round(geometryAreaKm2(geometry)) : null,
     // 省级没有官方 PPP 口径：用全国 PPP 换算因子估算
-    ppp: pppForRegion('CHN', { [provYear.meta.year]: gdpUsd }),
+    ppp: pppForRegion('CHN', nominal),
     gdpPerCapita: p.gdpPerCapita,
     search: searchKey(p.name, p.name)
   };
@@ -336,22 +587,34 @@ const CN_EXTRA = [
 for (const x of CN_EXTRA) {
   const c = cnInternal.find((k) => k.id === x.iso3);
   if (!c) continue;
+  // ⚠️ **用整条序列，不只 2024/2025**：国家池那边已经用世界银行把历史延到 1960
+  //    （香港 1960–1989 有、澳门 1982 起有、台湾世界银行不发布统计所以 1990 起），
+  //    这里只取两年的话，香港/台湾/澳门在年份控件里就只剩两年可拨。
+  // ⚠️ 只收有 GDP 的年份，人口与人均也只跟这些年份对齐：
+  //    澳门 1990–2000 在 WEO 里是 "NA"，不能变成「有年份、没值」。
   const nominal = {};
-  for (const y of YEARS) if (c.gdp.nominal[y] != null) nominal[y] = c.gdp.nominal[y];
+  for (const [y, v] of Object.entries(c.gdp.nominal)) if (v != null) nominal[y] = v;
+  const pop = {};
+  for (const [y, v] of Object.entries(c.pop)) if (nominal[y] != null && v != null) pop[y] = v;
+  const gdpPc = {};
+  for (const [y, v] of Object.entries(c.gdpPc)) if (nominal[y] != null && v != null) gdpPc[y] = v;
   const geometry = provinceGeometry.get(String(x.adcode));
+  const wbYears = Object.keys(wb?.data?.[x.iso3]?.gdp ?? {});
   provinceList.push({
     id: x.id,
     adcode: x.adcode,
     zh: x.zh,
     en: x.en,
     gdp: { nominal },
-    gdpPc: c.gdpPc,
-    pop: c.pop,
+    gdpPc,
+    pop,
     area: geometry ? Math.round(geometryAreaKm2(geometry)) : c.area,
     // 港澳台在 WEO 里是独立经济体，用各自的 PPP 换算因子，别套中国的
     ppp: pppForRegion(x.iso3, nominal),
     gdpPerCapita: undefined,
-    source: `${weo.source}（非年鉴口径，年鉴不单列港澳台）`,
+    source:
+      `${weo.source}（非年鉴口径，年鉴不单列港澳台）` +
+      (wbYears.length ? `；1960–1989 用 World Bank NY.GDP.MKTP.CD + SP.POP.TOTL` : ''),
     search: searchKey(x.zh, x.en)
   });
 }
@@ -390,8 +653,7 @@ const extraRegions = euJp.regions.map((r) => {
     parentId: r.parentId,
     zh: r.zh,
     en: r.en,
-    gdpUsd: r.gdpUsd,
-    pop: r.pop,
+    series: r.series,
     area: geometry ? Math.round(geometryAreaKm2(geometry)) : null,
     source: r.source
   };
@@ -401,7 +663,11 @@ const noGeometry = extraRegions.filter((r) => r.area == null);
 if (noGeometry.length) {
   console.warn(`  ! ${noGeometry.length} 个新地区没找到边界：${noGeometry.map((r) => r.id).join(', ')}`);
 }
-extraRegions.sort((a, b) => b.gdpUsd - a.gdpUsd);
+const latestGdp = (r) => {
+  const years = Object.keys(r.series ?? {}).sort();
+  return r.series?.[years[years.length - 1]]?.gdpUsd ?? 0;
+};
+extraRegions.sort((a, b) => latestGdp(b) - latestGdp(a));
 
 // ---------- 世界边界：把 TWN 并入 CHN（国内发布惯例）----------
 const worldFeatures = [];
@@ -508,12 +774,23 @@ const objects = [
       area: s.area,
       ppp: pppForRegion('USA', s.gdp.nominal)
     },
-    source: 'BEA 州级 GDP（2024）与人口（经维基百科转录），面积按 us-atlas 州界几何算',
+    source: 'BEA 州级名义 GDP（1997–2025）与人口；维基百科转录只作缺值兜底；面积按 us-atlas 州界几何算',
     search: s.search
   })),
-  // 欧洲 NUTS-1 与日本都道府县：各自的数据年份不一样，所以 year 跟着对象走
+  // 欧洲 NUTS-1 与日本都道府县：欧洲有 2000–2024 的多年数据，日本只有 2023
   ...extraRegions.map((r) => {
-    const year = r.set === 'jp' ? euJp.year : String(euJp.euYear);
+    const series = r.series ?? {};
+    const years = Object.keys(series).sort();
+    const year = years[years.length - 1];
+    const nominal = {};
+    const gdpPc = {};
+    const pop = {};
+    for (const y of years) {
+      const s = series[y];
+      nominal[y] = s.gdpUsd;
+      pop[y] = s.pop;
+      if (s.pop) gdpPc[y] = Math.round((s.gdpUsd / s.pop) * 100) / 100;
+    }
     return {
       id: r.id,
       kind: 'region',
@@ -524,13 +801,13 @@ const objects = [
       hasGeometry: true,
       year,
       metrics: {
-        gdp: { nominal: { [year]: r.gdpUsd } },
-        gdpPc: { [year]: r.pop ? Math.round((r.gdpUsd / r.pop) * 100) / 100 : undefined },
-        pop: { [year]: r.pop },
+        gdp: { nominal },
+        gdpPc,
+        pop,
         area: r.area,
         // 同样没有官方 PPP 口径：用所属国家的 PPP 换算因子估算（跟中国省、美国州一样）。
         // 不给的话「平价 GDP」这个指标下这 141 个地区全是 0，选中就是一片空白。
-        ppp: pppForRegion(r.parentId, { [year]: r.gdpUsd })
+        ppp: pppForRegion(r.parentId, nominal)
       },
       source: r.source,
       search: searchKey(r.zh, r.en)
@@ -538,62 +815,65 @@ const objects = [
   })
 ];
 
-// ---------- 1650–1950：麦迪逊口径的长周期历史 ----------
-// ⚠️ 麦迪逊的单位是 2011 年国际元（PPP 口径），和后面的现价美元不是一回事，
-// 不能直接接上。所以按**各国 1960 年的水平**折算（每国一个系数），
-// 这样每个国家在 1960 年前后是连续的，滑块拖过接缝时不会跳。
-// ⚠️ 这些是「估算」：麦迪逊把 1950 年的数往回推。所以只取每 10 年一个点，
-// 而且写成单独的文件按需加载，别把首屏撑大。
-let maddison = null;
-try {
-  maddison = await readJson(resolve(RAW, 'maddison-1650-1960.json'));
-} catch {
-  maddison = null;
-}
-
-const HISTORY_YEARS = [];
-for (let y = 1650; y <= 1950; y += 10) HISTORY_YEARS.push(String(y));
-
-const history = {};
-if (maddison) {
-  for (const c of countryList) {
-    const rec = maddison.data?.[c.id];
-    if (!rec) continue;
-    const anchor = rec['1960'];
-    const anchorGdp =
-      anchor?.gdpPc != null && anchor?.pop != null ? anchor.gdpPc * anchor.pop : null;
-    const target = c.gdp.nominal['1960'];
-    if (!anchorGdp || !target) continue;
-    const k = target / anchorGdp; // 折算系数：让 1960 年的水平跟世界银行口径对上
-    const series = {};
-    for (const y of HISTORY_YEARS) {
-      const p = rec[y];
-      if (p?.gdpPc == null || p?.pop == null) continue;
-      const gdp = p.gdpPc * p.pop * k;
-      series[y] = {
-        gdp: money(gdp),
-        pop: people(p.pop),
-        gdpPc: perCapita(gdp / p.pop),
-        // 平价口径：这个年份没有官方 PPP，用该国 1990 年的换算因子近似
-        ppp: Math.round(gdp * (c.ppp['1990'] && c.gdp.nominal['1990'] ? c.ppp['1990'] / c.gdp.nominal['1990'] : 1))
-      };
-    }
-    if (Object.keys(series).length) history[c.id] = series;
-  }
-}
-
 // 数据实际覆盖的年份范围：前端滑块按这个来，别写死在代码里
+// ⚠️ **只统计有正式统计的年份**：1960 年起是世界银行 / IMF WEO 的官方口径。
+// 更早的年份只有麦迪逊项目的「估算」，而省/州在那些年份根本没有统计——
+// 拿 2024 年的省去比 1700 年的猜测，结论是拼出来的，所以那些年份不发布。
 const coveredYears = new Set();
 for (const c of countryList) {
   for (const y of Object.keys(c.gdp.nominal)) coveredYears.add(Number(y));
 }
-// 长周期历史：只认真的算出来的年份（人口序列缺的那些年会被丢掉）
-const historyYears = new Set();
-for (const series of Object.values(history)) {
-  for (const y of Object.keys(series)) historyYears.add(Number(y));
-}
-const yearNums = [...new Set([...coveredYears, ...historyYears])].filter((y) => Number.isFinite(y));
+const yearNums = [...coveredYears].filter((y) => Number.isFinite(y));
 const yearRange = [String(Math.min(...yearNums)), String(Math.max(...yearNums))];
+
+/**
+ * 各侧数据实际覆盖的年份区间（页脚要写清楚，别写死一个「2024」）。
+ *
+ * 省/州侧现在逐年不同：中国省级 2000–2024、美国各州 1997–2025、
+ * 欧洲 NUTS-1 2000–2024、日本府县只有 2023。
+ */
+const yearSpanOf = (list) => {
+  const ys = new Set();
+  for (const o of list) {
+    for (const [y, v] of Object.entries(o.metrics?.gdp?.nominal ?? {})) {
+      if (v != null) ys.add(Number(y));
+    }
+  }
+  const s = [...ys].filter((y) => Number.isFinite(y)).sort((a, b) => a - b);
+  if (!s.length) return null;
+  // 只有一年就写那一年，别写成「2023–2023」
+  return s[0] === s[s.length - 1] ? `${s[0]}` : `${s[0]}–${s[s.length - 1]}`;
+};
+const coverage = {
+  countries: yearRange.join('–'),
+  chinaProvinces: yearSpanOf(
+    objects.filter((o) => o.kind === 'region' && o.parentId === 'CHN' && !/CN-(71|81|82)0000$/.test(o.id))
+  ),
+  hkMacaoTaiwan: yearSpanOf(objects.filter((o) => /CN-(71|81|82)0000$/.test(o.id))),
+  usStates: yearSpanOf(objects.filter((o) => o.parentId === 'USA')),
+  euNuts: yearSpanOf(objects.filter((o) => o.id.startsWith('EU-'))),
+  japanPrefectures: yearSpanOf(objects.filter((o) => o.id.startsWith('JP-')))
+};
+
+// ---------- 价格基准：数据年份不一致时把两边的钱折到同一个价 ----------
+// 正常路径上省/州与对照池都取滑块那一年，折算系数是 1；
+// 这份指数是数据源给出不同年份时的兜底（例如只有单年数据的对象）。
+// 不折算直接相比，等于把两个年份之间的物价差算进结论里（1960→2024 差八倍多）。
+// 所以把美国 GDP 平减指数随数据一起发布，前端按它把两边折到同一个价。
+let usDeflator = null;
+try {
+  usDeflator = await readJson(resolve(RAW, 'us-deflator.json'));
+} catch {
+  usDeflator = null;
+}
+const deflator = {};
+if (usDeflator?.data) {
+  for (const [y, v] of Object.entries(usDeflator.data)) {
+    const n = Number(v);
+    // 收口：三位小数足够（比率的精度到万分之一就过剩了）
+    if (Number.isFinite(n) && n > 0) deflator[y] = Math.round(n * 1000) / 1000;
+  }
+}
 
 const meta = {
   defaultYear: DEFAULT_YEAR,
@@ -601,39 +881,88 @@ const meta = {
   /** 国家侧数据覆盖的年份范围（前端年份滑块用） */
   yearRange,
   provinceYear: provYear.meta.year,
+  /** 各侧数据实际覆盖的年份（页脚写着，别让页脚说「数据年份 2024」误导） */
+  coverage,
   countrySource:
     `${weo.source}（名义 GDP，现价美元；${DEFAULT_YEAR} 为实际值，2025 为该版预测值）` +
     (wb ? `；${yearRange[0]}–1989 用 ${wb.source}` : ''),
-  provinceSource: `${provYear.meta.source}（名义 GDP，现价人民币，按当年年均汇率折美元）`,
+  provinceSource:
+    '国家统计局《中国统计年鉴》表 3-9 地区生产总值（2000–2011 取年鉴网页版 HTML 表，' +
+    '2010–2024 取年鉴表格图片的读数；人口取表 2-5/2-6 分地区年末人口数）：' +
+    '名义 GDP，现价人民币，按当年年均汇率折美元；人均 = GDP ÷ 人口',
   provinceSourceUrl: provYear.meta.sourceUrl,
+  /** 中国省级历史读数的落库文件（图片读数那部分） */
+  provinceHistorySource: 'data/provincial-gdp-history.json',
   usStateSource:
-    'BEA 州级名义 GDP（2024）与人口（维基百科转录，源引 BEA / Census）；面积按 us-atlas 州界几何算',
+    'BEA 州级名义 GDP（1997–2025）与人口；维基百科转录只作缺值兜底；面积按 us-atlas 州界几何算',
   extraRegionSource:
-    `欧洲 NUTS-1（${euJp.euYear}，Eurostat nama_10r_3gdp / nama_10r_3popgdp，边界 Eurostat GISCO）；` +
-    `日本都道府县（${euJp.year} 年度，内阁府《府县民经济计算》与总人口，边界 Natural Earth）`,
-  exchangeRate: Object.fromEntries(YEARS.map((y) => [y, fx[y]])),
+    `欧洲 NUTS-1（${euJp.euFrom}–${euJp.euTo}，Eurostat nama_10r_3gdp / nama_10r_3popgdp，边界 Eurostat GISCO）；` +
+    `日本都道府县（${euJp.jpYear} 年度，内阁府《府县民经济计算》与总人口，边界 Natural Earth）`,
+  // 省/州现在有多年的数据，汇率也一并发布（前端用不上，但查证时方便）
+  exchangeRate: Object.fromEntries(Object.keys(fx).sort().map((y) => [y, fx[y]])),
   units: { country: 'USD', region: 'USD（由亿元人民币按年均汇率折算）' },
+  /** 价格基准：数据年份不一致时把两边的钱折到同一个价（正常路径系数为 1） */
+  priceBasis: {
+    baseYear: String(DEFAULT_YEAR),
+    source: usDeflator?.source ?? '',
+    note:
+      '正常路径上省/州与对照池都取滑块那一年，折算系数是 1；' +
+      '这份美国 GDP 平减指数是数据源给出不同年份时的兜底，' +
+      '不折算直接相比，等于把两个年份之间的物价差算进结论里。',
+    deflator
+  },
   generatedAt: new Date().toISOString(),
   note: '不同来源的统计口径与修订时间不同；跨年比较请注意各国统计口径差异。'
 };
 
-await writeFile(resolve(OUT, 'data/regions.json'), JSON.stringify({ meta, objects }), 'utf8');
-// 长周期历史单独一个文件：1960 年前只有估算，不必拖慢首屏，
-// 等用户把滑块拖到 1960 以前再按需加载。
-await writeFile(
-  resolve(OUT, 'data/history.json'),
-  JSON.stringify({
-    meta: {
-      source: maddison?.source ?? '',
-      years: HISTORY_YEARS,
-      note:
-        '1960 年前只有估算：麦迪逊项目（2011 年国际元、PPP 口径）每 10 年一个点，' +
-        '按各国 1960 年的水平折算成现价美元，以便与后面的年份接上。'
-    },
-    data: history
-  }),
-  'utf8'
-);
+/**
+ * 拆成两个文件：**基础文件**先到（首屏用），**历史文件**随后（年份回溯用）。
+ *
+ * ⚠️ 为什么要拆：省/州侧现在有 20~30 年数据（美国州 29 年、欧盟 25 年、中国省 25 年、
+ *    世界 66 年），全放在一个文件里是 356 KB（gzip）——手机上首屏光等数据就一两秒。
+ *    拆开后基础文件只有约 36 KB（gzip），首屏先出结论，历史数据到了再合并，
+ *    年份控件随之可用。实测：首屏字节 733 KB → 125 KB（基础文件 + 世界底图）。
+ *
+ * 基础文件里每个对象放的是**它自己的默认年**（国家与省/州是 2024，日本府县是 2023），
+ * 其余年份全进历史文件——所以「打开就有结论」这件事不依赖历史文件。
+ */
+const BASE_OBJECTS = [];
+const HISTORY_OBJECTS = [];
+for (const o of objects) {
+  const defaultYear = o.year ?? DEFAULT_YEAR;
+  // 年份清单只收有值的年份：WEO 的 "NA" 已经在国家构造时过滤，
+  // 这里再兜一道，避免「年份控件能选、拨过去是 0」。
+  const gdpYears = Object.keys(o.metrics.gdp.nominal)
+    .filter((y) => o.metrics.gdp.nominal[y] != null)
+    .sort();
+  const base = { ...o, metrics: {}, years: gdpYears };
+  const hist = { id: o.id, metrics: {} };
+  for (const [k, v] of Object.entries(o.metrics)) {
+    if (k === 'area') {
+      base.metrics[k] = v; // 面积与年份无关，跟着基础文件走
+      continue;
+    }
+    // ⚠️ `gdp` 的结构是 { nominal: { 年份: 值 } }，跟别的指标不一样，
+    //    当成普通序列处理会拿到 undefined（基础文件里 GDP 全空）。
+    const series = k === 'gdp' ? (v?.nominal ?? {}) : (v ?? {});
+    const years = Object.keys(series);
+    const rest = {};
+    for (const y of years) if (y !== defaultYear) rest[y] = series[y];
+    const cur = series[defaultYear];
+    if (k === 'gdp') {
+      base.metrics.gdp = { nominal: cur != null ? { [defaultYear]: cur } : {} };
+      if (Object.keys(rest).length) hist.metrics.gdp = { nominal: rest };
+      continue;
+    }
+    if (cur != null) base.metrics[k] = { [defaultYear]: cur };
+    if (Object.keys(rest).length) hist.metrics[k] = rest;
+  }
+  BASE_OBJECTS.push(base);
+  HISTORY_OBJECTS.push(hist);
+}
+
+await writeFile(resolve(OUT, 'data/regions.json'), JSON.stringify({ meta, objects: BASE_OBJECTS }), 'utf8');
+await writeFile(resolve(OUT, 'data/regions-history.json'), JSON.stringify({ objects: HISTORY_OBJECTS }), 'utf8');
 await writeFile(resolve(OUT, 'geo/world.json'), JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: worldFeatures })), 'utf8');
 await writeFile(resolve(OUT, 'geo/china.json'), JSON.stringify(roundGeometry({ type: 'FeatureCollection', features: chinaFeatures })), 'utf8');
 await writeFile(

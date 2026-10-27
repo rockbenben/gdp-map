@@ -16,11 +16,11 @@ const SOURCES = {
   'china-outline.geo.json': 'https://geo.datav.aliyun.com/areas_v3/bound/100000.json',
   // 国家统计局《中国统计年鉴2025》表 3-9 地区生产总值(2024年)
   'nbs-yearbook-2025-C03-09.jpg': 'https://www.stats.gov.cn/sj/ndsj/2025/html/C03-09.jpg',
-  // 国家面积表（Natural Earth 口径 + 修正），用于「面积对比」
+  // 国家面积表（mledoze/countries 的 area 字段，原样取用），用于「面积对比」
   'countries-area.json': 'https://raw.githubusercontent.com/mledoze/countries/master/countries.json',
   // 美国各州边界（TopoJSON，us-atlas）
   'us-states-10m.json': 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json',
-  // 美国各州 GDP / 人均 / 人口（BEA + Census 口径，经维基百科转录）
+  // 美国各州 GDP / 人均 / 人口（维基百科转录，作为 BEA 缺值兜底）
   'us-states-gdp.wiki.json':
     'https://en.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&titles=List_of_U.S._states_and_territories_by_GDP&format=json&formatversion=2'
 };
@@ -177,61 +177,55 @@ async function fetchWorldBank() {
   );
 }
 
-// ---- 麦迪逊项目：1960 年之前的世界（长周期） ----
-// IMF WEO 从 1990 起，世界银行从 1960 起；再往前只有「估算」：
-// 麦迪逊项目（Our World in Data 镜像）提供 1650 年起的人均 GDP 与人口，
-// 两者相乘得到 GDP 总量（2011 年国际元口径）。
-// ⚠️ 单位与后面的现价美元不同，所以只能在 build 阶段按各国 1960 年的水平折算后接入。
-const MADDISON_FROM = 1650;
-const MADDISON_TO = 1960; // 含 1960：用它做各国折算的锚点
-const OWID_CSV = {
-  gdpPc: 'https://ourworldindata.org/grapher/gdp-per-capita-maddison-project-database.csv',
-  pop: 'https://ourworldindata.org/grapher/population.csv'
-};
+// ---- 美国 GDP 平减指数：数据年份不一致时把两边的钱折成同一个价 ----
+// 正常路径上省/州与对照池取同一年（滑块那一年），系数是 1；
+// 这份指数是数据源给出不同年份时的兜底（只有比率有意义，基年是谁无所谓）。
+const DEFLATOR_RANGE = [1960, 2025];
 
-async function fetchMaddison() {
-  const dest = resolve(RAW, `maddison-${MADDISON_FROM}-${MADDISON_TO}.json`);
+async function fetchUsDeflator() {
+  const dest = resolve(RAW, 'us-deflator.json');
   if (await exists(dest)) {
-    console.log(`skip  maddison-${MADDISON_FROM}-${MADDISON_TO}.json (已存在)`);
-    return;
-  }
-  const out = {};
-  for (const [key, url] of Object.entries(OWID_CSV)) {
-    const r = await fetch(url, { headers: { 'User-Agent': 'gdp-map/1.0' } });
-    if (!r.ok) throw new Error(`${r.status} ${url}`);
-    const text = await r.text();
-    const lines = text.split('\n');
-    const header = lines[0].split(',');
-    const iCode = header.indexOf('Code');
-    const iYear = header.indexOf('Year');
-    const iValue = header.indexOf(key === 'gdpPc' ? 'GDP per capita' : 'Population');
-    for (const line of lines.slice(1)) {
-      const p = line.split(',');
-      const iso = p[iCode];
-      const year = Number(p[iYear]);
-      const value = Number(p[iValue]);
-      if (!iso || !Number.isFinite(year) || !Number.isFinite(value)) continue;
-      if (year < MADDISON_FROM || year > MADDISON_TO) continue;
-      out[iso] ??= {};
-      out[iso][year] ??= {};
-      out[iso][year][key] = value;
+    try {
+      const old = JSON.parse(await readFile(dest, 'utf8'));
+      if (old.range?.[0] === DEFLATOR_RANGE[0] && old.range?.[1] === DEFLATOR_RANGE[1]) {
+        console.log('skip  us-deflator.json (已存在且年份范围一致)');
+        return;
+      }
+    } catch {
+      /* 坏缓存：重新抓 */
     }
   }
+  const url =
+    `https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.DEFL.ZS` +
+    `?date=${DEFLATOR_RANGE[0]}:${DEFLATOR_RANGE[1]}&format=json&per_page=200`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'gdp-map/1.0' } });
+  if (!r.ok) throw new Error(`${r.status} ${url}`);
+  const json = await r.json();
+  if (!Array.isArray(json?.[1]) || !json[1].length) {
+    throw new Error(`平减指数接口没有返回数据：${url}`);
+  }
+  const data = {};
+  for (const row of json[1]) {
+    const y = Number(row.date);
+    if (!Number.isFinite(y) || row.value == null) continue;
+    data[String(y)] = row.value;
+  }
+  if (!Object.keys(data).length) throw new Error(`平减指数没有有效年份：${url}`);
   await writeFile(
     dest,
     JSON.stringify(
       {
         source:
-          'Maddison Project Database 2023（Our World in Data 镜像）：人均 GDP（2011 年国际元）+ 人口',
-        range: [MADDISON_FROM, MADDISON_TO],
-        data: out
+          'World Bank, NY.GDP.DEFL.ZS (GDP deflator, United States; 基年由发布方定，只用比率)',
+        range: DEFLATOR_RANGE,
+        data
       },
       null,
       1
     ),
     'utf8'
   );
-  console.log(`saved maddison-${MADDISON_FROM}-${MADDISON_TO}.json  (${Object.keys(out).length} 个经济体)`);
+  console.log(`saved us-deflator.json  (${Object.keys(data).length} 个年份)`);
 }
 
 await mkdir(RAW, { recursive: true });
@@ -240,5 +234,5 @@ for (const [name, url] of Object.entries(SOURCES)) {
 }
 await fetchWeo();
 await fetchWorldBank();
-await fetchMaddison();
+await fetchUsDeflator();
 console.log('\n原始数据就绪：', RAW);

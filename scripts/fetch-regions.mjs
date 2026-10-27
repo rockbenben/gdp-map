@@ -100,6 +100,25 @@ async function exchangeRate(country, year) {
   return { year, perUsd: v, source: 'World Bank PA.NUS.FCRF (official exchange rate, annual average)' };
 }
 
+/**
+ * 一整段年份的汇率（一次请求拿到多年）。
+ *
+ * 跨年比较要用**每一年的**汇率：省/州的 GDP 记的是它自己那年的现价，
+ * 换算成美元时也得用那一年的价。
+ */
+async function exchangeRates(country, from, to) {
+  const d = await getJson(
+    `https://api.worldbank.org/v2/country/${country}/indicator/PA.NUS.FCRF?format=json&date=${from}:${to}`
+  );
+  const out = new Map();
+  for (const row of d?.[1] ?? []) {
+    const y = Number(row.date);
+    if (Number.isFinite(y) && row.value) out.set(y, row.value);
+  }
+  if (!out.size) throw new Error(`拿不到 ${country} ${from}–${to} 的汇率`);
+  return out;
+}
+
 // ---------- 最小 xlsx 读取器 ----------
 // 只想读一两个数，不想为此引入 exceljs：xlsx 就是个 zip + XML。
 // ⚠️ 单元格的位置由 r 属性（如 "E17"）决定，**不能按出现顺序取值**——
@@ -197,6 +216,106 @@ const isPrefecture = (r) =>
 
 // ---------- 开始 ----------
 await mkdir(RAW, { recursive: true });
+
+// ---------- 美国各州：GDP 与人口的历史（BEA）----------
+// SAGDP2 = 现价美元 GDP（Millions of current dollars），1997–2025
+// SAINC4 = 人口（Population, persons），1929–2025
+// ⚠️ zip 里有 570+ / 1000+ 个 CSV，只取各州那两张。
+// ⚠️ 2024 年那一列不用维基百科的转录了：BEA 的是官方数，用它更准
+//（维基的值只当兜底，个别州缺数据时用）。
+const BEA_SAGDP = 'https://apps.bea.gov/regional/zip/SAGDP.zip';
+const BEA_SAINC = 'https://apps.bea.gov/regional/zip/SAINC.zip';
+
+/** 最小 CSV 读取：带引号的字段里可以有逗号（描述文字里就有） */
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      if (quoted && text[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else quoted = !quoted;
+    } else if (c === ',' && !quoted) {
+      row.push(cur.replace(/^"([\s\S]*)"$/, '$1'));
+      cur = '';
+    } else if ((c === '\n' || c === '\r') && !quoted) {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(cur.replace(/^"([\s\S]*)"$/, '$1'));
+      if (row.length > 1) rows.push(row);
+      row = [];
+      cur = '';
+    } else cur += c;
+  }
+  return rows;
+}
+
+/** 从 BEA 的 CSV 里挑出某一行指标，返回 { 年份: 数值 } */
+function beaSeries(csvText, matchDesc, matchUnit) {
+  const rows = parseCsv(csvText);
+  const head = rows[0] ?? [];
+  const y0 = head.indexOf('1997');
+  if (y0 < 0) return null;
+  for (const r of rows.slice(1)) {
+    const desc = (r[6] ?? '').trim();
+    const unit = (r[7] ?? '').trim();
+    // ⚠️ 描述后面常跟着行号（「Population (persons) 3/ (Number of persons)」），用前缀比
+    if (!desc.startsWith(matchDesc) || !unit.includes(matchUnit)) continue;
+    const out = {};
+    for (let i = y0; i < head.length; i++) {
+      const y = Number(head[i]);
+      const v = Number(r[i]);
+      if (Number.isFinite(y) && Number.isFinite(v)) out[String(y)] = v;
+    }
+    return out;
+  }
+  return null;
+}
+
+const usStatesSeries = await (async () => {
+  console.log('· 抓 BEA 的美国各州 GDP 与人口历史');
+  const [sagdpBuf, saincBuf] = await Promise.all([
+    cachedBinary('bea-sagdp.zip', async () => {
+      const r = await fetch(BEA_SAGDP, { headers: UA });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return Buffer.from(await r.arrayBuffer());
+    }),
+    cachedBinary('bea-sainc.zip', async () => {
+      const r = await fetch(BEA_SAINC, { headers: UA });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return Buffer.from(await r.arrayBuffer());
+    })
+  ]);
+  const sagdp = readZip(sagdpBuf);
+  const sainc = readZip(saincBuf);
+  const out = {};
+  for (const [name, buf] of sagdp) {
+    const m = /^SAGDP2_([A-Z]{2})_\d{4}_\d{4}\.csv$/.exec(name);
+    if (!m) continue;
+    const text = buf.toString('utf8');
+    const rows = parseCsv(text);
+    const geoName = (rows[1]?.[1] ?? '').trim();
+    if (!geoName) continue;
+    const gdp = beaSeries(text, 'All industry total', 'current dollars');
+    if (!gdp) continue;
+    // 人口在同一 zip 的另一个表族里（SAINC4_<州>_<起>_<止>.csv）
+    const popFile = [...sainc.keys()].find((n) => n.startsWith(`SAINC4_${m[1]}_`));
+    const pop = popFile
+      ? beaSeries(sainc.get(popFile).toString('utf8'), 'Population (persons)', 'Number of persons')
+      : null;
+    if (!pop) continue;
+    out[geoName] = { gdp, pop };
+  }
+  console.log(`  · 取到 ${Object.keys(out).length} 个州`);
+  // 结果要进仓库（build-data.mjs 读它），所以落在 data/ 而不是 raw/
+  await writeFile(resolve(ROOT, 'data/us-states-series.json'), JSON.stringify(out), 'utf8');
+  return out;
+})();
+
+
 const names = JSON.parse(await readFile(resolve(ROOT, 'data/region-names.json'), 'utf8'));
 
 // 1. 欧洲 NUTS-1 边界
@@ -216,22 +335,45 @@ const nutsList = nutsAll.filter((x) => !x.wholeCountry && names.nuts[x.id]);
 console.log(`· NUTS-1：${nutsAll.length} 个，其中 ${nutsList.length} 个是真一级行政区`);
 
 // 2. NUTS-1 的 GDP 与人口（Eurostat）
+//    ⚠️ **一次只能取一年**：多 geo + 时间段（sinceTimePeriod/untilTimePeriod）的
+//    查询会返回空数组（试过），所以逐年取。
+//    ⚠️ 这里的起止年**以 Eurostat 实际有的数据为准**：nama_10r_3gdp 一直回到 2000 年
+//    （94 个区 2000 年合计 7.46 万亿欧元 ≈ 当时欧盟 GDP，逐年可查）。
+//    以前这里写 2008，注释说「NUTS-1 口径从 2008 年起才有」——那是错的，
+//    白扔了 8 年。要改起止年，**先删掉下面的缓存文件**（缓存名里带了起止年，
+//    改了年份就是另一个文件，不会误用旧缓存）。
+const EU_FROM = 2000;
+const EU_TO = 2024;
 const nutsIds = nutsList.map((x) => 'geo=' + x.id).join('&');
-const eurostat = await cached('eurostat-nuts1.json', async () => {
-  console.log('· 抓 Eurostat 的 NUTS-1 GDP 与人口');
-  const [gdp, pop] = await Promise.all([
-    getJson(`${EUROSTAT}nama_10r_3gdp?${nutsIds}&time=2024&unit=MIO_EUR`),
-    getJson(`${EUROSTAT}nama_10r_3popgdp?${nutsIds}&time=2024&unit=THS`)
-  ]);
-  return { year: 2024, gdp, pop };
+const eurostatYears = await cached(`eurostat-nuts1-years-${EU_FROM}-${EU_TO}.json`, async () => {
+  console.log(`· 抓 Eurostat 的 NUTS-1 GDP 与人口（${EU_FROM}–${EU_TO}，逐年）`);
+  const years = [];
+  for (let y = EU_FROM; y <= EU_TO; y++) {
+    const [gdp, pop] = await Promise.all([
+      getJson(`${EUROSTAT}nama_10r_3gdp?${nutsIds}&time=${y}&unit=MIO_EUR`),
+      getJson(`${EUROSTAT}nama_10r_3popgdp?${nutsIds}&time=${y}&unit=THS`)
+    ]);
+    years.push({ year: y, gdp, pop });
+  }
+  return { from: EU_FROM, to: EU_TO, years };
 });
-const gdpIdx = eurostat.gdp.dimension.geo.category.index;
-const popIdx = eurostat.pop.dimension.geo.category.index;
 
-// 3. 汇率
-const eurRate = await exchangeRate('EMU', 2024);
+/** 某一年各地区的 GDP / 人口（Eurostat 的 JSON-stat 数组，按维度下标取值） */
+function euSlice(year) {
+  const gdpIdx = year.gdp.dimension.geo.category.index;
+  const popIdx = year.pop.dimension.geo.category.index;
+  return {
+    gdp: (id) => Number(year.gdp.value?.[gdpIdx[id]]),
+    pop: (id) => Number(year.pop.value?.[popIdx[id]])
+  };
+}
+
+// 3. 汇率（每一年都要用那一年的价换算成美元）
+const eurRates = await exchangeRates('EMU', EU_FROM, EU_TO);
 const jpyRate = await exchangeRate('JPN', JP_YEAR);
-console.log(`· 汇率：1 美元 = ${eurRate.perUsd.toFixed(4)} 欧元 = ${jpyRate.perUsd.toFixed(2)} 日元`);
+console.log(
+  `· 汇率：1 美元 = ${eurRates.get(EU_TO).toFixed(4)} 欧元（${EU_TO}）= ${jpyRate.perUsd.toFixed(2)} 日元`
+);
 
 // 4. Natural Earth 的日本都道府县边界
 //    源文件有 4596 个要素、39.7 MB，但只用得上日本的 47 个——
@@ -275,12 +417,25 @@ const jpGdpRows = jpGdp.rows.filter(isPrefecture);
 console.log(`· 日本：GDP ${jpGdpRows.length} 个县、人口 ${jpPopRows.length} 个县`);
 
 // 6. 归一化
-const out = { year: JP_YEAR, euYear: eurostat.year, regions: [] };
+const out = { euFrom: EU_FROM, euTo: EU_TO, jpYear: JP_YEAR, regions: [] };
 
 for (const n of nutsList) {
-  const g = Number(eurostat.gdp.value?.[gdpIdx[n.id]]);
-  const p = Number(eurostat.pop.value?.[popIdx[n.id]]);
-  if (!Number.isFinite(g) || !Number.isFinite(p)) {
+  // 逐年一组：省/州在**哪一年**的数据也要跟着年份走，
+  // 「拿哪一年的世界来比」时，参照物得是那一年的大小。
+  const series = {};
+  for (const y of eurostatYears.years) {
+    const slice = euSlice(y);
+    const g = slice.gdp(n.id);
+    const p = slice.pop(n.id);
+    const rate = eurRates.get(y.year);
+    if (!Number.isFinite(g) || !Number.isFinite(p) || !rate) continue;
+    series[String(y.year)] = {
+      gdpUsd: Math.round((g / rate) * 1e6), // 百万欧元 → 美元（用那一年的汇率）
+      pop: Math.round(p * 1000) // 千人 → 人
+    };
+  }
+  const years = Object.keys(series);
+  if (!years.length) {
     console.warn(`  ! ${n.id} ${n.name} 缺数据，跳过`);
     continue;
   }
@@ -291,9 +446,8 @@ for (const n of nutsList) {
     parentId: n.iso3,
     zh: names.nuts[n.id],
     en: n.name,
-    gdpUsd: Math.round((g / eurRate.perUsd) * 1e6), // 百万欧元 → 美元
-    pop: Math.round(p * 1000), // 千人 → 人
-    source: `Eurostat nama_10r_3gdp / nama_10r_3popgdp（${eurostat.year}，NUTS-1）`
+    series,
+    source: `Eurostat nama_10r_3gdp / nama_10r_3popgdp（${EU_FROM}–${EU_TO}，NUTS-1）`
   });
 }
 
@@ -306,9 +460,14 @@ for (const row of jpGdpRows) {
   const manual = jpManual.regions.find((r) => r.code === code);
   // 内阁府汇总里有数就用汇总的，没有（那 5 个县）就用府县自己公布的
   const g = Number.isFinite(Number(row[GDP_COL])) ? Number(row[GDP_COL]) : manual?.gdpOku * 100;
+  // ⚠️ **年度 ≠ 日历年**：内阁府的「2023 年度」是 2023/4–2024/3，
+  //    而世界侧（IMF WEO）的日本 2023 是**日历年**。两者差约 5%
+  //    （47 县合计 621.9 兆円 vs 日本日历年 591.5 兆円），
+  //    在「世界 → 地方」模式里拿日本的 47 个县跟日本自己比，会显得偏大 5%。
+  //    不做跨口径推算（推算就得拿季度数据），只把口径差写在来源里。
   const source = manual
     ? `${manual.source}（${JP_YEAR} 年度）`
-    : `日本内阁府《府县民经济计算》（${JP_YEAR} 年度）与总人口（${JP_YEAR} 年）`;
+    : `日本内阁府《府县民经济计算》（${JP_YEAR} 年度）与总人口（${JP_YEAR} 年；年度口径与世界侧的日历年差约 5%）`;
   if (!Number.isFinite(g) || !Number.isFinite(p)) {
     console.warn(`  ! ${row[1]} 缺数据，跳过`);
     continue;
@@ -320,8 +479,14 @@ for (const row of jpGdpRows) {
     parentId: 'JPN',
     zh,
     en: row[1],
-    gdpUsd: Math.round((g * 1e6) / jpyRate.perUsd), // 百万日元 → 美元
-    pop: Math.round(p),
+    // 日本内阁府的历史文件只拿到 2023 年度（更早的年份 URL 全部 404），
+    // 所以日本各府县只有这一年——年份控件到这儿就到底了。
+    series: {
+      [String(JP_YEAR)]: {
+        gdpUsd: Math.round((g * 1e6) / jpyRate.perUsd), // 百万日元 → 美元
+        pop: Math.round(p)
+      }
+    },
     source
   });
 }
@@ -330,17 +495,23 @@ await writeFile(resolve(ROOT, 'data/regions-eu-jp.json'), JSON.stringify(out, nu
 
 const eu = out.regions.filter((r) => r.set === 'nuts');
 const jp = out.regions.filter((r) => r.set === 'jp');
+/** 某一年各地区的 GDP 合计（美元） */
+const sumAt = (list, year) =>
+  list.reduce((s, r) => s + (r.series?.[year]?.gdpUsd ?? 0), 0);
 console.log(
   `\n已写入 data/regions-eu-jp.json：欧洲 NUTS-1 ${eu.length} 个、日本都道府县 ${jp.length} 个`
 );
 console.log(
-  `  欧洲合计 ${(eu.reduce((s, r) => s + r.gdpUsd, 0) / 1e12).toFixed(2)} 万亿美元；` +
-    `日本合计 ${(jp.reduce((s, r) => s + r.gdpUsd, 0) / 1e12).toFixed(2)} 万亿美元`
+  `  欧洲 ${EU_TO} 年合计 ${(sumAt(eu, String(EU_TO)) / 1e12).toFixed(2)} 万亿美元；` +
+    `日本合计 ${(sumAt(jp, String(JP_YEAR)) / 1e12).toFixed(2)} 万亿美元`
 );
 
 // ---------- 自检：47 个都道府县的产出加起来，应该等于日本全国 ----------
 // 这是个很强的校验：任何一个县读错、漏掉，单位搞错，总数都会对不上。
-const jpOku = jp.reduce((s, r) => s + r.gdpUsd * jpyRate.perUsd / 1e8, 0); // 億円
+const jpOku = jp.reduce(
+  (s, r) => s + ((r.series?.[String(JP_YEAR)]?.gdpUsd ?? 0) * jpyRate.perUsd) / 1e8,
+  0
+); // 億円
 const NATIONAL_2023_OKU = 6_219_000; // 内阁府《2023年度国民経済計算》：全国 621.9 兆円 = 6,219,000 億円
 const diff = ((jpOku - NATIONAL_2023_OKU) / NATIONAL_2023_OKU) * 100;
 console.log(
