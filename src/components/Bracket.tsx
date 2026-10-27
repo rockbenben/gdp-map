@@ -9,6 +9,20 @@ export interface Entrant {
   text: string;
 }
 
+/**
+ * 估算一段文字在 SVG 里占多宽。
+ *
+ * 汉字按一个字号宽（1em），西文数字按一半宽。
+ * 用来给最后一个轮次的标签腾地方——不量一下就没法知道画布要多宽。
+ */
+function textWidth(s: string, fontSize: number): number {
+  let w = 0;
+  for (const ch of s) {
+    w += /[\u2e80-\u9fff\u3000-\u303f\uff00-\uffef]/.test(ch) ? fontSize : fontSize * 0.52;
+  }
+  return w;
+}
+
 interface Props {
   entrants: Entrant[];
   /** 高亮这些参赛者的晋级路径 */
@@ -58,7 +72,14 @@ export function Bracket({ entrants, highlightIds = [], width = 880, height = 560
       prev = next;
     }
 
-    const colW = width / rounds.length;
+    // 列宽：最后一个轮次的标签（名字 + 小号数值）也得放得下。
+    // 以前列宽是画布均分的，标签就伸出画布外了——
+    // 「加利福尼亚州4.05 万亿」的尾巴在所有分辨率上都被裁掉。
+    const lastRound = rounds[rounds.length - 1];
+    const labelRoom = Math.max(
+      ...lastRound.map((n) => textWidth(n.name, 12.5) + 7 + textWidth(n.text, 10.5))
+    );
+    const colW = (width - 54 - 14 - labelRoom) / Math.max(1, rounds.length - 1);
     const nodeX = (r: number) => r * colW + 54;
     const edges: Array<{ x1: number; y1: number; x2: number; y2: number; win: boolean; highlight: boolean }> = [];
 

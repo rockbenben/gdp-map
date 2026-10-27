@@ -24,6 +24,8 @@ interface Props {
   selectedIds?: string[];
   /** 数值格式化（悬停提示用） */
   formatValue?: (value: number) => string;
+  /** 悬停提示里的名字（中文）；不给就用 geo 里的英文名 */
+  labelFor?: (id: string) => string;
   /** 世界地图左下角的中国小图 */
   chinaInset?: React.ReactNode;
   /** 省/州细分层（画在国家之上） */
@@ -44,6 +46,7 @@ export function WorldMap({
   onSelect,
   selectedIds = [],
   formatValue,
+  labelFor,
   chinaInset,
   subdivisions,
   subHighlights = [],
@@ -65,7 +68,9 @@ export function WorldMap({
 
   const labels = useMemo(() => {
     const out: Array<{ id: string; x: number; y: number; text: string; color: string }> = [];
-    const placed: Array<[number, number]> = [];
+    // 避让要算上标签的**宽度**：光比中心点距离，
+    // 「马里 / 尼日尔 / 乍得 / 苏丹」这种挤在西非的一堆还是会叠在一起。
+    const placed: Array<{ x: number; y: number; halfWidth: number }> = [];
     const candidates = geo.features
       .map((f) => ({ f, h: highlightMap.get(String(f.id)) }))
       .filter((c): c is { f: GeoFeature; h: Highlight } => Boolean(c.h))
@@ -76,9 +81,13 @@ export function WorldMap({
       if (featureArea(f) < 0.0009) continue; // 太小的不标注
       const centroid = path.centroid(f as never);
       if (!Number.isFinite(centroid[0])) continue;
-      // 简单避让：离已放标签太近就跳过
-      if (placed.some(([x, y]) => Math.hypot(x - centroid[0], y - centroid[1]) < 34)) continue;
-      placed.push([centroid[0], centroid[1]]);
+      // 13px 字号下一个汉字大约 13 个用户单位宽
+      const halfWidth = (h.label.length * 13) / 2;
+      const tooClose = placed.some(
+        (p) => Math.hypot(p.x - centroid[0], p.y - centroid[1]) < p.halfWidth + halfWidth + 10
+      );
+      if (tooClose) continue;
+      placed.push({ x: centroid[0], y: centroid[1], halfWidth });
       out.push({ id: String(f.id), x: centroid[0], y: centroid[1], text: h.label, color: colorFor(h) });
     }
     return out;
@@ -130,7 +139,7 @@ export function WorldMap({
               style={{ cursor: clickable ? 'pointer' : 'default' }}
             >
               <title>
-                {`${h?.label ?? s?.label ?? f.properties.name ?? id}${
+                {`${h?.label ?? s?.label ?? (labelFor ? labelFor(id) : undefined) ?? f.properties.name ?? id}${
                   h?.value != null && formatValue ? ` · ${formatValue(h.value)}` : ''
                 }`}
               </title>

@@ -16,6 +16,8 @@ interface Props {
   sources?: Map<string, GlobeHighlight>;
   /** 弧线：起点/终点为经纬度 */
   arcs?: Array<{ start: [number, number]; end: [number, number]; color: string }>;
+  /** 悬停提示里的名字（中文）；不给就用 geo 里的英文名 */
+  labelFor?: (id: string) => string;
   onSelect?: (id: string) => void;
 }
 
@@ -24,7 +26,7 @@ const RADIUS = 372;
 /**
  * 滚转角：d3 的 rotate 第三个参数是把球往「侧面倒」的角度。
  * 原来取 0，球是正对着看的，看起来就是一张平涂的圆盘；倒 16° 之后
- * 能看见北极斜着退到后���去，立刻像一只立起来的地球仪。
+ * 能看见北极斜着退到后面去，立刻像一只立起来的地球仪。
  */
 const ROLL = -16;
 /** 大气辉光的厚度（像素） */
@@ -34,7 +36,14 @@ const ATMO = 26;
  * SVG 正射投影地球：正射投影本身就是「从无穷远看球面」的 3D 视图，
  * 不依赖 WebGL，导出 PNG 时与 2D 地图走同一条渲染管线。
  */
-export function GlobeView({ polygons, highlights, sources = new Map(), arcs = [], onSelect }: Props) {
+export function GlobeView({
+  polygons,
+  highlights,
+  sources = new Map(),
+  arcs = [],
+  labelFor,
+  onSelect
+}: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const pathRefs = useRef(new Map<string, SVGPathElement>());
   const shadowRefs = useRef(new Map<string, SVGPathElement>());
@@ -98,7 +107,9 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
     }
 
     // 标签：只画在可见半球上，且相互避让
-    const placed: Array<[number, number]> = [];
+    // ⚠️ 避让要算标签宽度：光比中心点距离，
+    // 「马里 / 尼日尔 / 乍得 / 苏丹」这种挤在西非的一堆还是会叠字。
+    const placed: Array<{ x: number; y: number; halfWidth: number }> = [];
     for (const t of labelTargets) {
       const el = labelRefs.current.get(t.id);
       if (!el) continue;
@@ -106,12 +117,15 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
       if (!f) continue;
       const c = path.centroid(f as never);
       const visible = Number.isFinite(c[0]) && Math.hypot(c[0] - SIZE / 2, c[1] - SIZE / 2) < RADIUS - 6;
-      const tooClose = placed.some(([x, y]) => Math.hypot(x - c[0], y - c[1]) < 30);
+      const halfWidth = (t.label.length * 13) / 2;
+      const tooClose = placed.some(
+        (p) => Math.hypot(p.x - c[0], p.y - c[1]) < p.halfWidth + halfWidth + 10
+      );
       if (!visible || tooClose) {
         el.setAttribute('opacity', '0');
         continue;
       }
-      placed.push([c[0], c[1]]);
+      placed.push({ x: c[0], y: c[1], halfWidth });
       el.setAttribute('opacity', '1');
       el.setAttribute('x', String(c[0]));
       el.setAttribute('y', String(c[1]));
@@ -204,8 +218,12 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
   useEffect(() => {
     let raf = 0;
     let last = 0;
-    // 每帧要重算 261 条路径的球面坐标，实测满帧只能跑 30 fps，
-    // 所以节流到 30 帧：拖动时明显比原来的 18 帧跟手，又不至于把主线程占满。
+    // 每帧要重算 402 条路径的球面坐标（世界去中国 + 中国省 + 美国州 + 欧洲与日本细分层）。
+    // 其中常驻在屏幕上的只有 261 条：欧洲/日本那 141 条带 drawOnlyWhenHighlighted，
+    // 不高亮就不画，但坐标每帧照样要算。
+    // 实测满帧只能跑 30 fps，所以节流到 30 帧：拖动时明显比原来的 18 帧跟手，
+    // 又不至于把主线程占满。
+    // ⚠️ 这个 30 fps 是 261 条路径时的旧实测，加细分层后每帧重算涨到 402，帧率没有复测。
     const FRAME_MS = 33;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
@@ -368,7 +386,9 @@ export function GlobeView({ polygons, highlights, sources = new Map(), arcs = []
                   onClick={() => onSelect?.(id)}
                   style={{ cursor: onSelect ? 'pointer' : 'default' }}
                 >
-                  <title>{h?.label ?? s?.label ?? f.properties.name ?? id}</title>
+                  <title>
+                    {h?.label ?? s?.label ?? (labelFor ? labelFor(id) : undefined) ?? f.properties.name ?? id}
+                  </title>
                 </path>
               </g>
             );

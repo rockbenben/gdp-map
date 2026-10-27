@@ -25,7 +25,22 @@ interface Props {
  *
  * 要不要滚由上层决定（App 会把「系统关了动画 + 用户又手动打开」这种情况也算进去）。
  */
-export function CountUp({ value, format = (v) => String(Math.round(v)), duration = 550, animate = true }: Props) {
+/**
+ * 从 CSS 变量里读时长（毫秒）。
+ *
+ * 数字滚动的节奏要跟条形生长是同一个——两处各写一个 550，
+ * 改了一处另一处就悄悄对不上了。以 CSS 里的 `--dur` 为准。
+ */
+function cssDurationMs(name: string, fallback: number): number {
+  if (typeof document === 'undefined') return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (!raw) return fallback;
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return raw.endsWith('ms') ? n : n * 1000;
+}
+
+export function CountUp({ value, format = (v) => String(Math.round(v)), duration, animate = true }: Props) {
   const ref = useRef<HTMLSpanElement>(null);
   /** 上一次停在哪 */
   const fromRef = useRef(value);
@@ -48,9 +63,14 @@ export function CountUp({ value, format = (v) => String(Math.round(v)), duration
     // 先把画面拨回起点，避免「最终值闪一下再滚回去」
     el.textContent = fmt(from);
     const start = performance.now();
+    const ms = duration ?? cssDurationMs('--dur', 550);
     let raf = 0;
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
+      // ⚠️ **两边都要夹**：rAF 给的 now 是「这一帧开始的时刻」，
+      // 可能比上面取的 performance.now() 还早几毫秒（那一帧已经开始了）。
+      // 只夹上界的话 t 会是负的，缓动值跑到 0 以下——
+      // 数字会闪出一个错值（实测 52 → 21 → 53…）。
+      const t = Math.min(1, Math.max(0, (now - start) / ms));
       // easeOutQuint：跟 CSS 里的 --ease 是同一条曲线，
       // 数字滚动的节奏才和条形生长对得上
       const eased = 1 - Math.pow(1 - t, 5);

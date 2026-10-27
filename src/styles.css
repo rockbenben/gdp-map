@@ -6,7 +6,7 @@
   --line-soft: #17223a;
   --text: #e9eefc;
   --text-dim: #8f9cbb;
-  --text-mute: #6b7896;
+  --text-mute: #7d8bab;
   --accent: #f6c453;
   --accent-2: #ef4d4d;
   --teal: #3fd0c9;
@@ -18,6 +18,13 @@
      页面各处滑起来才是同一个身体在动，而不是各动各的 */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --dur: 0.55s;
+  /* 「反馈」档：hover / 按下 / 菜单冒出来 */
+  --dur-fast: 0.18s;
+  /* 「入场」档：面板出现、榜单数值跳一下 */
+  --dur-mid: 0.32s;
+  /* 「持续转」是第四档：加载圈这类一直转的东西不属于运动/反馈/入场任何一种，
+     它也不该用缓动曲线（转的是角度，不是位置），所以单独一个时长 + linear */
+  --dur-loop: 0.8s;
   color-scheme: dark;
 }
 
@@ -44,7 +51,11 @@ body {
 }
 
 .app {
-  min-height: 100%;
+  /* 桌面端：应用就是**一屏**，页面自己不滚。
+     侧栏的内容比一屏长，它自己滚——页面再跟着滚，就会多出一条
+     20 来像素的滚动条，页脚最后一行还被顶出视口（顶栏 88px，
+     而旧写法算的是 63px，差了 25px）。 */
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -120,7 +131,7 @@ body {
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.18s, color 0.18s;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .segmented button:hover {
@@ -141,7 +152,7 @@ body {
   padding: 8px 16px;
   border-radius: 10px;
   cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.18s, background 0.18s;
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
 .primary-btn {
@@ -168,6 +179,18 @@ body {
   transform: translateY(0);
 }
 
+/* 禁用态：历史数据没到时，年份滑块与刻度是灰的——
+   不是坏了，是在等那一年的数值到齐（见 App.tsx 的 setYear）。 */
+button:disabled,
+input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  transform: none;
+}
+
 /* ---------- 分享菜单 ---------- */
 .share-wrap {
   position: relative;
@@ -188,7 +211,7 @@ body {
   flex-direction: column;
   gap: 2px;
   /* 菜单是「啪」地冒出来的，加一点浮上来的动效 */
-  animation: menu-in 0.18s var(--ease);
+  animation: menu-in var(--dur-fast) var(--ease);
 }
 
 @keyframes menu-in {
@@ -237,6 +260,9 @@ body {
   flex: 1;
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
+  /* 一行，行高就是布局的高度：侧栏与舞台都正好一屏，
+     侧栏自己滚内容，舞台自己滚内容 */
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
   min-height: 0;
 }
@@ -248,28 +274,31 @@ body {
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
-  max-height: calc(100vh - 63px);
+  /* 高度由上面的栅格行决定，不再写 calc(100vh - 63px)：
+     那个 63px 跟顶栏的实际高度（88px）对不上，
+     侧栏会多出 25px 伸到视口外面，页面也跟着多出一条滚动条。 */
 }
 
-/* 侧栏顺序：先选指标 → 年份（它直接决定结论是哪一年的，必须一眼看见）→
-   再给结论 → 再换地方 → 最后才是微调口径 */
-.sidebar > .strategy {
-  order: 0;
-}
-.sidebar > .year-panel {
-  order: 1;
-}
+/* 侧栏顺序：**先给结论**，紧接着给「选地方」——这是新用户最想做的第一步；
+   再给换口味/指标/年份/口径。以前选择器排在指标、年份、口径后面，桌面要滚 1230px
+   才看得到（手机 1287px），新用户打开后根本不知道去哪儿换自己的省。 */
 .sidebar > .result,
 .sidebar > .puzzle {
-  order: 2;
+  order: 0;
 }
 .sidebar > .picker {
-  order: 3;
-}
-.sidebar > .compare-panel {
-  order: 4;
+  order: 1;
 }
 .sidebar > .quick-panel {
+  order: 2;
+}
+.sidebar > .strategy {
+  order: 3;
+}
+.sidebar > .year-panel {
+  order: 4;
+}
+.sidebar > .compare-panel {
   order: 5;
 }
 
@@ -309,26 +338,56 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* 窗口很矮的时候地图放不下（地图高度是宽度决定的），
+     让舞台自己滚——不然地图会压到页脚上，上下两头都被裁掉。
+     正常高度下内容正好铺满，不会冒出滚动条。 */
+  overflow-y: auto;
 }
 
 .stage-inner {
   flex: 1;
   display: flex;
+  /* 竖着排：图注在上，地图在下（横排会把地图挤到一边去） */
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 20px 24px 8px;
   min-height: 0;
+  /* 换视图时淡入：以前是「啪」地一下换掉，跟「换指标」那一整套过渡
+     不像同一个身体在动。key={view} 让它每次换视图都重挂载，动画重放一遍。
+     ⚠️ 动画挂在容器上，不挂在 SVG 上——导出的 PNG 是克隆 SVG 画的，
+     挂在 SVG 上会被拍到过渡中间那一帧。 */
+  animation: view-in var(--dur-mid) var(--ease);
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .map-holder {
   width: 100%;
-  max-width: 1180px;
+  /* 宽高比固定的东西（地图 1000:520）不能只看宽度：
+     窗口矮的时候要按可用高度缩窄，不然会压到页脚上。
+     --map-max 由 App 里量出可用高度后算出（页脚高度是动态的，写不死）。 */
+  max-width: min(1440px, 100%, var(--map-max, 1180px));
   position: relative;
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.72), rgba(9, 14, 26, 0.9));
   border: 1px solid var(--line-soft);
   border-radius: 18px;
   padding: 10px;
   box-shadow: var(--shadow);
+}
+
+/* 排行榜是 HTML 排的，不受地图那个宽高比约束 */
+.rank-holder {
+  max-width: none;
 }
 
 .map-svg {
@@ -353,9 +412,9 @@ body {
   fill: var(--text-mute);
 }
 
-.country {
-  transition: fill-opacity 0.2s;
-}
+/* ⚠️ 这里原来还有一条 `.country { transition: fill-opacity ... }`——死代码：
+   下面「对比的动态效果」那节对同一个选择器又声明了一次，后者覆盖前者。
+   过渡只留一处，别两处各写各的时长。 */
 
 .country.hit:hover {
   fill-opacity: 0.9;
@@ -391,7 +450,7 @@ body {
   padding: 8px 2px;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.18s, color 0.18s;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .metric-btn:hover {
@@ -476,6 +535,33 @@ body {
   border: 1px solid rgba(63, 208, 201, 0.28);
   border-radius: var(--radius);
   padding: 14px;
+  /* 面板是「冒出来」的：它插到侧栏最上面，硬出现会让人以为页面跳了一下 */
+  animation: panel-in var(--dur-mid) var(--ease);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 窄屏上用来点选的国家清单：宽屏用地图点就够，清单先收起来 */
+.puzzle-pick,
+.puzzle-pick-hint {
+  display: none;
+}
+
+.puzzle-pick {
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 8px 0;
 }
 
 .puzzle h3 {
@@ -524,14 +610,42 @@ body {
   color: #ff8a8a;
 }
 
-.puzzle-result {
-  margin: 2px 0 10px;
-}
-
 .puzzle-best {
   margin: 2px 0 0;
   font-size: 12px;
   color: var(--text-dim);
+}
+
+.puzzle-daily {
+  margin: 2px 0 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.puzzle-challenge {
+  margin: 4px 0 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(63, 208, 201, 0.1);
+  color: var(--teal);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.puzzle-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 6px 0;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+.puzzle-score b {
+  color: var(--accent);
+  font-size: 20px;
 }
 
 /* ---------- 年份滑块 ---------- */
@@ -540,6 +654,18 @@ body {
   font-weight: 700;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+}
+
+/* 预测年（IMF WEO 的最后一年是预测值，不是实际值） */
+.year-flag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(246, 196, 83, 0.14);
+  border: 1px solid rgba(246, 196, 83, 0.4);
+  white-space: nowrap;
 }
 
 .year-tools {
@@ -559,14 +685,22 @@ body {
   border-radius: 999px;
   cursor: pointer;
   transition:
-    color 0.2s ease,
-    border-color 0.2s ease,
-    background 0.2s ease;
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 
 .play-btn:hover {
   color: var(--text);
   border-color: var(--line);
+}
+
+.play-btn:disabled,
+.play-btn:disabled:hover {
+  color: var(--text-mute);
+  border-color: var(--line-soft);
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .play-btn.on {
@@ -584,6 +718,13 @@ body {
   border-radius: 999px;
   background: linear-gradient(90deg, #1d2942, #2c3a5c);
   outline: none;
+}
+
+/* 键盘操作时得看得见焦点在哪——滑块本身把 outline 去掉了，
+   不补一个 focus 圈，键盘用户根本不知道自己在拨哪一年 */
+.year-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
 }
 
 .year-slider::-webkit-slider-thumb {
@@ -621,11 +762,42 @@ body {
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 6px;
+  /* 年份刻度也是能点的：高度垫到 32px，鼠标/手指都按得准。
+     窄屏那条 32px 的规则于是成了重复（保留无妨）。 */
+  min-height: 32px;
 }
 
 .year-ticks button:hover {
   color: var(--accent);
   background: rgba(246, 196, 83, 0.1);
+}
+
+/* 图注：把「地图上这些颜色」翻译成一句话 */
+.stage-caption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 0 10px;
+}
+
+.stage-caption p {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.map-click-hint {
+  color: var(--text-mute);
+  font-size: 12px;
+}
+
+.stage-caption .chip {
+  flex: none;
 }
 
 /* ---------- 对照口径（每项直接写出结果） ---------- */
@@ -638,7 +810,12 @@ body {
 
 .choice {
   appearance: none;
-  display: block;
+  /* 一行一条：左边是口径名（带单选点），右边直接写出结果。
+     以前每个口径占两行，四条就是八行——那面文字墙比结论还重。 */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 10px;
   width: 100%;
   text-align: left;
   padding: 8px 11px;
@@ -648,7 +825,7 @@ body {
   color: var(--text-dim);
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.16s, border-color 0.16s;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .choice:hover {
@@ -683,8 +860,8 @@ body {
   border: 1.5px solid var(--line);
   vertical-align: 1px;
   transition:
-    background 0.16s,
-    border-color 0.16s;
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
 
 .choice.active .choice-title::before {
@@ -694,10 +871,12 @@ body {
 
 .choice-preview {
   display: block;
-  margin-top: 1px;
+  margin-top: 0;
   font-size: 12px;
   color: var(--text-mute);
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .choice.active .choice-preview {
@@ -706,6 +885,7 @@ body {
 
 .choice-hint {
   display: block;
+  grid-column: 1 / -1;
   margin-top: 4px;
   font-size: 11.5px;
   line-height: 1.5;
@@ -756,7 +936,7 @@ body {
   position: relative;
   cursor: pointer;
   flex: none;
-  transition: background 0.18s;
+  transition: background var(--dur-fast) var(--ease);
 }
 
 .toggle input::after {
@@ -768,7 +948,7 @@ body {
   height: 12px;
   border-radius: 50%;
   background: var(--text-mute);
-  transition: transform 0.18s, background 0.18s;
+  transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
 .toggle input:checked {
@@ -783,6 +963,19 @@ body {
 
 .result-strategy {
   margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--text-mute);
+}
+
+.result-variant {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.result-variant .variant-label {
   font-size: 11.5px;
   color: var(--text-mute);
 }
@@ -885,9 +1078,9 @@ body {
   cursor: pointer;
   transition:
     transform var(--dur) var(--ease),
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .rank-row:hover {
@@ -997,7 +1190,7 @@ body {
   /* ⚠️ 这个过渡是「追赶」的一半：条形不长动画，数字滚动就没人看得出在变 */
   transition:
     width var(--dur) var(--ease),
-    background 0.3s ease;
+    background var(--dur-mid) var(--ease);
 }
 
 /* 这次对照出来的对象 = 地图上的「等价对象」配色 */
@@ -1031,7 +1224,7 @@ body {
   color: var(--text);
   white-space: nowrap;
   /* 换指标时数值轻轻跳一下：量纲整个变了，「滚」会像卡带，跳一下更诚实也更好看 */
-  animation: rank-pop 0.32s var(--ease);
+  animation: rank-pop var(--dur-mid) var(--ease);
 }
 
 @keyframes rank-pop {
@@ -1070,9 +1263,9 @@ body {
   border-radius: 999px;
   cursor: pointer;
   transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease;
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .rank-filters button:hover {
@@ -1099,8 +1292,8 @@ body {
   border-radius: 8px;
   cursor: pointer;
   transition:
-    background 0.2s ease,
-    color 0.2s ease;
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .rank-more:hover {
@@ -1345,6 +1538,11 @@ body {
   font-size: 12px;
 }
 
+/* 历史数据加载失败：这不是「正在等」，得让用户看见 */
+.year-error {
+  color: #ff9a9a;
+}
+
 .link-btn {
   appearance: none;
   border: 0;
@@ -1554,13 +1752,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 320px;
+  max-height: 260px;
   overflow-y: auto;
 }
 
 .result-item {
   display: grid;
-  grid-template-columns: 20px 84px 1fr 62px;
+  /* 名字是这一行里最要紧的信息（「特立尼达和多巴哥」这种长名会被截断，
+     所以名字占得多一点，条形让位——条形只是辅助） */
+  grid-template-columns: 18px minmax(84px, 1.5fr) minmax(30px, 1fr) 58px;
   align-items: center;
   gap: 8px;
   font-size: 12.5px;
@@ -1636,6 +1836,20 @@ body {
     width var(--dur) var(--ease),
     height var(--dur) var(--ease),
     fill var(--dur) var(--ease);
+}
+
+/* ⚠️ **拖年份滑块时要把过渡关掉**。
+   过渡是 0.55s，滑块每走一格地图就换一次颜色——
+   开着过渡，颜色永远追不上滑块，地图看着是「糊」的，滑块像卡住了。
+   所以：按住拖动期间（.app.scrubbing）颜色立刻跟手，
+   松手后（点刻度、换指标、换地方）再恢复过渡。
+   ⚠️ 减动效时这条不生效也无妨——那时候本来就没有过渡。 */
+.app.scrubbing .country,
+.app.scrubbing .subdivisions path,
+.app.scrubbing .result-item .bar-fill,
+.app.scrubbing .sq-cell,
+.app.scrubbing .sq-cell rect {
+  transition: none;
 }
 
 .sq-label {
@@ -1788,7 +2002,7 @@ body {
   font-size: 13px;
   cursor: pointer;
   z-index: 50;
-  animation: toast-in 0.24s var(--ease);
+  animation: toast-in var(--dur-mid) var(--ease);
 }
 
 @keyframes toast-in {
@@ -1803,9 +2017,57 @@ body {
   }
 }
 
+/* 退场：沉下去一点 + 淡出。
+   ⚠️ 直接卸载是「啪」地一下消失，页面看着像抖了一下。
+   进场与退场是一对：进来浮上来，出去沉下去。 */
+.toast.out {
+  animation: toast-out var(--dur-fast) var(--ease) forwards;
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+}
+
+/* 加载指示：一个小圆环在转。
+   ⚠️ 只动 transform（合成器跑），不碰 width/height——每帧重排会拖垮页面。
+   ⚠️ 减动效时它会停在一个角度上，看着像个坏掉的圈——那时直接不画，
+      旁边的文字已经说清楚在加载什么了。 */
+.spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 2px solid var(--line);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: spin var(--dur-loop) linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.app.motion-off .spinner {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app:not(.motion-on) .spinner {
+    display: none;
+  }
+}
+
 /* 「系统关了动画」那条：点一下就打开动效 */
 .motion-toast {
   bottom: 78px;
+  max-width: min(92vw, 620px);
+  padding-right: 46px;
   border-color: rgba(63, 208, 201, 0.5);
   color: var(--text);
 }
@@ -1814,18 +2076,470 @@ body {
   background: rgba(20, 30, 52, 0.98);
 }
 
+/* 不想开动效的人也得能把提示关掉——不能只留「点这里打开」一条路 */
+.motion-toast-close {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-mute);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.motion-toast-close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* 玩视图的侧栏只留指标，其余对照工具收起（年份在 Higher/Lower 卡片里） */
+.sidebar.play-sidebar .compare-panel,
+.sidebar.play-sidebar .year-panel,
+.sidebar.play-sidebar .picker,
+.sidebar.play-sidebar .quick-panel,
+.sidebar.play-sidebar .result,
+.sidebar.play-sidebar .puzzle {
+  display: none;
+}
+
+/* ---------- 玩法 ---------- */
+.stage-inner.play-stage {
+  justify-content: flex-start;
+  align-items: stretch;
+  /* 玩法内容比一屏长：让舞台内容区自己滚，别钻到页脚底下 */
+  overflow-y: auto;
+}
+
+.play-hub {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 4px 0 12px;
+}
+.play-hub-head {
+  margin-bottom: 14px;
+}
+.play-kicker {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  font-weight: 700;
+}
+.play-hub-head h2 {
+  margin: 4px 0 4px;
+  font-size: 24px;
+}
+.play-hub-head p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.play-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.play-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 180px;
+  padding: 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(17, 26, 46, 0.92), rgba(13, 20, 36, 0.94));
+  box-shadow: var(--shadow);
+}
+.play-card.daily,
+.play-card.passport-card {
+  grid-column: 1 / -1;
+}
+.play-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.play-card h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.play-card-sub,
+.play-card-note {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.play-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(63, 208, 201, 0.12);
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.play-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+.play-hint {
+  color: var(--text-mute);
+  font-size: 12px;
+}
+.play-scoreline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+.play-scoreline strong {
+  color: var(--accent);
+  font-size: 15px;
+}
+.score-bar {
+  display: inline-flex;
+  gap: 3px;
+}
+.score-bar i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #243252;
+}
+.score-bar i.on {
+  background: var(--teal);
+}
+
+.play-game {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(17, 26, 46, 0.94), rgba(10, 16, 29, 0.96));
+  box-shadow: var(--shadow);
+}
+.play-game-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.play-game-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.play-game-head h2 {
+  margin: 3px 0 2px;
+  font-size: 22px;
+}
+.play-sub {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+.hl-year {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.hl-year select {
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font-family: inherit;
+}
+.hl-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 8px 0 12px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.hl-meta b {
+  color: var(--accent);
+}
+.hl-cards {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 8px 0 14px;
+}
+.hl-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 150px;
+  padding: 16px;
+  text-align: left;
+  color: var(--text);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+.hl-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(246, 196, 83, 0.5);
+  background: rgba(246, 196, 83, 0.06);
+}
+.hl-card.picked {
+  border-color: var(--accent);
+}
+.hl-card.win {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 1px rgba(63, 208, 201, 0.25);
+}
+.hl-card.lose {
+  opacity: 0.55;
+}
+.hl-card:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.hl-card.lose:disabled {
+  opacity: 0.55;
+}
+.hl-kind {
+  font-size: 11px;
+  color: var(--text-mute);
+}
+.hl-name {
+  font-size: 20px;
+  line-height: 1.25;
+}
+.hl-value {
+  margin-top: auto;
+  font-size: 16px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.hl-hint {
+  font-size: 11.5px;
+  color: var(--text-mute);
+}
+.hl-vs {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-mute);
+  font-size: 11px;
+  font-weight: 700;
+}
+.blind-shape {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 230px;
+  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 40%, #16233d, #0a1120);
+}
+.shape-silhouette {
+  width: 100%;
+  max-height: 250px;
+}
+.shape-silhouette path {
+  fill: #5f8fe8;
+  stroke: #bcd4ff;
+  stroke-width: 0.8;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.45));
+}
+.blind-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.blind-option {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.blind-option:hover:not(:disabled) {
+  border-color: rgba(246, 196, 83, 0.5);
+  background: rgba(246, 196, 83, 0.06);
+}
+.blind-option:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.blind-option.correct {
+  border-color: var(--teal);
+  background: rgba(63, 208, 201, 0.12);
+  color: var(--teal);
+}
+.blind-option.wrong {
+  border-color: var(--accent-2);
+  background: rgba(239, 77, 77, 0.1);
+  color: #ff9a9a;
+}
+.blind-result {
+  margin: 0 12px 0 0;
+  color: #ff9a9a;
+  font-size: 13px;
+}
+.blind-result.ok {
+  color: var(--teal);
+}
+.passport-percent {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.passport-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #1b2740;
+  overflow: hidden;
+}
+.passport-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--teal), var(--accent));
+  transition: width var(--dur) var(--ease);
+}
+.passport-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 8px;
+}
+.passport-tab {
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.passport-tab.active {
+  border-color: rgba(246, 196, 83, 0.5);
+  background: rgba(246, 196, 83, 0.1);
+  color: var(--accent);
+}
+.passport-tab b {
+  margin-left: 6px;
+  font-weight: 600;
+}
+.passport-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 4px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.passport-tile {
+  position: relative;
+  min-height: 42px;
+  padding: 6px 7px;
+  text-align: left;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: rgba(13, 20, 36, 0.5);
+  color: var(--text-mute);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.passport-tile span {
+  /* ⚠️ 名字要能读完：「新疆维吾尔自治区」截成「新疆维吾尔自…」就没法认了。
+     护照是拿来数「去过哪些地方」的，名字认不出就没意义——
+     所以这里换成两行截断（-webkit-line-clamp），而不是一行省略号。 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  line-height: 1.25;
+  word-break: break-all;
+}
+.passport-tile.on {
+  border-style: solid;
+  border-color: rgba(63, 208, 201, 0.55);
+  background: rgba(63, 208, 201, 0.1);
+  color: var(--text);
+}
+.passport-tile.current {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.passport-stamp {
+  position: absolute;
+  right: 5px;
+  bottom: 2px;
+  color: var(--teal);
+  font-style: normal;
+  font-size: 10px;
+}
+
 @media (max-width: 1080px) {
+  /* 窄屏是「一列从上到下」：页面该多长就多长，让它自己滚 */
+  .app {
+    height: auto;
+  }
+
   .layout {
     grid-template-columns: 1fr;
+    /* 窄屏是「一列从上到下」：行高由内容决定，页面自己滚 */
+    grid-template-rows: auto;
   }
 
   .sidebar {
-    max-height: none;
     border-right: 0;
     border-bottom: 1px solid var(--line-soft);
   }
 
-  /* 手机上先给地图，再给结论，最后才是控件 */
+  /* 手机上先给地图，再给结论，然后是「换个地方 / 玩一局」这些出口，
+     最后才是指标、年份这些工具——结论后面紧跟着「接下来玩什么」 */
   .stage {
     order: -1;
   }
@@ -1835,12 +2549,25 @@ body {
     order: 0;
   }
 
-  .sidebar > .strategy {
+  /* 手机上「选自己的地方」也是核心动作：紧接结论，排在换口味与微调工具前面 */
+  .sidebar > .picker {
     order: 1;
   }
 
-  .sidebar > .year-panel {
+  .sidebar > .quick-panel {
     order: 2;
+  }
+
+  .sidebar > .strategy {
+    order: 3;
+  }
+
+  .sidebar > .compare-panel {
+    order: 4;
+  }
+
+  .sidebar > .year-panel {
+    order: 5;
   }
 
   .stage-inner {
@@ -1853,6 +2580,34 @@ body {
 
   .topbar {
     padding: 12px 14px;
+  }
+
+  /* 顶栏是吸顶的，窄屏下实测约 175px（390×844 那一档；高度由内容流决定，CSS 里没写死）。
+     滚到结论卡 / 拼图面板（`scrollIntoView`）时要给它让出顶栏的高度，
+     否则元素顶到视口上沿、整个标题藏在顶栏底下——
+     拼图面板的「凑一凑：××」标题、结论卡的首行都会看不见。
+     185px = 顶栏实测高 + 一点余量，别写成跟顶栏一样的数。 */
+  .result,
+  .puzzle,
+  .picker,
+  .play-hub,
+  .play-game {
+    scroll-margin-top: 185px;
+  }
+
+  /* 手机上：标题跟「复制链接 / 分享」挤在同一行，
+     两组分段按钮另起一行——顶栏从 220px 压到 175px 左右 */
+  .brand {
+    order: 0;
+    flex: 1 1 auto;
+  }
+
+  .header-actions {
+    order: 1;
+  }
+
+  .controls {
+    order: 2;
   }
 
   .brand h1 {
@@ -1886,10 +2641,100 @@ body {
   .segmented button {
     padding: 6px 10px;
     font-size: 12px;
+    /* 触摸设备上也得按得准 */
+    min-height: 32px;
   }
 
   .stage-footer {
     padding: 10px 14px 18px;
+  }
+
+  /* 触摸设备上的可点区域不能太小：实测手机上年份刻度只有 19px 高、
+     小圆片只有 27px，手指按不准。下面这些一律垫到 32px 以上
+     （滑块是唯一的例外：它垫到 22px，轨道仍是 4px 细带，见下）。 */
+  .year-ticks button {
+    min-height: 32px;
+    padding: 6px 6px;
+  }
+
+  .chip {
+    min-height: 32px;
+    padding: 6px 12px;
+  }
+
+  .play-btn {
+    min-height: 32px;
+  }
+
+  .link-btn {
+    display: inline-block;
+    padding: 9px 0;
+  }
+
+  /* 年份滑块本身只有 4px 高，手指抓不住——把可点区域垫到 22px，
+     轨道画在正中间的一条 4px 细带（看起来跟桌面版一样） */
+  .year-slider {
+    height: 22px;
+    margin: 4px 0 2px;
+    background: linear-gradient(90deg, #1d2942, #2c3a5c) center / 100% 4px no-repeat;
+  }
+
+  /* 文字链接在手机上也给点余量，别只有一行字那么高 */
+  .sources a {
+    display: inline-block;
+    /* ⚠️ 4px 只有 28px 高，手指按不准；32px 是底线 */
+    padding: 7px 0;
+  }
+
+  /* 开关：本体是 32×18 的小药丸，label 才是真正能点的地方——
+     两边都垫一下，手指不用瞄准那个小圆点。 */
+  .toggle {
+    min-height: 32px;
+  }
+
+  .toggle input {
+    width: 40px;
+    height: 22px;
+  }
+
+  .toggle input::after {
+    width: 14px;
+    height: 14px;
+    top: 3px;
+    left: 3px;
+  }
+
+  .toggle input:checked::after {
+    transform: translateX(18px);
+  }
+
+  /* 排行筛选按钮也垫到 32px */
+  .rank-filters button {
+    min-height: 32px;
+    padding: 8px 12px;
+  }
+
+  /* 玩法里的两个小控件：护照的分组页签、Higher/Lower 的年份下拉。
+     ⚠️ 以前这条只写在 ≤560px 里，平板（768 / 834）上还是 27px 高——
+     平板也是手指点的，规则得跟着「是不是触摸尺寸」走，不是跟着「多窄」走。 */
+  .passport-tab,
+  .hl-year select {
+    min-height: 32px;
+  }
+
+  /* 对阵树在窄屏会被压成一团看不清的字：给它一个最小宽度，
+     宽度不够就左右滑动看（图本身不动，手指滑动即可）。 */
+  .bracket-row {
+    grid-template-columns: 1fr;
+  }
+
+  .bracket-tree {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bracket-tree .map-svg {
+    min-width: 620px;
   }
 }
 
@@ -1902,8 +2747,118 @@ body {
     grid-template-columns: 1fr;
   }
 
+  /* 手机上地图只有 200 来像素高，标注缩到 4px 根本不是字，是噪点。
+     名字在下面的结果清单里都有，这里直接不画。 */
+  .map-label,
+  .sq-label {
+    display: none;
+  }
+
+  /* 手机上拼图点不中地图（国家小到 3px），换成一份能点的清单 */
+  .puzzle-map-hint {
+    display: none;
+  }
+
+  .puzzle-pick-hint {
+    display: block;
+  }
+
+  .puzzle-pick {
+    display: flex;
+  }
+
+  /* 手机上：图注一行、按钮另起一行 */
+  .stage-caption {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  /* 图例原来是「一条可以横向滑的带子」（nowrap + overflow-x）。
+     结果「动效」开关被推到屏幕外——手机上没有滚动条提示，
+     用户根本不知道那儿还有一个开关，而那个开关是规则 #29 要的：
+     动效归用户自己选，不能只归系统选。所以改成换行：
+     三个色块在第一行，开关落到第二行，看得见也点得着。 */
+  .legend {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .legend-item {
+    flex: none;
+  }
+
+  .controls {
+    gap: 6px;
+  }
+
+  /* 「比大国家」的 preview 会列出十个名字：手机上放回上下两行，
+     否则 auto 列把标题挤成竖排、文字还会冲出卡片（360/390/430 实测）。 */
+  .choice {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .choice-preview {
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    margin-top: 2px;
+  }
+
+  /* 玩法：手机上全部单列，卡片和选项不挤 */
+  .play-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .play-card.daily,
+  .play-card.passport-card {
+    grid-column: auto;
+  }
+
+  .play-game {
+    padding: 12px;
+  }
+
+  .play-game-head {
+    flex-wrap: wrap;
+  }
+
+  .play-game-head h2 {
+    font-size: 18px;
+  }
+
+  .play-hub-head h2 {
+    font-size: 20px;
+  }
+
+  .hl-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .hl-vs {
+    display: none;
+  }
+
+  .hl-name {
+    font-size: 17px;
+  }
+
+  .blind-options {
+    grid-template-columns: 1fr;
+  }
+
+  .passport-grid {
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    max-height: 320px;
+  }
+
   .result-headline h1 {
     font-size: 19px;
+  }
+
+  /* 手机上结果清单别占太多地方：滚一下就能看完 */
+  .result-list {
+    max-height: 200px;
   }
 
   /* 排行条形在窄屏会被挤成 0 宽——榜就只剩一列数字，没意义了。

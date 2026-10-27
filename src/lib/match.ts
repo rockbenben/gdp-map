@@ -201,6 +201,16 @@ export function topByValue(pool: GdpItem[], n: number): GdpItem[] {
   return [...pool].sort((a, b) => b.value - a.value).slice(0, n);
 }
 
+/**
+ * 池子里真正能参与累加的对象有几个（值大于 0、且没被排除的）。
+ *
+ * 「池子被用光」这个判断要用它：1960 年前大部分国家没有数据，它们的值是 0，
+ * 把它们算进池子大小，这个判断就永远不成立（189 个里有 173 个是空的）。
+ */
+export function usableCount(pool: GdpItem[], options: AccumulateOptions = {}): number {
+  return prepare(pool, options).length;
+}
+
 /** 相对误差（|sum - target| / target），用于 UI 上的「误差」标注 */
 export function relativeError(result: MatchResult): number {
   if (!result.target) return 0;

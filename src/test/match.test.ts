@@ -3,7 +3,8 @@ import {
   accumulate,
   closestSingle,
   matchByStrategy,
-  topByValue
+  topByValue,
+  usableCount
 } from '../lib/match';
 import type { GdpItem } from '../lib/match';
 
@@ -131,5 +132,17 @@ describe('closestSingle', () => {
   it('尊重排除名单', () => {
     const pool = [item('a', 200), item('b', 210)];
     expect(closestSingle(200, pool, { exclude: ['a'] })?.id).toBe('b');
+  });
+});
+
+describe('usableCount', () => {
+  it('只数有值的：1960 年前大部分国家没数据（值是 0）', () => {
+    const pool = [item('a', 100), item('b', 0), item('c', 0), item('d', 50)];
+    expect(usableCount(pool)).toBe(2);
+  });
+
+  it('排除名单里的也不算', () => {
+    const pool = [item('a', 100), item('b', 50)];
+    expect(usableCount(pool, { exclude: ['a'] })).toBe(1);
   });
 });
