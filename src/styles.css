@@ -1078,7 +1078,7 @@ button:disabled:hover {
   /* ⚠️ **四列**：每行有四个内容（指标名 / 左值 / 右值 / 谁胜）。
      以前只写三列，那个「谁胜」被挤到第二行，
      六个指标就撑成近两屏——手机上要点很久才看完全部指标。 */
-  grid-template-columns: 58px 1fr 1fr auto;
+  grid-template-columns: 58px 1fr 1fr 22px;
   gap: 6px;
   align-items: baseline;
 }
@@ -1110,10 +1110,16 @@ button:disabled:hover {
 }
 
 .tc-gap {
-  grid-column: 2 / span 2;
+  /* ⚠️ 放在**第 4 列**（跟着比分那两列的右边）：
+     以前写 `grid-column: 2 / span 2`，正好压在两个数值下面，
+     只能另起一行——六个指标就撑成近两屏。
+     第 4 列是 `auto`，宽度由内容决定，不会把数值挤窄。 */
+  grid-column: 4;
+  white-space: nowrap;
   font-size: 11px;
   color: var(--text-mute);
-  padding-left: 64px;
+  /* ⚠️ 以前有 padding-left: 64px（那时它横跨两列、要缩进）。
+     现在它自己一列，缩进只会把面板撑宽、把数值挤窄。 */
   margin-top: -2px;
 }
 
@@ -1480,7 +1486,10 @@ button:disabled:hover {
 /* 两边的表头：比分和各项都要能对上「谁是哪一列」 */
 .tc-head {
   display: grid;
-  grid-template-columns: 58px 1fr 1fr;
+  /* ⚠️ **四列**，跟下面的数据行用同一套列宽：
+     表头只有三个内容时，两边的列宽跟数据行对不上，
+     「广东省」那个表头会比它下面的数值偏 9px。 */
+  grid-template-columns: 58px 1fr 1fr 22px;
   gap: 6px;
   align-items: baseline;
   padding-bottom: 5px;
@@ -1492,7 +1501,8 @@ button:disabled:hover {
 
 .tc-score {
   display: grid;
-  grid-template-columns: 58px 1fr 1fr;
+  /* 跟表头、数据行用同一套列宽，比分才落在各自的名字下面 */
+  grid-template-columns: 58px 1fr 1fr 22px;
   gap: 6px;
   align-items: baseline;
   margin: 0 0 4px;
@@ -2254,7 +2264,10 @@ button:disabled:hover {
 
 /* ---------- 玩法 ---------- */
 .stage-inner.play-stage {
-  justify-content: flex-start;
+  /* 玩法大厅在宽屏上只有四张卡，靠上摆的话下面空一大片。
+     `safe center`：有富余就垂直居中，内容比一屏长时回到顶部对齐
+     （普通 center 会把超出的顶部裁掉）。 */
+  justify-content: safe center;
   align-items: stretch;
   /* 玩法内容比一屏长：让舞台内容区自己滚，别钻到页脚底下 */
   overflow-y: auto;
@@ -2895,20 +2908,24 @@ button:disabled:hover {
   /* ⚠️ **360px 及以下**：品牌名 + 「复制链接 / 分享」挤不进一行，
      按钮会掉到第二行，顶栏从 161px 涨到 223px（360×760 实测）——
      每屏先被导航吃掉 1/4，地图和结论都被挤下去。
-     把按钮做紧凑一点，一行就放得下（121 + 178 + 10 + 28 = 337 < 360）。 */
+     把按钮做紧凑一点，一行就放得下（121 + 178 + 10 + 28 = 337 < 360）。
+     ⚠️ **紧凑 ≠ 变小**：高度必须留 32px（手指按得准的下限），
+     压到 28px 审计就会报「小目标」——宽度让给字号，高度守住。 */
   .topbar {
     gap: 10px;
   }
 
   .header-actions .ghost-btn,
   .header-actions .primary-btn {
-    padding: 6px 10px;
+    padding: 8px 10px;
     font-size: 12px;
+    min-height: 32px;
   }
 
   .header-actions .ghost-btn.icon-btn {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
   }
 
   .bracket-row {

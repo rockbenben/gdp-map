@@ -34,6 +34,8 @@ export function TargetComparison({ a, b, current, values }: Props) {
         <span />
         <span className="tc-a">{a.zh}</span>
         <span className="tc-b">{b.zh}</span>
+        {/* 第四列（谁胜）留空：跟下面的数据行对齐，两边列宽才一致 */}
+        <span />
       </div>
       <div className="tc-score">
         {/* ⚠️ 第一格要空着：表头第一列是行标签列（58px），
@@ -53,8 +55,19 @@ export function TargetComparison({ a, b, current, values }: Props) {
             <span className="tc-label">{r.metric.label}</span>
             <span className={`tc-val a${r.winner === 'a' ? ' win' : ''}`}>{r.metric.format(r.va)}</span>
             <span className={`tc-val b${r.winner === 'b' ? ' win' : ''}`}>{r.metric.format(r.vb)}</span>
-            <span className="tc-gap">
-              {r.winner === 'tie' ? '打平' : r.winner === 'a' ? `${a.zh} 胜` : `${b.zh} 胜`}
+            <span
+              className="tc-gap"
+              /* ⚠️ 只写「胜 / 平」，不写名字：
+                 名字放进来，这一列能撑到 111px（加利福尼亚州 胜），
+                 侧栏就只剩 360px 宽，这一列直接被挤出面板。
+                 赢的那一列本来就是高亮的（橙色加粗），谁赢一看便知。 */
+              title={
+                r.winner === 'tie'
+                  ? '这一项打平'
+                  : `${r.winner === 'a' ? a.zh : b.zh} 赢下这一项`
+              }
+            >
+              {r.winner === 'tie' ? '平' : '胜'}
             </span>
           </li>
         ))}
