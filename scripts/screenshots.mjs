@@ -100,6 +100,8 @@ await shot('world-to-region', '/?mode=world-to-region&sel=JPN', { height: 1000 }
 await shot('rank', '/?sel=CN-410000&view=rank', { height: 1000 });
 // 11. 手机上的首屏
 await shot('mobile', '/?sel=CN-410000', { width: 390, height: 844, mobile: true });
+// 12. 玩法大厅（比一屏高一点，四张卡连同护照进度都拍全）
+await shot('play', '/?view=play', { height: 1100 });
 
 /**
  * 等比缩小一张 PNG。

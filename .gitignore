@@ -9,7 +9,10 @@ data/raw/*.jpg
 data/raw/*.geo.json
 data/raw/*.geojson
 data/raw/*.xlsx
+data/raw/*.zip
 data/raw/fx-usd-cny-*.json
+# 年鉴的表格图片（读数已落库到 data/provincial-gdp-history.json，原图可重新下载）
+data/raw/yb/
 
 # 验收脚本产物
 tmp/
@@ -18,3 +21,6 @@ tmp/
 .DS_Store
 Thumbs.db
 *.log
+
+# 本地会话凭据，不随仓库发布
+.qoder-credits/
