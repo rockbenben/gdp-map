@@ -37,6 +37,25 @@ export function titleText(t: MetricTitle): string {
   return `${t.before}${t.eq}${mid}${t.after}`;
 }
 
+/**
+ * 只要结论那半句，主体已经写在别处时把它去掉。
+ *
+ * 分享卡的版面是「标题说『是谁』→ 结论说『等于多少』」，
+ * 所以这里把开头的主体名（河南省）去掉，只留结论：
+ * 「河南省 ≈ 52 个国家之和」→「≈ 52 个国家之和」。
+ *
+ * ⚠️ **只在结论真的以主体名开头时才去掉**：
+ * 「河南省 ≈ 巴西的 41%」去掉主体后还剩「≈ 巴西的 41%」——「41%」单独看是没有意义的；
+ * 「河南省的人均 GDP ≈ 格鲁吉亚」不以主体名开头，整句保留。
+ */
+export function titleValueText(t: MetricTitle, subject?: string): string {
+  const full = titleText(t);
+  if (subject && full.startsWith(subject)) {
+    return full.slice(subject.length).trim();
+  }
+  return full;
+}
+
 const intFormat = (v: number) => String(Math.round(v));
 
 export interface Metric {
@@ -59,6 +78,21 @@ export interface Metric {
 
 const fmtInt = (v: number) => Math.round(v).toLocaleString('zh-CN');
 
+/**
+ * 金额按「亿」显示。
+ *
+ * 以前不足 1 亿时也 Math.round，图瓦卢 2000 年的 0.15 亿会显示成「0 亿」；
+ * 在「忽略微型经济体」关掉时，列表看起来像有一堆 0 美元的国家。
+ */
+const fmtYi = (v: number, suffix = '', tail = '') => {
+  if (Math.abs(v) >= 1e12) return `${(v / 1e12).toFixed(2)} 万亿${suffix}${tail}`;
+  const yi = v / 1e8;
+  if (Math.abs(yi) >= 1) return `${fmtInt(yi)} 亿${suffix}${tail}`;
+  if (Math.abs(yi) >= 0.1) return `${yi.toFixed(1)} 亿${suffix}${tail}`;
+  if (Math.abs(yi) > 0) return `<0.1 亿${suffix}${tail}`;
+  return `0 亿${suffix}${tail}`;
+};
+
 export const METRICS: Record<MetricId, Metric> = {
   gdp: {
     id: 'gdp',
@@ -66,8 +100,8 @@ export const METRICS: Record<MetricId, Metric> = {
     valueLabel: '名义 GDP（现价美元）',
     additive: true,
     unitName: '经济体量',
-    format: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿美元` : `${fmtInt(v / 1e8)} 亿美元`),
-    short: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿` : `${fmtInt(v / 1e8)} 亿`),
+    format: (v) => fmtYi(v, '美元'),
+    short: (v) => fmtYi(v),
     title: (src, n, name, unit) =>
       n === 1
         ? { before: src, eq: ' ≈ ', value: null, format: intFormat, suffix: '', after: name }
@@ -86,8 +120,8 @@ export const METRICS: Record<MetricId, Metric> = {
     valueLabel: '购买力平价 GDP（现价国际元）',
     additive: true,
     unitName: '平价经济体量',
-    format: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿（平价）` : `${fmtInt(v / 1e8)} 亿（平价）`),
-    short: (v) => (Math.abs(v) >= 1e12 ? `${(v / 1e12).toFixed(2)} 万亿` : `${fmtInt(v / 1e8)} 亿`),
+    format: (v) => fmtYi(v, '美元', '（平价）'),
+    short: (v) => fmtYi(v),
     title: (src, n, name, unit) =>
       n === 1
         ? { before: `${src}（平价）`, eq: ' ≈ ', value: null, format: intFormat, suffix: '', after: name }
@@ -192,8 +226,14 @@ export const METRIC_DEFAULT_STRATEGY: Record<MetricId, 'many' | 'over' | 'big' |
 export const METRIC_HINT: Record<MetricId, string> = {
   gdp: '看总量：几个国家加起来能赶上它。',
   pppGdp: '看购买力平价：按当地物价折算，结论常和名义 GDP 不一样。',
-  gdpPc: '看人均：人均不能相加，只能找生活水平最接近的那一个国家。',
+  gdpPc: '看人均：人均不能相加，只能找生活水平最接近的那一个。',
   density: '看密度：每平方公里的产出，衡量的是效率而不是体量。',
   area: '看面积：谁的底盘跟它差不多大。',
   pop: '看人口：几个国家的人口加起来有它这么多人。'
+};
+
+/** 「世界 → 地方」拿省/州来凑时，别再说「几个国家加起来」。 */
+export const METRIC_HINT_REVERSE: Partial<Record<MetricId, string>> = {
+  gdp: '看总量：几个省/州加起来能赶上它。',
+  pop: '看人口：几个省/州的人口加起来有它这么多人。'
 };
