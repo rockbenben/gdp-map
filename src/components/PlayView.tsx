@@ -207,7 +207,10 @@ export function PlayView({
                   挑战好友
                 </button>
                 <button type="button" className="chip ghost" onClick={onStartDaily} disabled={dailyBusy}>
-                  再玩一次
+                  {/* ⚠️ 跟下面那个按钮、跟玩法结束页的按钮用同一个说法：
+                      「开始今日挑战 / 再来一次 / 再玩一次」三种叫法，
+                      用户分不清哪个是重打今天的题。 */}
+                  再来一次
                 </button>
               </div>
             </>
@@ -222,7 +225,7 @@ export function PlayView({
               </p>
               <div className="play-actions">
                 <button type="button" className="primary-btn" onClick={onStartDaily} disabled={dailyBusy}>
-                  {progress.daily.date === today ? '再试一次' : '开始今日挑战'}
+                  {progress.daily.date === today ? '再来一次' : '开始今日挑战'}
                 </button>
                 {progress.daily.streak > 0 ? <span className="play-hint">连胜 {progress.daily.streak}</span> : null}
               </div>
@@ -233,11 +236,14 @@ export function PlayView({
         <section className="play-card">
           <div className="play-card-top">
             <span className="play-kicker">Higher / Lower</span>
-            <span className="play-badge">最佳 {progress.higherBest}</span>
+            <span className="play-badge">最佳 {progress.higherBest} 连</span>
           </div>
           <h3>谁更大？</h3>
           <p className="play-card-sub">
             按当前指标「{metric.label}」翻两张卡，猜数值更大的那一张。
+            {/* ⚠️ 指标选择器在四张卡之后（窄屏更是要滚过一整屏），
+                卡片上不指个路，多数人以为指标跟这张卡绑死了、不能改。 */}
+            <span className="play-card-hint">指标可在下面的「比哪个方面」里改。</span>
           </p>
           <div className="play-actions">
             <button type="button" className="primary-btn" onClick={() => setGame('higher')} disabled={!historyReady || !higherItems.length}>
@@ -279,7 +285,9 @@ export function PlayView({
               翻开护照
             </button>
             <span className="play-hint">
-              {passportPercent}% · 已收集 {passportCount} 个
+              {/* ⚠️ 跟护照里的百分比同一个写法（固定一位小数），
+                  不然同一件事在两处显示成「1%」和「0.7%」，像两套统计。 */}
+              {passportPercent.toFixed(1)}% · 已收集 {passportCount} 个
             </span>
           </div>
         </section>

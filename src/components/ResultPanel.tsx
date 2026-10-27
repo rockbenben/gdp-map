@@ -59,6 +59,14 @@ interface Props {
   /** 结果卡上的「换个组合」：原版 / 熟脸 / 随机 */
   variant?: { label: string; canCycle: boolean; onCycle: () => void } | null;
   /**
+   * 把答案藏起来：只留题面（名次卡 + 口径），不给结论、不给清单。
+   *
+   * ⚠️ **拼图进行中必须开着**：题面旁边摊着完整的答案清单，
+   * 「凑三个国家」就变成照抄表格——「看答案」那个按钮也就没意义了。
+   * 提交或点「看答案」之后才放开。
+   */
+  hideAnswer?: boolean;
+  /**
    * 条形按单项值画（熟脸/随机组合按从大到小排，累计值会让每条都接近满格）。
    * 原版的从小到大列表仍用累计值，表示总和怎么一步步凑出来。
    */
@@ -88,6 +96,7 @@ export function ResultPanel({
   poolNote = null,
   variant = null,
   individualBars = false,
+  hideAnswer = false,
   animate = true
 }: Props) {
   const error = relativeError(result);
@@ -98,43 +107,49 @@ export function ResultPanel({
   return (
     <section className="result">
       <div className="result-headline">
-        <h1>
-          {title.before}
-          {title.eq ? <span className="eq">{title.eq}</span> : null}
-          {title.value != null ? <CountUp value={title.value} format={title.format} animate={animate} /> : null}
-          {title.suffix}
-          {title.after}
-        </h1>
-        <p className="result-sub">
-          {targetText} ·{' '}
-          {result.count === 1 ? (
-            <>
-              对照 <strong>{metric.format(result.sum)}</strong>
-            </>
-          ) : (
-            <>
-              合计 <strong>{metric.format(result.sum)}</strong>
-            </>
-          )}
-          {result.count > 0 ? (
-            fraction != null ? (
-              <>
-                {' '}
-                · 是{fraction.of}的{' '}
-                <strong>
-                  {fraction.value >= 1
-                    ? `${fraction.value.toFixed(fraction.value < 10 ? 1 : 0)} 倍`
-                    : `${(fraction.value * 100).toFixed(0)}%`}
-                </strong>
-              </>
-            ) : exhausted ? null : (
-              <>
-                {' '}
-                · {over ? '超出' : '还差'} <strong>{formatPercent(error)}</strong>
-              </>
-            )
-          ) : null}
-        </p>
+        {/* ⚠️ hideAnswer：题面模式。结论、合计、清单都不给，
+            只留「名次卡」和「口径」这两条不剧透的信息。 */}
+        {hideAnswer ? null : (
+          <>
+            <h1>
+              {title.before}
+              {title.eq ? <span className="eq">{title.eq}</span> : null}
+              {title.value != null ? <CountUp value={title.value} format={title.format} animate={animate} /> : null}
+              {title.suffix}
+              {title.after}
+            </h1>
+            <p className="result-sub">
+              {targetText} ·{' '}
+              {result.count === 1 ? (
+                <>
+                  对照 <strong>{metric.format(result.sum)}</strong>
+                </>
+              ) : (
+                <>
+                  合计 <strong>{metric.format(result.sum)}</strong>
+                </>
+              )}
+              {result.count > 0 ? (
+                fraction != null ? (
+                  <>
+                    {' '}
+                    · 是{fraction.of}的{' '}
+                    <strong>
+                      {fraction.value >= 1
+                        ? `${fraction.value.toFixed(fraction.value < 10 ? 1 : 0)} 倍`
+                        : `${(fraction.value * 100).toFixed(0)}%`}
+                    </strong>
+                  </>
+                ) : exhausted ? null : (
+                  <>
+                    {' '}
+                    · {over ? '超出' : '还差'} <strong>{formatPercent(error)}</strong>
+                  </>
+                )
+              ) : null}
+            </p>
+          </>
+        )}
         {counterfactual ? (
           <CounterfactualCard
             name={counterfactual.name}
@@ -142,11 +157,11 @@ export function ResultPanel({
             isCountry={counterfactual.isCountry}
           />
         ) : null}
-        {closest ? (
+        {hideAnswer || !closest ? null : (
           <p className="result-single">
             单个最接近：<strong>{closest.zh}</strong>（{metric.format(closest.value)}）
           </p>
-        ) : null}
+        )}
         <p className="result-strategy">
           {metric.valueLabel}｜对照方式：{strategyLabel}
           {worldRank
@@ -164,14 +179,14 @@ export function ResultPanel({
             </span>
           </div>
         ) : null}
-        {result.count > 1 && matchedPopulation > 0 ? (
+        {hideAnswer || !(result.count > 1 && matchedPopulation > 0) ? null : (
           <p className="result-single">
             {/* ⚠️ 人口要用人口自己的格式：拿当前指标（可能是 GDP）的格式去写，
                 会变成「住着 10 亿美元」这种鬼话 */}
             这 {result.count} 个{unitName}加起来住着 <strong>{METRICS.pop.format(matchedPopulation)}</strong>
           </p>
-        ) : null}
-        {result.count === 1 && only && only.value > 0 && strategy !== 'nearest' ? (
+        )}
+        {hideAnswer || !(result.count === 1 && only && only.value > 0 && strategy !== 'nearest') ? null : (
           <p className="result-single">
             {/* ⚠️ 「最像的一个」口径下这个比值按定义就是 1，写出来是废话——所以那条口径下不显示 */}
             {target <= only.value ? (
@@ -184,7 +199,7 @@ export function ResultPanel({
               </>
             )}
           </p>
-        ) : null}
+        )}
       </div>
 
       {comparison}
@@ -200,7 +215,8 @@ export function ResultPanel({
         />
       ) : null}
 
-      {result.items.length ? (
+      {/* ⚠️ 清单就是答案本身：拼图进行中不能给 */}
+      {hideAnswer ? null : result.items.length ? (
         <ol className="result-list">
           {result.items.map((item, i) => {
             const ratio = target
@@ -228,11 +244,11 @@ export function ResultPanel({
 
       {/* ⚠️ 这条建议只在「能累加」的指标下成立：人均、密度锁死了对照方式、
           地区也只能单选，让用户「换个方式或多选几个」是让他去撞墙 */}
-      {result.count === 1 && metric.additive ? (
+      {hideAnswer || !(result.count === 1 && metric.additive) ? null : (
         <p className="result-hint">
           想看「几个加起来」，换一种对照方式{unitName === '国家' ? '或多选几个地区' : ''}。
         </p>
-      ) : null}
+      )}
     </section>
   );
 }

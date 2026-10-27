@@ -1909,6 +1909,22 @@ export default function App() {
         : [];
     }
     // 地图 / 地球
+    // ⚠️ **世界 → 地方要用另一套说法**：图上亮的是「凑出来的省/州」，
+    // 参照物是国家（整个美国被涂成青绿，里面几块州是橙黄）。
+    // 还写「等价对象 / 参照地区」，读者对不上图上那一堆州——
+    // 「美国被画成黄绿相间的拼布，图例解释不了」就是这么来的。
+    if (!isRegionMode) {
+      return [
+        { label: '凑出它的省/州（由小到大）', color: PALETTE.matchedLow },
+        { label: '其中最大的几个', color: PALETTE.matchedHigh },
+        ...(twoSources
+          ? [
+              { label: sourceSelected[0].zh, color: PALETTE.source },
+              { label: sourceSelected[1].zh, color: PALETTE.source2 }
+            ]
+          : [{ label: sourceLabel, color: PALETTE.source }])
+      ];
+    }
     return [
       { label: '等价对象（由小到大）', color: PALETTE.matchedLow },
       { label: '其中最大的几个', color: PALETTE.matchedHigh },
@@ -1919,7 +1935,7 @@ export default function App() {
           ]
         : [{ label: '参照地区', color: PALETTE.source }])
     ];
-  }, [view, sourceSelected, isRegionMode]);
+  }, [view, sourceSelected, isRegionMode, sourceLabel]);
 
   /** 排行榜：把对象按当前指标排开，选中的那条高亮。
       它给的是名次卡给不了的东西——前后邻居到底有多大。 */
@@ -2807,6 +2823,10 @@ export default function App() {
                   所以手机上一份可以点的清单顶上——宽屏仍是地图点选。 */}
               <p className="picker-hint puzzle-pick-hint">
                 从下面的清单里选最多 {PUZZLE_MAX} 个国家，合计不能超过目标，越接近越好。
+                {/* ⚠️ 清单在手机上只有 260px 高，一次露 7 行，
+                    不说总数的话用户以为就这 7 个可选——
+                    而真正要凑到目标的那几个小国往往在下面。 */}
+                <span className="puzzle-pick-count">（共 {puzzleChoices.length} 个候选，可往下滚）</span>
               </p>
               {puzzleChoices.length ? (
                 <div className="puzzle-pick">
@@ -2895,7 +2915,10 @@ export default function App() {
                   ) : null}
                   {puzzle.daily ? (
                     <button type="button" className="chip" onClick={startDaily}>
-                      再试一次
+                      {/* ⚠️ 跟玩法大厅那个按钮用同一个说法：
+                          「开始今日挑战 / 再玩一次 / 再试一次」三种叫法，
+                          用户分不清是重打这题还是换一题。 */}
+                      再来一次
                     </button>
                   ) : null}
                   {!puzzle.daily && puzzle.challengeScore == null ? (
@@ -2953,6 +2976,10 @@ export default function App() {
             <ResultPanel
               sourceLabel={sourceLabel}
               headline={headline}
+              /* ⚠️ 拼图/每日挑战进行中：只给题面，不给答案。
+                 答案（结论、合计、清单）摊在题目旁边，这游戏就没得玩了——
+                 提交或点「看答案」之后才放开。 */
+              hideAnswer={Boolean(puzzle) && !puzzle?.done}
               fraction={bigFraction}
               animate={motionOn}
               comparison={view === 'bracket' ? null : comparison}
@@ -3024,6 +3051,12 @@ export default function App() {
             {view === 'map' || view === 'globe' ? (
               <div className="stage-caption">
                 <p>
+                  {/* ⚠️ 手机上结论卡在首屏之外（实测结论标题落在视口 74%~87% 处），
+                      第一眼只看得到导航、图注和地图。把「等于多少」提到图注最前面，
+                      首屏就能看到那个数字。桌面端不重复显示——那边结果卡就在旁边。 */}
+                  {puzzleCaption || !headline ? null : (
+                    <strong className="caption-lead">{titleValueText(headline, sourceLabel)}</strong>
+                  )}
                   {puzzleCaption ?? caption}
                   {view === 'map' && isRegionMode && !puzzle ? (
                     <span className="map-click-hint"> · 点地图上的国家可以反过来查它的省/州</span>

@@ -302,6 +302,19 @@ button:disabled:hover {
      侧栏会多出 25px 伸到视口外面，页面也跟着多出一条滚动条。 */
 }
 
+/* 侧栏底部的渐隐：指标/年份/口径都在下半截，
+   桌面一屏只看得到结果卡，不给个提示，用户以为侧栏就这些了。 */
+.sidebar::after {
+  content: '';
+  display: block;
+  position: sticky;
+  bottom: -18px;
+  height: 30px;
+  margin-top: -30px;
+  pointer-events: none;
+  background: linear-gradient(transparent, var(--bg));
+}
+
 /* 侧栏顺序：**先给结论**，紧接着给「选地方」——这是新用户最想做的第一步；
    再给换口味/指标/年份/口径。以前选择器排在指标、年份、口径后面，桌面要滚 1230px
    才看得到（手机 1287px），新用户打开后根本不知道去哪儿换自己的省。 */
@@ -587,6 +600,25 @@ button:disabled:hover {
   margin: 8px 0;
 }
 
+/* 卡片里的一句补充说明（指路、补充规则） */
+.play-card-hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-mute);
+  font-size: 12px;
+}
+
+/* 危险操作单独一行：重置会清掉全部收集进度，
+   跟「分享护照」并排挨着，扫一眼就会按错。 */
+.passport-reset {
+  margin-left: auto;
+}
+
+/* 候选总数：清单在手机上只露 7 行，不说总数用户以为就这几个 */
+.puzzle-pick-count {
+  color: var(--text-mute);
+}
+
 .puzzle h3 {
   margin: 0 0 10px;
   font-size: 14px;
@@ -819,6 +851,31 @@ button:disabled:hover {
   font-size: 12px;
 }
 
+/* 结论数字：只在窄屏出现（桌面上结果卡就在旁边，不必重复一遍） */
+.caption-lead {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  /* 结论数字提到图注最前面：手机上结果卡在首屏之外，
+     首屏要能一眼看到「等于多少」 */
+  .caption-lead {
+    display: block;
+    color: var(--accent);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    margin-bottom: 2px;
+  }
+
+  /* 提示另起一行：跟图注那句人话挤在一行时，
+     中文断行会把「国家」劈成两半（「点地图上的国 / 家可以…」），读着像错字。 */
+  .map-click-hint {
+    display: block;
+    margin-top: 2px;
+  }
+}
+
 .stage-caption .chip {
   flex: none;
 }
@@ -1018,7 +1075,10 @@ button:disabled:hover {
 
 .tc-rows li {
   display: grid;
-  grid-template-columns: 58px 1fr 1fr;
+  /* ⚠️ **四列**：每行有四个内容（指标名 / 左值 / 右值 / 谁胜）。
+     以前只写三列，那个「谁胜」被挤到第二行，
+     六个指标就撑成近两屏——手机上要点很久才看完全部指标。 */
+  grid-template-columns: 58px 1fr 1fr auto;
   gap: 6px;
   align-items: baseline;
 }
@@ -1061,6 +1121,19 @@ button:disabled:hover {
 .rank-holder {
   overflow-y: auto;
   max-height: 620px;
+}
+
+/* 榜单底部的渐隐：「再显示 N 名」那个按钮在滚动区末尾，
+   不给提示的话，榜尾贴着卡片下沿，看起来像排行到这儿就结束了。 */
+.rank-holder::after {
+  content: '';
+  display: block;
+  position: sticky;
+  bottom: 0;
+  height: 30px;
+  margin-top: -30px;
+  pointer-events: none;
+  background: linear-gradient(transparent, rgba(9, 14, 26, 0.92));
 }
 
 .ranking {
@@ -1112,8 +1185,11 @@ button:disabled:hover {
 }
 
 .rank-row.is-selected {
-  background: rgba(255, 193, 7, 0.1);
-  border-color: rgba(255, 193, 7, 0.45);
+  /* ⚠️ 选中行用**参照物色**（青），不用琥珀色：
+     琥珀色在这个视图里已经表示「这次对照出来的对象」，
+     选中行再用琥珀色描边，两种含义撞在一起，图例就白解释了。 */
+  background: rgba(63, 208, 201, 0.1);
+  border-color: rgba(63, 208, 201, 0.45);
   color: var(--text);
   font-weight: 600;
 }
@@ -1165,7 +1241,7 @@ button:disabled:hover {
 }
 
 .rank-row.is-selected .rank-idx {
-  color: var(--accent);
+  color: var(--teal);
 }
 
 .rank-name {
@@ -1779,11 +1855,29 @@ button:disabled:hover {
   overflow-y: auto;
 }
 
+/* 滚动区底部的渐隐：告诉用户「下面还有」。
+   ⚠️ 以前这些区域都是硬切：结果清单最后一行切一半看着像渲染坏了；
+   而真正能改结论的东西（指标/年份/口径、候选国家、榜单剩下的名次）全在下面，
+   用户不知道有，就等于没有。渐隐是最低成本的那句「往下看」。 */
+.result-list::after,
+.puzzle-pick::after {
+  content: '';
+  display: block;
+  position: sticky;
+  bottom: 0;
+  height: 26px;
+  margin-top: -26px;
+  pointer-events: none;
+  background: linear-gradient(transparent, var(--bg-panel));
+}
+
 .result-item {
   display: grid;
   /* 名字是这一行里最要紧的信息（「特立尼达和多巴哥」这种长名会被截断，
-     所以名字占得多一点，条形让位——条形只是辅助） */
-  grid-template-columns: 18px minmax(84px, 1.5fr) minmax(30px, 1fr) 58px;
+     所以名字占得多一点，条形让位——条形只是辅助）。
+     ⚠️ 但条形也不能被挤成 2~5px 的装饰（实测桌面端就是这个宽度，
+     「由小到大」的排序读不出比例）——给它留够 64px。 */
+  grid-template-columns: 18px minmax(80px, 1.2fr) minmax(64px, 1fr) 58px;
   align-items: center;
   gap: 8px;
   font-size: 12.5px;
@@ -1928,6 +2022,22 @@ button:disabled:hover {
   pointer-events: none;
 }
 
+@media (max-width: 1080px) {
+  /* 手机上地球容器有 74vh 高，右下角那句「拖动旋转」落在首屏之外，
+     用户根本不知道球能转，整个视图退化成一张不会动的图片。
+     → 容器矮一点，提示挪到左上角（第一眼就看得见）。 */
+  .globe-wrap {
+    height: min(56vh, 760px);
+  }
+
+  .globe-tip {
+    right: auto;
+    left: 14px;
+    bottom: auto;
+    top: 12px;
+  }
+}
+
 /* ---------- 页脚 ---------- */
 .stage-footer {
   padding: 12px 26px 20px;
@@ -1949,6 +2059,14 @@ button:disabled:hover {
   gap: 7px;
   font-size: 12px;
   color: var(--text-dim);
+}
+
+/* 「动效」开关是设置项，不是图例——用一条竖线把它跟色块分开，
+   否则读者会把它当成第四个图例项。 */
+.legend-item.motion-item {
+  margin-left: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line-soft);
 }
 
 .swatch {
@@ -2183,9 +2301,12 @@ button:disabled:hover {
   background: linear-gradient(180deg, rgba(17, 26, 46, 0.92), rgba(13, 20, 36, 0.94));
   box-shadow: var(--shadow);
 }
+/* 四张卡排成 2×2。
+   ⚠️ 每日挑战原本横跨整行，可卡里的文字只占左边约 1/4，
+   右半张空着——四张卡并排看像排版出错，空白还把「主卡」的感觉冲淡了。 */
 .play-card.daily,
 .play-card.passport-card {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 .play-card-top {
   display: flex;
@@ -2605,11 +2726,11 @@ button:disabled:hover {
     padding: 12px 14px;
   }
 
-  /* 顶栏是吸顶的，窄屏下实测约 175px（390×844 那一档；高度由内容流决定，CSS 里没写死）。
+  /* 顶栏是吸顶的，窄屏下实测约 161px（390×844 那一档；高度由内容流决定，CSS 里没写死）。
      滚到结论卡 / 拼图面板（`scrollIntoView`）时要给它让出顶栏的高度，
      否则元素顶到视口上沿、整个标题藏在顶栏底下——
      拼图面板的「凑一凑：××」标题、结论卡的首行都会看不见。
-     185px = 顶栏实测高 + 一点余量，别写成跟顶栏一样的数。 */
+     185px 比顶栏实测高多留一点余量，别写成跟顶栏一样的数。 */
   .result,
   .puzzle,
   .picker,
@@ -2619,7 +2740,7 @@ button:disabled:hover {
   }
 
   /* 手机上：标题跟「复制链接 / 分享」挤在同一行，
-     两组分段按钮另起一行——顶栏从 220px 压到 175px 左右 */
+     两组分段按钮另起一行——顶栏从 220px 压到 161px 左右 */
   .brand {
     order: 0;
     flex: 1 1 auto;
@@ -2659,6 +2780,11 @@ button:disabled:hover {
 
   .header-actions {
     justify-content: flex-end;
+    /* ⚠️ 靠右对齐要靠 margin-left:auto，不只是 justify-content：
+       窄屏（≤400px）装不下时这两个按钮会换到第二行，
+       只写 justify-content 的话它们会贴左边排，
+       分享菜单也就跟着从屏幕左边溢出去了（实测 -6px）。 */
+    margin-left: auto;
   }
 
   .segmented button {
@@ -2764,6 +2890,25 @@ button:disabled:hover {
 @media (max-width: 560px) {
   .metric-options {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* ⚠️ **360px 及以下**：品牌名 + 「复制链接 / 分享」挤不进一行，
+     按钮会掉到第二行，顶栏从 161px 涨到 223px（360×760 实测）——
+     每屏先被导航吃掉 1/4，地图和结论都被挤下去。
+     把按钮做紧凑一点，一行就放得下（121 + 178 + 10 + 28 = 337 < 360）。 */
+  .topbar {
+    gap: 10px;
+  }
+
+  .header-actions .ghost-btn,
+  .header-actions .primary-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .header-actions .ghost-btn.icon-btn {
+    width: 30px;
+    height: 30px;
   }
 
   .bracket-row {

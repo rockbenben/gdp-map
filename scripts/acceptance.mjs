@@ -1383,7 +1383,7 @@ try {
   await page.waitForTimeout(500);
   await page
     .locator('.play-card.daily .play-actions button')
-    .filter({ hasText: /开始今日挑战|再玩一次/ })
+    .filter({ hasText: /开始今日挑战|再来一次/ })
     .first()
     .click();
   await page.waitForSelector('.puzzle', { timeout: 15000 });

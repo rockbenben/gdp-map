@@ -29,11 +29,14 @@ export function Passport({ groups, passport, selectedIds, onSelect, onReset, onS
   );
   // 415 个地方时 2 个只占 0.5%，整数百分比会一直显示 0
   const percent = total ? Math.round((collected / total) * 1000) / 10 : 0;
+  // ⚠️ **固定一位小数**：四舍五入到整数的话，4/415 会显示成「1%」，
+  // 而大厅那张卡显示「0.7%」——同一件事两个数字，看着像两套统计。
+  const percentText = `${percent.toFixed(1)}%`;
   const group = groups.find((g) => g.key === active) ?? groups[0];
   const groupCollected = group ? group.items.filter((item) => collectedSet.has(item.id)).length : 0;
 
   const share = () =>
-    onShare(`我的经济护照：已收集 ${collected}/${total} 个地方（${percent}%），来 GDP 等价地图盖戳`, '护照进度已复制');
+    onShare(`我的经济护照：已收集 ${collected}/${total} 个地方（${percentText}），来 GDP 等价地图盖戳`, '护照进度已复制');
 
   const handleReset = () => {
     if (!confirming) {
@@ -55,9 +58,15 @@ export function Passport({ groups, passport, selectedIds, onSelect, onReset, onS
           <h2>
             已收集 {collected}/{total}
           </h2>
-          <p className="play-sub">选过的参照物会自动盖戳，点印章可以跳回地图。</p>
+          <p className="play-sub">
+            选过的参照物会自动盖戳。
+            {/* ⚠️ 光说「点印章能跳回地图」不够：格子里大部分是**没盖过**的，
+                用户不知道该点没章的（去盖）还是有章的（跳回），
+                于是可能一个都不敢点。两种格子都写清楚。 */}
+            点没盖过的地方＝去那儿盖戳，点盖过的印章＝跳回地图。
+          </p>
         </div>
-        <span className="passport-percent">{percent}%</span>
+        <span className="passport-percent">{percentText}</span>
       </header>
 
       <div className="passport-bar" aria-hidden="true">
@@ -117,12 +126,14 @@ export function Passport({ groups, passport, selectedIds, onSelect, onReset, onS
         <button type="button" className="primary-btn" onClick={share}>
           分享护照
         </button>
-        <button type="button" className="chip ghost" onClick={handleReset}>
-          {confirming ? '再点一次确认重置' : '重置护照'}
-        </button>
         <span className="play-hint">
           {group ? `${group.label}：${groupCollected}/${group.items.length}` : ''}
         </span>
+        {/* ⚠️ 「重置」是危险操作（清掉全部收集进度），不能跟「分享」并排挨着——
+            扫一眼就会按错。挪到单独一行、放在最后。 */}
+        <button type="button" className="chip ghost passport-reset" onClick={handleReset}>
+          {confirming ? '再点一次确认重置' : '重置护照'}
+        </button>
       </div>
     </section>
   );

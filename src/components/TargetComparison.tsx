@@ -36,6 +36,10 @@ export function TargetComparison({ a, b, current, values }: Props) {
         <span className="tc-b">{b.zh}</span>
       </div>
       <div className="tc-score">
+        {/* ⚠️ 第一格要空着：表头第一列是行标签列（58px），
+            比分从第一格开始就整体错位一列——
+            「0」落在标签列上，「6」落在「河南省」下面，读的人会以为 6 是河南的比分。 */}
+        <span />
         <span className={`tc-num${scoreA >= scoreB ? ' win' : ''}`}>{scoreA}</span>
         <span className={`tc-num${scoreB >= scoreA ? ' win' : ''}`}>{scoreB}</span>
       </div>
