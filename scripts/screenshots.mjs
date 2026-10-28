@@ -39,7 +39,7 @@ const written = [];
 async function shot(
   name,
   url,
-  { width = 1440, height = 900, selector = null, mobile = false, before = null } = {}
+  { width = 1440, height = 900, selector = null, mobile = false, before = null, crop = 0 } = {}
 ) {
   const page = await browser.newPage({
     viewport: { width, height },
@@ -57,6 +57,9 @@ async function shot(
     await el.scrollIntoViewIfNeeded();
     await page.waitForTimeout(200);
     await el.screenshot({ path });
+  } else if (crop) {
+    // 首屏图只留上面一条，做成约 2:1 的横幅（理由见下面的注释）
+    await page.screenshot({ path, clip: { x: 0, y: 0, width, height: crop } });
   } else {
     await page.screenshot({ path, fullPage: false });
   }
@@ -66,8 +69,20 @@ async function shot(
   console.log(`  ✓ preview-${name}.png (${kb} KB)`);
 }
 
-// 1. 新用户首屏：默认就是广东省 + 结论
-await shot('first-screen', '/?sel=CN-440000');
+/**
+ * 首屏图要横。
+ *
+ * README 的正文栏是 928px 宽，图按比例缩放：1440×900 缩完是 928×580，
+ * 光这一张就占掉 GitHub 仓库页首屏（可视区约 470px）的绝大部分，正文第一段
+ * 被顶到首屏之外。裁到 1440×710（约 2:1）省下 116px。
+ *
+ * 裁掉的是底部那几行「数据来源与口径」小字——缩到 0.65 倍后本来就看不清，
+ * README 里有完整的来源表格。用 Playwright 的 clip 直接截，不要用 canvas
+ * 重编码：canvas 那条路出来的 PNG 反而比原图还大（实测 519 KB → 736 KB）。
+ */
+
+// 1. 新用户首屏：默认就是广东省 + 结论（裁成 2:1，理由见上面的注释）
+await shot('first-screen', '/?sel=CN-440000', { crop: 710 });
 // 2. 2D 世界地图（河南省）：省/州细分层 + 南海诸岛小图都在这张里
 await shot('map', '/?sel=CN-410000');
 // 3. 3D 地球
