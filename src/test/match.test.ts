@@ -136,7 +136,7 @@ describe('closestSingle', () => {
 });
 
 describe('usableCount', () => {
-  it('只数有值的：1960 年前大部分国家没数据（值是 0）', () => {
+  it('只数有值的：有些年份只有一部分国家有 GDP（其余是 0），按池子总长算会把「池子用光」判错', () => {
     const pool = [item('a', 100), item('b', 0), item('c', 0), item('d', 50)];
     expect(usableCount(pool)).toBe(2);
   });

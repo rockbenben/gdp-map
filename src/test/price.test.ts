@@ -29,7 +29,7 @@ const region = (over: Partial<Region> = {}): Region => ({
 });
 
 describe('anchorYear', () => {
-  it('1960 年前锚在 1960 年（那批历史值的价基准是 1960，不是它自己那个年份）', () => {
+  it('1960 年前锚在 1960 年（兜底：早于 1960 的年份不发布，真出现时按 1960 年的价算）', () => {
     expect(anchorYear('1700')).toBe(1960);
     expect(anchorYear('1950')).toBe(1960);
   });
@@ -70,7 +70,7 @@ describe('toPriceBasis', () => {
     expect(toPriceBasis(r, deflator, 2024)).toBe(r);
   });
 
-  it('1800 年的历史值按 1960 年的价基准折算', () => {
+  it('兜底：早于 1960 的年份按 1960 年的价基准折算（这类年份实际不发布）', () => {
     const k = priceFactor(deflator, 1960, 2024);
     const r = toPriceBasis(region({ year: '1800' }), deflator, 2024);
     expect(r.gdpUsd).toBeCloseTo(100 * k, 6);

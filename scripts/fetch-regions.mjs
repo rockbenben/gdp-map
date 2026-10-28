@@ -1,8 +1,8 @@
 /**
- * 抓「省/州之外」的一级行政区数据：欧洲 NUTS-1 与日本都道府县。
+ * 抓「省/州之外」的一级行政区数据：欧洲 NUTS-1、日本都道府县，以及美国各州的官方序列。
  *
- * 为什么单独一个脚本：`fetch-sources.mjs` 管的是国家和中美两省，
- * 这里管的是另外两套完全不同的源（欧盟统计局 + 日本内阁府 + Natural Earth），
+ * 为什么单独一个脚本：`fetch-sources.mjs` 管的是国家底图、中国省界与面积表，
+ * 这里管的是另外几套完全不同的源（欧盟统计局 + 日本内阁府 + Natural Earth + 美国 BEA），
  * 混在一起会让那个文件没法读。
  *
  * 产出：
@@ -10,7 +10,10 @@
  *   data/raw/ne_10m_admin_1.geo.json   Natural Earth 的一级行政区（取日本 47 都道府县）
  *   data/raw/jp-huhyo2023.xlsx         日本府县民经济计算 概況（2023 年度）
  *   data/raw/jp-soukatu9.xlsx          同上的「総人口」
- *   data/raw/eurostat-nuts1.json       NUTS-1 的 GDP 与人口
+ *   data/raw/eurostat-nuts1-years-2000-2024.json  NUTS-1 的 GDP 与人口（逐年取，缓存名带起止年）
+ *   data/raw/bea-sagdp.zip             BEA 的州级 GDP（SAGDP2）
+ *   data/raw/bea-sainc.zip             BEA 的州级人口（SAINC4）
+ *   data/us-states-series.json         美国 51 州 1997–2025 的 GDP 与人口（提交进仓库）
  *   data/regions-eu-jp.json            归一化后的结果（提交进仓库）
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -462,7 +465,8 @@ for (const row of jpGdpRows) {
   const g = Number.isFinite(Number(row[GDP_COL])) ? Number(row[GDP_COL]) : manual?.gdpOku * 100;
   // ⚠️ **年度 ≠ 日历年**：内阁府的「2023 年度」是 2023/4–2024/3，
   //    而世界侧（IMF WEO）的日本 2023 是**日历年**。两者差约 5%
-  //    （47 县合计 621.9 兆円 vs 日本日历年 591.5 兆円），
+  //    （47 县合计 621.9 兆円 vs 日本日历年 591.9 兆円，
+  //    按世界银行 2023 年均汇率 140.4911 円/美元折算），
   //    在「世界 → 地方」模式里拿日本的 47 个县跟日本自己比，会显得偏大 5%。
   //    不做跨口径推算（推算就得拿季度数据），只把口径差写在来源里。
   const source = manual

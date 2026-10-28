@@ -30,7 +30,7 @@ export function Passport({ groups, passport, selectedIds, onSelect, onReset, onS
   // 415 个地方时 2 个只占 0.5%，整数百分比会一直显示 0
   const percent = total ? Math.round((collected / total) * 1000) / 10 : 0;
   // ⚠️ **固定一位小数**：四舍五入到整数的话，4/415 会显示成「1%」，
-  // 而大厅那张卡显示「0.7%」——同一件事两个数字，看着像两套统计。
+  // 而一位小数是「1.0%」——同一件事两种写法，看着像两套统计。
   const percentText = `${percent.toFixed(1)}%`;
   const group = groups.find((g) => g.key === active) ?? groups[0];
   const groupCollected = group ? group.items.filter((item) => collectedSet.has(item.id)).length : 0;
@@ -130,7 +130,8 @@ export function Passport({ groups, passport, selectedIds, onSelect, onReset, onS
           {group ? `${group.label}：${groupCollected}/${group.items.length}` : ''}
         </span>
         {/* ⚠️ 「重置」是危险操作（清掉全部收集进度），不能跟「分享」并排挨着——
-            扫一眼就会按错。挪到单独一行、放在最后。 */}
+            扫一眼就会按错。用 margin-left:auto 把它顶到行末（同一行，但离得远），
+            DOM 里也放在最后。 */}
         <button type="button" className="chip ghost passport-reset" onClick={handleReset}>
           {confirming ? '再点一次确认重置' : '重置护照'}
         </button>

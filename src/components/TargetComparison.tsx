@@ -58,8 +58,8 @@ export function TargetComparison({ a, b, current, values }: Props) {
             <span
               className="tc-gap"
               /* ⚠️ 只写「胜 / 平」，不写名字：
-                 名字放进来，这一列能撑到 111px（加利福尼亚州 胜），
-                 侧栏就只剩 360px 宽，这一列直接被挤出面板。
+                 第 4 列是**定宽 22px**（.tc-rows li 的 grid-template-columns），
+                 写名字会溢出面板，而不是把这一列撑宽。
                  赢的那一列本来就是高亮的（橙色加粗），谁赢一看便知。 */
               title={
                 r.winner === 'tie'

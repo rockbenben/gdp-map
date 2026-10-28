@@ -550,7 +550,7 @@ try {
     loaded.includes('regions.json') && loaded.includes('regions-history.json'),
     loaded.filter((f) => f.endsWith('.json')).join(' ')
   );
-  // 22.1 先出结论，再等历史：把历史文件推迟 2.5 秒，结论仍要先到
+  // 22.1 先出结论，再等历史：把历史文件推迟 3 秒，结论必须在 2.5 秒内出现（结论仍要先到）
   await page.route('**/data/regions-history.json', async (route) => {
     await new Promise((r) => setTimeout(r, 3000));
     await route.continue();
@@ -739,7 +739,7 @@ try {
   // 来回切一圈，回来的应该是刚才那个省，而不是这个国家里最大的那个
   check('来回切方向还是同一个省', /河南省/.test(backSwitch), backSwitch);
 
-  // 12. 几处曾经漏掉的坑（这四条当初都逃过了验收）
+  // 12. 几处曾经漏掉的坑（这七条当初都逃过了验收）
   // 12.1 平价口径：新来的 141 个地区也得有 PPP，否则选中就是一片空白
   await page.goto(`${BASE}/?sel=JP-13&m=pppGdp`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.result-headline h1', { timeout: 15000 });

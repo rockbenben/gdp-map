@@ -42,7 +42,7 @@ export function Bracket({ entrants, highlightIds = [], width = 880, height = 560
     if (list.length < 4) return null;
 
     const rounds: Array<Array<{ y: number; id: string; name: string; text: string; value: number }>> = [];
-    // 第 0 轮：每两个一格（顶部留出标题的位置）
+    // 第 0 轮：一个参赛者一行（两两配对在下一轮做）；topPad 留出标题的位置
     const topPad = 26;
     const rowH = (height - topPad) / list.length;
     const first = list.map((e, i) => ({

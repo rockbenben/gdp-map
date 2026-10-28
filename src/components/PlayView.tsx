@@ -241,9 +241,11 @@ export function PlayView({
           <h3>谁更大？</h3>
           <p className="play-card-sub">
             按当前指标「{metric.label}」翻两张卡，猜数值更大的那一张。
-            {/* ⚠️ 指标选择器在四张卡之后（窄屏更是要滚过一整屏），
-                卡片上不指个路，多数人以为指标跟这张卡绑死了、不能改。 */}
-            <span className="play-card-hint">指标可在下面的「比哪个方面」里改。</span>
+            {/* ⚠️ 指标选择器在侧栏里：桌面上它在左边（不是下面），窄屏才排到下面。
+                卡片上不指个路，多数人以为指标跟这张卡绑死了、不能改。
+                ⚠️ 侧栏那个标题在玩法视图里是「Higher / Lower 用哪个指标」，
+                不是别处的「比哪个方面」——指错了用户就找不到。 */}
+            <span className="play-card-hint">指标可在侧栏的「Higher / Lower 用哪个指标」里改。</span>
           </p>
           <div className="play-actions">
             <button type="button" className="primary-btn" onClick={() => setGame('higher')} disabled={!historyReady || !higherItems.length}>

@@ -5,7 +5,9 @@ import type { GeoFeature } from '../lib/types';
 /**
  * 单个地区的等积投影剪影（盲猜用）。
  *
- * 答案的名字不能出现在 DOM 的可读文字里，所以 aria-label 只写「地区轮廓」。
+ * ⚠️ 这张 SVG 自己的可读文字不能写出答案——读屏用户直接就白拿了。
+ * 所以 aria-label 只写「地区轮廓」。
+ * （下面那四个选项按钮里当然有那个名字：答案就藏在选项里，那是玩法本身。）
  */
 export function ShapeSilhouette({
   feature,

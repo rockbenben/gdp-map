@@ -3,9 +3,9 @@ import { geoEqualEarth, geoPath } from 'd3-geo';
 import type { GeoFeature } from '../lib/types';
 
 interface Props {
-  /** 参照地区（省/州）的轮廓 */
+  /** 参照物的轮廓（地方 → 世界时是省/州，世界 → 地方时是国家） */
   source: GeoFeature | null;
-  /** 对照对象（国家）的轮廓 */
+  /** 对照对象的轮廓（地方 → 世界时是国家，世界 → 地方时是省/州） */
   target: GeoFeature | null;
   sourceLabel: string;
   targetLabel: string;

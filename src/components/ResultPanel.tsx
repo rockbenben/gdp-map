@@ -188,7 +188,10 @@ export function ResultPanel({
         )}
         {hideAnswer || !(result.count === 1 && only && only.value > 0 && strategy !== 'nearest') ? null : (
           <p className="result-single">
-            {/* ⚠️ 「最像的一个」口径下这个比值按定义就是 1，写出来是废话——所以那条口径下不显示 */}
+            {/* ⚠️ 「最像的一个」口径下不显示这个比值：结论本身已经是「≈ 某某」，
+                再补一遍百分比是同一句话说两遍。
+                ⚠️ 但别把它当成恒等于 1——它是「目标 ÷ 最接近的那个对象」，
+                差多少正是这条口径要说的（河南省 ≈ 波兰的 97%）。 */}
             {target <= only.value ? (
               <>
                 相当于<strong>{only.zh}</strong>的 <strong>{((target / only.value) * 100).toFixed(0)}%</strong>
