@@ -1,4 +1,9 @@
-# 部署到 GitHub Pages（自定义域名 gdp.newzone.top）。
+# 部署到 GitHub Pages。
+#
+# 域名：CNAME 里写的是 gdp.newzone.top，但**DNS 上还没有这条记录**（2026-10-28 查过）。
+# 所以当前实际域名是 https://rockbenben.github.io/gdp-map/ ——index.html 的
+# canonical / OG、README 的入口、package.json 的 homepage 都指着它。
+# DNS 加上 CNAME 记录之后自定义域名会接管，那些地方一起换回去即可。
 #
 # ── 版本钉法（与 ci.yml 同一套规矩）──
 #

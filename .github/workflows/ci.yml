@@ -57,8 +57,9 @@ jobs:
 
       - run: npm ci
 
-      # ⚠️ **不要在这里跑 `npm run data`。** 抓数据要访问 IMF 镜像、世界银行、
-      # 阿里云 DataV 三个外部源，任何一个挂掉或改接口都会让 CI 变红，
+      # ⚠️ **不要在这里跑 `npm run data`。** 抓数据要访问十来个外部源
+      # （DBnomics、世界银行、DataV、年鉴官网、GitHub raw、jsDelivr、维基、
+      #   Eurostat、GISCO、日本内阁府、BEA），任何一个挂掉或改接口都会让 CI 变红，
       # 而红的原因跟代码没关系。产物（`public/data/`、`public/geo/`）是提交进仓库的，
       # CI 直接用提交里的那份。
       - run: npm run typecheck

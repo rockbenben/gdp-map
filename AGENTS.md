@@ -21,18 +21,25 @@ GDP 等价地图：把「一个省相当于多少个国家」做成可以自己�
 ```
 gdp-map/
 ├── AGENTS.md / README.md / LICENSE
+├── index.html                  # Vite 入口（标题 / 描述 / OG 与 canonical）
 ├── package.json / tsconfig.json / vite.config.ts / vitest.config.ts
 ├── .github/workflows/
 │   ├── ci.yml      # CI：typecheck · 单测 · 构建 · 浏览器验收
-│   └── pages.yml   # GitHub Pages 部署（自定义域名 gdp.newzone.top）
+│   └── pages.yml   # GitHub Pages 部署（CNAME 里是 gdp.newzone.top，DNS 还没配）
+├── docs/                      # README 的预览图 + 最初方案原稿（留档）
+│   ├── preview-*.png          # 13 张界面截图（npm run screenshots 产物）
+│   ├── social-preview.png     # GitHub 社交预览图（1280×640，待上传）
+│   └── original-plan.md       # 最初的方案原稿（有意留档，不是当前设计）
 ├── scripts/
 │   ├── fetch-sources.mjs   # 抓原始数据源 → data/raw/
-│   ├── fetch-regions.mjs   # 抓欧洲 NUTS-1 与日本都道府县 → data/regions-eu-jp.json
+│   ├── fetch-regions.mjs   # 抓欧洲 NUTS-1、日本都道府县、美国州级 BEA 序列
 │   ├── build-data.mjs      # 抓年鉴 HTML 表 + 合并 → public/data/regions.json + public/geo/*
 │   ├── static-server.mjs   # 验收用的静态服务器（伺服 dist/）
 │   ├── acceptance.mjs      # Playwright 验收（自带服务器 + 浏览器）
 │   ├── audit-ui.mjs        # 多分辨率 UI 审计：溢出/裁切/触摸目标/文案导出（9 个分辨率 × 16 个场景）
-│   ├── screenshots.mjs     # 重新生成 README 的预览图
+│   ├── audit-docs.mjs      # 文档数字审计：把 AGENTS / README 对外的数从代码与数据现算一遍
+│   ├── audit-firstpaint.mjs # 慢网首屏实测：本地 gzip 伺服 + CDP 限速，量结论出现用时
+│   ├── screenshots.mjs     # 重新生成 README 的预览图（首屏图裁成 2:1 横幅）
 │   └── websearch.mjs       # 网页搜索 / 抓取（DeepSeek Search & Fetch API）
 ├── data/
 │   ├── provincial-gdp-2024.json   # 年鉴表 3-9 读数（含出处 URL）
@@ -77,7 +84,9 @@ gdp-map/
   美国各州 1997–2025（BEA），欧洲 NUTS-1 2000–2024（Eurostat），
   港澳台 1960–2025（香港/澳门有世界银行 1960/1982 起的数据，台湾世界银行不发布、1990 起），
   日本都道府县 2023（内阁府）。
-- 交叉校验：31 省合计与全国 GDP 差 0.72%；美国 51 州合计与全美 GDP 差 0.13%；
+- 交叉校验：31 省合计与**统计公报口径**的全国 GDP（1,349,084 亿元）差 0.72%
+  （若改用 IMF WEO 的 CHN 值比是 0.74%——两个数都对，差在参照的全国数不是同一个）；
+  美国 51 州合计与全美 GDP 差 0.13%；
   欧洲 NUTS-1 合计 18.9 万亿美元，日本 47 县合计 4.4 万亿美元（与全国 621.9 兆円差 0.03%）。
 - 跨年比较用的价格基准：美国 GDP 平减指数（世界银行 NY.GDP.DEFL.ZS）随数据发布在
   `meta.priceBasis.deflator`，只有比率有意义（1960 → 2024 差 8.16 倍）。
@@ -503,11 +512,17 @@ gdp-map/
   换年鉴版本时要重新读数，不要从别处抄。
 - **数据文件拆成「基础 + 历史」两个，首屏只等基础那个。**
   省/州侧现在有 20~30 年数据（美国州 29 年、欧盟 25 年、中国省 25 年、世界 66 年），
-  全放在一个文件里是 356 KB（gzip）——手机上首屏光等数据就一两秒。
-  现在 `data/regions.json` 只放**每个对象的默认年**（国家与省/州 2024、日本府县 2023）
-  加上**年份清单**（`objects[].years`），其余年份在 `data/regions-history.json`（约 342 KB gzip），
-  到齐后由 `mergeHistory()` 合并（合并后结构跟合并前一样，调用方无感）。
-  首屏字节 **733 KB → 125 KB**（gzip）；慢网（4 Mbps）实测首屏结论 2.9 秒出现。
+  两个文件合起来 1,303 KB（gzip 367 KB）——手机上首屏光等数据就一两秒。
+  现在 `public/data/regions.json` 只放**每个对象的默认年**（国家与省/州 2024、日本府县 2023）
+  加上**年份清单**（`objects[].years`），其余年份在 `public/data/regions-history.json`
+  （1,038 KB，gzip 332 KB），到齐后由 `mergeHistory()` 合并（合并后结构跟合并前一样，调用方无感）。
+  ⚠️ **首屏要下的字节 1,303 KB → 265 KB**（gzip 367 → 35 KB）；
+  连 JS/CSS 一起，整个首屏 677 KB（gzip 165 KB）。地理文件是第二波（合计 gzip 550 KB），
+  地图先画世界底图，省/州边界到了再补（`subdivisions` 允许只有一部分）。
+  ⚠️ **慢网实测（2026-10-28）**：4 Mbps + 60ms RTT、gzip（与 GitHub Pages 同一套行为）下，
+  结论 **1.43 秒**出现（连测三次 1.43 / 1.44 / 1.44）。量法是本地伺服 `dist/` + CDP 限速，
+  量到 `.result-headline h1` 出现为止——**不要量线上站点**，那条网络路径本身有噪声
+  （同一条件连测三次是 8.9 / 10.8 / 18.9 秒），没法作为可复现的数。
   ⚠️ **年份清单要单独存**（`objects[].years`）：基础文件里指标键只有默认年，
   用指标键算 `Region.years` 的话，年份控件会塌成只剩一年。
   ⚠️ **历史没到之前，年份控件是禁用的**（`historyReady`）：那一年的值还没来，
@@ -637,7 +652,9 @@ gdp-map/
 - **首屏图要横。** GitHub 的 README 正文栏是 928px 宽，图按比例缩放：
   1440×900 缩完是 928×580，光这一张就吃掉仓库页首屏（可视区约 470px）的绝大部分，
   正文第一段被顶到首屏之外。所以 `scripts/screenshots.mjs` 的 `shot()` 有个 `crop` 参数，
-  首屏图裁到 1440×710（约 2:1），用浏览器自带 canvas（不引新依赖）。
+  首屏图裁到 1440×710（约 2:1），**用 Playwright 的 clip 在拍摄时截**
+  （不要用 canvas 重编码：canvas 那条路出来的 PNG 反而更大，实测 519 KB → 736 KB；
+  clip 截出来是 451 KB）。
   ⚠️ 裁掉的是底部那几行「数据来源与口径」小字——缩到 0.65 倍后本来就看不清，
   README 里有完整来源表。改裁剪高度就重跑 `npm run screenshots`。
   ⚠️ **README 的段落与 bullet 一律写成一行**（GitHub 开着 hard line breaks，
@@ -708,10 +725,14 @@ gdp-map/
 3. **PPP 口径**：需要省级 PPP 源，否则保持现状。
 4. **OG 分享图**：已加站点 `public/og.png`（1200×630）与自定义社交预览图
    （`docs/social-preview.png`，1280×640、572 KB）。
-   ⚠️ **这张图还没上传到 GitHub**（`usesCustomOpenGraphImage: false`）：
+   ⚠️ **这张图还没上传到 GitHub**（`usesCustomOpenGraphImage: false`，
+   兄弟项目 juflow / markbook / funasr-subtitle / fillduck 都是 `true`）：
    GitHub 没有对应的 API，只能在 Settings → Social preview 上传，
-   上传时选 `docs/social-preview.png` 即可。⚠️ 它左下角印着 `gdp.newzone.top`——
-   域名接管后那行字才对得上，现在印 github.io 地址反而要重画。
+   上传时选 `docs/social-preview.png` 即可。
+   ⚠️ 它左下角印的是 `gdp.newzone.top`——那是**打算用的**域名，DNS 记录加上之后
+   那行字正好对得上；万一最后决定长期就用 github.io 那个地址，这张卡得重画。
+   ⚠️ **设计源没进仓库**（兄弟项目都会把 `social-card.html` 一起提交），
+   所以这张图现在改不动、也重新生成不了——要改得先补一份 HTML/CSS 源。
 5. **部署**：已接 GitHub Pages（`.github/workflows/pages.yml`），站点现在跑在
    `https://rockbenben.github.io/gdp-map/`（与仓库 HEAD 逐字节一致）。
    ⚠️ **自定义域名 `gdp.newzone.top` 在 DNS 上不存在**（2026-10-28 用 DoH 查过，
@@ -738,9 +759,22 @@ gdp-map/
   （产物在 `tmp/audit/`）。验收脚本守功能，审计脚本守长相。
   ⚠️ 它的判据有三条讲究（能横向滚动的、不算裁切的省略号、只在窄屏量触摸目标），
   改判据前先看第 4 节那一条——判据一改，数字就变，AGENTS 里记的数字也得跟着改。
+- **改了数据、算法或口径就再跑一遍 `npm run audit:docs`**：它把 AGENTS.md / README 里
+  对外的每个数（对象池 415、31 省差 0.72%、美国 51 州差 0.13%、熟脸池 88 个、
+  BIG_POOL_SIZE 10、PUZZLE_MAX 3、动效四档、盲猜 29/24、产物 gzip 体积…）
+  从代码与数据现算一遍并打印。**它只打印、不判定**，判定标准是「对着 AGENTS 看一眼对不对」。
+  ⚠️ 文档里的数字最容易悄悄过期——2026-10-28 那次审计就发现产物体积写的是旧值
+  （342 KB → 实际 332 KB）、慢网首屏写的是 2.9 秒（重测是 1.43 秒）。
+  ⚠️ 这条命令也要跟着数据源更新（换源、改口径要一并改它的算法）。
+- **改了首屏载荷就再跑一遍 `npm run audit:firstpaint`**：本地起一个带 gzip 的服务器伺服
+  `dist/`（与 GitHub Pages 同一套行为），用 CDP 限速到 4 Mbps + 60ms RTT，
+  量到 `.result-headline h1` 出现用时。**不要量线上站点**——那条网络路径本身有噪声
+  （同一条件连测三次是 8.9 / 10.8 / 18.9 秒），没法作为可复现的数。
 
 CI（`.github/workflows/ci.yml`）跑的就是上面这四条，外加浏览器验收。
-⚠️ **CI 里不要跑 `npm run data`**：抓数据要访问三个外部源，任何一个挂了都会让 CI
+⚠️ **CI 里不要跑 `npm run data`**：抓数据要访问十来个外部源（DBnomics、世界银行、DataV、
+年鉴官网、GitHub raw、jsDelivr、维基、Eurostat、GISCO、日本内阁府、BEA），
+任何一个挂了都会让 CI
 变红，而红的原因跟代码无关；产物是提交进仓库的，CI 直接用提交里那份。
 
 **改了 README 或仓库元数据，再跑一遍门面检查与渲染探针**（规范住在
