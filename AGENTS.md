@@ -55,7 +55,8 @@ gdp-map/
 │   ├── data/regions-history.json  # 默认年之外的逐年数据（懒加载）
 │   ├── geo/{world,china,us-states,extra-regions}.json
 │   ├── og.png                     # 站点社交预览图（1200×630）
-│   └── CNAME                      # GitHub Pages 自定义域名
+│   ├── edgeone.json               # EdgeOne Pages 的缓存与安全响应头
+│   └── robots.txt                 # 爬虫规则
 └── src/
     ├── main.tsx                # 入口
     ├── App.tsx                 # 状态、模式、视图切换都在这
@@ -733,24 +734,29 @@ gdp-map/
    那行字正好对得上；万一最后决定长期就用 github.io 那个地址，这张卡得重画。
    ⚠️ **设计源没进仓库**（兄弟项目都会把 `social-card.html` 一起提交），
    所以这张图现在改不动、也重新生成不了——要改得先补一份 HTML/CSS 源。
-5. **部署**：已接 GitHub Pages（`.github/workflows/deploy.yml`），站点现在跑在
-   `https://rockbenben.github.io/gdp-map/`（与仓库 HEAD 逐字节一致）。
-   ⚠️ **自定义域名 `gdp.newzone.top` 在 DNS 上不存在**（2026-10-28 用 DoH 查过，
-   阿里云 DNS 权威应答 NXDOMAIN；Pages 的 `cname` 也是 null）。
-   所以 `index.html` 的 canonical / OG 地址、README 的「在线试用」与 GitHub 的
-   homepage **现在一律指向 github.io 那个地址**——指向一个解析不出来的域名，
-   分享出去的卡片预览图就是 404。
-   ⚠️ **托管方式跟兄弟项目对齐了**（2026-10-28）：构建产物推到 **`gh-pages` 分支**
-   （`.github/workflows/deploy.yml`，用 `JamesIves/github-pages-deploy-action@v4`），
-   **EdgeOne Pages** 从那个分支取——兄弟项目（022-onepage / 002-legend-talk /
-   045-life-guide）全是这个模式，它们的 GitHub Pages 站点一个都不存在。
-   ⚠️ **CNAME 必须跟着分支走**：EdgeOne 是从分支里的 CNAME 文件认出该绑哪个域名的，
-   每次部署覆盖分支时没带上，绑定就掉了（002 的注释记的就是这件事）。
-   ⚠️ 兄弟项目的自定义域名 DNS 指向 `*.pages.dnsoe4.com` / `*.pages.dnsoe5.com`
-   （腾讯 EdgeOne Pages），**不是** `rockbenben.github.io`——要接 gdp.newzone.top
-   就照它们那条指向，别照 GitHub Pages 的老办法。
-   GitHub Pages 那部分**暂时留着**当保底（rockbenben.github.io/gdp-map/ 现在还指着它），
-   托管完全搬走之后连同 `pages: write` / `id-token: write` 两个权限一起删。
+5. **部署**：托管在 **EdgeOne Pages**（2026-10-28 改成跟兄弟项目一致）。
+   `.github/workflows/deploy.yml` 把构建产物推到 **`gh-pages` 分支**
+   （`JamesIves/github-pages-deploy-action@v4`，`clean: true`），EdgeOne 从那个分支取。
+   - ⚠️ **CNAME 必须跟着分支走**：EdgeOne 是从分支里的 CNAME 文件认出该绑哪个域名的，
+     每次部署覆盖分支时没带上，绑定就掉了（002-legend-talk 的注释记的就是这件事）。
+     所以 CNAME 由 workflow 的 `cname:` 参数写进分支，**不再放 `public/` 里**。
+   - ⚠️ **DNS 要指向 EdgeOne，不是 GitHub Pages**：兄弟项目的自定义域名指向
+     `*.pages.dnsoe4.com` / `*.pages.dnsoe5.com`（腾讯 EdgeOne Pages），
+     **不是** `rockbenben.github.io`——照 GitHub Pages 的老办法加 CNAME 是接不上的。
+   - ⚠️ **缓存与安全响应头由 `public/edgeone.json` 决定**（随产物进分支）：
+     `/assets/*` 是 Vite 内容哈希 → 一年 immutable；**`data/` 与 `geo/` 的 JSON 是固定文件名、
+     内容会变 → 必须 `no-store`**（给了 immutable 就会一直拿旧数据）；
+     `*.html` 也 `no-store`；再加 `nosniff` / `Referrer-Policy` / `Permissions-Policy`。
+   - ⚠️ **不转发 head commit message**：提交正文里的 shell 元字符（引号、$、!、反引号）
+     会破坏动作内部的 `git commit -m`（exit 129）——025-kuafu / 039 都记了这条。
+   - 部署前先 `npm test` 当门禁（`npm run build` 里已含 `tsc --noEmit`），坏构建不发布。
+   ⚠️ **自定义域名 `gdp.newzone.top` 目前在 DNS 上还不存在**（2026-10-28 用 DoH 查过，
+   阿里云 DNS 权威应答 NXDOMAIN）。所以 `index.html` 的 canonical / OG 地址、
+   README 的「在线试用」与 GitHub 的 homepage **暂时仍指向 `rockbenben.github.io/gdp-map/`**
+   （那个地址现在是最后一次 GitHub Pages 部署的冻结副本；EdgeOne 接管前它不会更新）。
+   **域名上线后要一次换三处**：`index.html` 的 canonical / og:url / og:image / twitter:image、
+   README 的「在线试用」与 GitHub 的 homepage；顺手把 GitHub Pages 站点删掉
+   （`gh api --method DELETE repos/rockbenben/gdp-map/pages`）。
    其它静态托管也仍然可用，`dist/` 直接丢。
 6. **玩法后端（可选）**：每日全球榜、好友实时对战；现在只有本地进度 + 静态挑战链接。
 7. **玩法扩展**：每日题历史/回放、护照成就、更多小游戏；数据与 `play.ts` 的出题/计分接口已经分开。
