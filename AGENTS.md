@@ -733,7 +733,7 @@ gdp-map/
    那行字正好对得上；万一最后决定长期就用 github.io 那个地址，这张卡得重画。
    ⚠️ **设计源没进仓库**（兄弟项目都会把 `social-card.html` 一起提交），
    所以这张图现在改不动、也重新生成不了——要改得先补一份 HTML/CSS 源。
-5. **部署**：已接 GitHub Pages（`.github/workflows/pages.yml`），站点现在跑在
+5. **部署**：已接 GitHub Pages（`.github/workflows/deploy.yml`），站点现在跑在
    `https://rockbenben.github.io/gdp-map/`（与仓库 HEAD 逐字节一致）。
    ⚠️ **自定义域名 `gdp.newzone.top` 在 DNS 上不存在**（2026-10-28 用 DoH 查过，
    阿里云 DNS 权威应答 NXDOMAIN；Pages 的 `cname` 也是 null）。
