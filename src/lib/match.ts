@@ -204,8 +204,9 @@ export function topByValue(pool: GdpItem[], n: number): GdpItem[] {
 /**
  * 池子里真正能参与累加的对象有几个（值大于 0、且没被排除的）。
  *
- * 「池子被用光」这个判断要用它：1960 年前大部分国家没有数据，它们的值是 0，
- * 把它们算进池子大小，这个判断就永远不成立（189 个里有 173 个是空的）。
+ * 「池子被用光」这个判断要用它：有些年份只有一部分国家有数据，其余的值是 0，
+ * 把它们算进池子大小，这个判断就永远不成立
+ * （189 个国家里，1960 年只有 108 个有值，81 个是空的）。
  */
 export function usableCount(pool: GdpItem[], options: AccumulateOptions = {}): number {
   return prepare(pool, options).length;

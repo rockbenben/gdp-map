@@ -93,7 +93,8 @@ export function loadExtraRegions(): Promise<FeatureCollection> {
  * 取「当年 → 最近有记录的一年」的人口。
  *
  * 用于两处：微型经济体判定和「这 N 个国家加起来住着 X」的合计。
- * 图瓦卢 2000 年缺人口、但 2001 年有 9,500 人；伊拉克 2000 年缺、2003 年有 2,596 万——
+ * 图瓦卢 2000–2001 年都缺人口，最近有记录的是 2002 年（1 万人）与 2003 年（9,000 人）；
+ * 伊拉克 2000 年缺、2003 年有 2,596 万——
  * 不能因为缺值就把它们分别当成非微型 / 0 人。
  */
 function populationNear(pop: MetricSeries | undefined, year: string): number | undefined {

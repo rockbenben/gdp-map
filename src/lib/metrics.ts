@@ -1,9 +1,9 @@
 /**
- * 指标体系：同一个「地方」，可以跟世界比总量、比人均、比面积、比人口。
+ * 指标体系：同一个「地方」，可以跟世界比总量、比购买力平价、比人均、比密度、比面积、比人口。
  *
  * additive 决定这个指标能不能累加：
- *   总 GDP / 面积 / 人口 —— 能，几个国家加起来是有意义的
- *   人均 GDP —— 不能，人均没有「加起来」这回事，只能跟单个对象比
+ *   总 GDP / 平价 GDP / 面积 / 人口 —— 能，几个国家加起来是有意义的
+ *   人均 GDP / GDP 密度 —— 不能，人均和密度没有「加起来」这回事，只能跟单个对象比
  */
 
 export type MetricId = 'gdp' | 'pppGdp' | 'gdpPc' | 'density' | 'area' | 'pop';
@@ -213,7 +213,13 @@ export const METRICS: Record<MetricId, Metric> = {
 
 export const METRIC_ORDER: MetricId[] = ['gdp', 'pppGdp', 'gdpPc', 'density', 'area', 'pop'];
 
-/** 每个指标默认的对照方式：人均/密度只能取单个，其余给最有意思的那个 */
+/**
+ * 每个指标默认的对照方式。
+ *
+ * 人均与密度只能取单个（additive 为 false，UI 里也只留「最像的一个」）；
+ * 面积与人口**默认**也取单个，但它们能累加，UI 里可以切别的口径；
+ * 总量类（总 GDP / 平价 GDP）默认「宁可超出」——那个结论最像一句话。
+ */
 export const METRIC_DEFAULT_STRATEGY: Record<MetricId, 'many' | 'over' | 'big' | 'nearest'> = {
   gdp: 'over',
   pppGdp: 'over',

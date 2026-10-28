@@ -409,7 +409,7 @@ export default function App() {
   const isHistoryReady = () => historyStatusRef.current === 'ready';
   useEffect(() => {
     let cancelled = false;
-    // ⚠️ **数据与底图分开到**：结论只等数据（265 KB），地图晚一点到也没关系——
+    // ⚠️ **数据与底图分开到**：结论只等数据（约 36 KB gzip），地图晚一点到也没关系——
     //    「先给结论」是规则 #16 的要求，文字不必等地图。
     loadDataset()
       .then((d) => {
@@ -906,7 +906,7 @@ export default function App() {
   /**
    * 欧洲 NUTS-1 与日本都道府县的边界，按需加载。
    *
-   * 这个文件 542 KB（gzip 191 KB），占首屏的四分之一，而绝大多数访问根本不需要它——
+   * 这个文件 542 KB（gzip 191 KB），比首屏那一波（约 125 KB gzip）还大，而绝大多数访问根本不需要它——
    * 选中国省走的是 china.json，选美国州走 us-states.json，国家侧走 world.json。
    * 只有「选中的就是欧洲/日本的地区」或「对照结果落到了它们身上」时才用得上。
    */
@@ -1245,7 +1245,7 @@ export default function App() {
 
   /**
    * 完整结论句（不管是「比大国家」的倍数，还是「52 个国家之和」）。
-   * 动图的字幕用这个——「比大国家」口径下 headline 是空的，只用它会没字幕。
+   * 动图的字幕用这个——headline 为空时（没有匹配结果、也没选参照物）才退回用匹配结果拼一句。
    * 数字是滚动的，所以只能取最终值，不能从 DOM 里读。
    */
   const conclusionRef = useRef('');
@@ -2286,7 +2286,8 @@ export default function App() {
    *
    * 每一帧都要界面真的切到那一年，所以是「改状态 → 等它画完 → 抓图」，
    * 不能只改个变量就抓。中途要把年份复原。
-   * ⚠️ 帧数控制在 32 以内：每帧都要重新渲染 + 栅格化，帧数多了导出会很慢。
+   * ⚠️ 帧数控制在 32 上下：每帧都要重新渲染 + 栅格化，帧数多了导出会很慢。
+   *    采样步长算不准时会多补一个末年，最坏 33 帧。
    */
   const handleExportGif = async () => {
     let savedYear: number | null = null;
