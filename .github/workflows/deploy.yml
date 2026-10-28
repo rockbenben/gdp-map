@@ -1,0 +1,72 @@
+# 部署：构建产物推到 gh-pages 分支，EdgeOne Pages 从那个分支取。
+#
+# 跟兄弟项目同一个模式（022-onepage / 002-legend-talk / 045-life-guide）：
+#   · 构建产物推到 gh-pages 分支
+#   · EdgeOne Pages 的 Git 集成指向这个仓的这个分支
+#   · 自定义域名在 EdgeOne 那侧绑，DNS 加一条 CNAME 指过去
+#
+# ⚠️ **CNAME 要跟着分支走**：EdgeOne 是从分支里的 CNAME 文件认出「这个分支该绑哪个域名」的，
+#    每次部署覆盖分支时如果没带上，绑定就掉了（002-legend-talk 的注释记的就是这件事）。
+#    `public/CNAME` 已经写着 gdp.newzone.top，这里再显式传一次 cname: 兜底。
+#
+# ⚠️ **GitHub Pages 那几行是临时保底**：046 现在还挂在 GitHub Pages 上
+#    （rockbenben.github.io/gdp-map/），切到 EdgeOne 之前先留着，
+#    免得换托管期间那个地址打不开。
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 推分支要写权限（CI 那个 job 只读，这里要写）
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & push to gh-pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Push to gh-pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: dist
+          clean: true # 每次先清空分支，别让旧文件留在上面
+          cname: gdp.newzone.top
+
+      # ⚠️ 临时保底：GitHub Pages 改用分支部署之前，先让老地址继续有内容。
+      #    切过去之后删掉这一段（连同 pages: write / id-token: write 两个权限）。
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  pages:
+    name: Deploy to GitHub Pages
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
