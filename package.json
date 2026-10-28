@@ -16,6 +16,8 @@
     "typecheck": "tsc --noEmit",
     "acceptance": "node scripts/acceptance.mjs",
     "audit:ui": "node scripts/audit-ui.mjs",
+    "audit:docs": "node scripts/audit-docs.mjs",
+    "audit:firstpaint": "node scripts/audit-firstpaint.mjs",
     "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
