@@ -201,7 +201,7 @@ node scripts/websearch.mjs "查询词"   # 网页搜索（DeepSeek Search & Fetc
 
 **技术选型**刻意保持轻量：Vite + React 19 + TypeScript，没有 SSR、没有状态库、没有 UI 框架；地图与地球都是**纯 SVG**（没有 WebGL，低端设备与截图导出都能跑），数据管线是 Node 脚本，产物落在 `public/data` 与 `public/geo`。地球不用 three.js 是算过账的：分享卡、高清图、GIF 三种导出都是「克隆当前 SVG → 画进 canvas → 栅格化」，屏幕上的图和导出的图**一定是同一张**；WebGL 画出来的东西没法序列化成 SVG，要接上导出就只能维护两套渲染器。发布的 JSON 按真实精度收口：钱到元、人到人、人均到分、坐标到 5 位小数。
 
-**部署**是纯静态站，没有后端、没有 API 调用，构建产物就是几个 JSON + 一个 JS 包。仓库已接 **GitHub Pages**（`.github/workflows/pages.yml`），推送到 `main` 自动部署，现在跑在 <https://rockbenben.github.io/gdp-map/>。自定义域名 `gdp.newzone.top` 已经写进 `public/CNAME`，但 DNS 上还没有这条记录——加上指向 GitHub Pages 的 CNAME 之后它就能接管，到时把 `index.html` 里的 canonical / OG 地址和本文的链接一起换回去即可。`dist/` 也可以直接丢到任何静态托管（`vite.config.ts` 里 `base: './'` 用的是相对路径，放子目录也能跑）。数据是构建期抓取好的静态 JSON，运行时不再访问外部接口。首屏只下载 `public/data/regions.json`（每对象的默认年，约 35 KB gzip），其余年份在 `public/data/regions-history.json`（1,038 KB，gzip 332 KB）里，页面加载后才合并——**两个文件都要部署**。
+**部署**是纯静态站，没有后端、没有 API 调用，构建产物就是几个 JSON + 一个 JS 包。仓库已接 **GitHub Pages**（`.github/workflows/deploy.yml`），推送到 `main` 自动部署，现在跑在 <https://rockbenben.github.io/gdp-map/>。同一次构建还会推到 **`gh-pages` 分支**，由 EdgeOne Pages 取用——同系列的其他项目都是这个模式。自定义域名 `gdp.newzone.top` 的 DNS 记录还没有，域名接管后把 `index.html` 里的 canonical / OG 地址和本文的链接一起换回去即可。`dist/` 也可以直接丢到任何静态托管（`vite.config.ts` 里 `base: './'` 用的是相对路径，放子目录也能跑）。数据是构建期抓取好的静态 JSON，运行时不再访问外部接口。首屏只下载 `public/data/regions.json`（每对象的默认年，约 35 KB gzip），其余年份在 `public/data/regions-history.json`（1,038 KB，gzip 332 KB）里，页面加载后才合并——**两个文件都要部署**。
 
 > 锁文件里的依赖指向官方源 `registry.npmjs.org`（不是国内镜像）——CI 跑在 GitHub runner 上，把一个第三方镜像放在构建关键路径上既慢又多一份可用性风险。本地想用镜像加速，临时改 npm registry 就行，**别把镜像写进锁文件**。要跟 CI 完全一致（按锁文件装），用 `npm ci`。
 

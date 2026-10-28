@@ -25,7 +25,7 @@ gdp-map/
 ├── package.json / tsconfig.json / vite.config.ts / vitest.config.ts
 ├── .github/workflows/
 │   ├── ci.yml      # CI：typecheck · 单测 · 构建 · 浏览器验收
-│   └── pages.yml   # GitHub Pages 部署（CNAME 里是 gdp.newzone.top，DNS 还没配）
+│   └── deploy.yml    # 部署：构建产物推到 gh-pages 分支（EdgeOne Pages 取），另留 GitHub Pages 保底
 ├── docs/                      # README 的预览图 + 最初方案原稿（留档）
 │   ├── preview-*.png          # 13 张界面截图（npm run screenshots 产物）
 │   ├── social-preview.png     # GitHub 社交预览图（1280×640，待上传）
@@ -739,8 +739,18 @@ gdp-map/
    阿里云 DNS 权威应答 NXDOMAIN；Pages 的 `cname` 也是 null）。
    所以 `index.html` 的 canonical / OG 地址、README 的「在线试用」与 GitHub 的
    homepage **现在一律指向 github.io 那个地址**——指向一个解析不出来的域名，
-   分享出去的卡片预览图就是 404。`public/CNAME` 保留着，
-   等 DNS 加上 CNAME 记录后它就能接管，届时把上面这几处一起换回 `gdp.newzone.top`。
+   分享出去的卡片预览图就是 404。
+   ⚠️ **托管方式跟兄弟项目对齐了**（2026-10-28）：构建产物推到 **`gh-pages` 分支**
+   （`.github/workflows/deploy.yml`，用 `JamesIves/github-pages-deploy-action@v4`），
+   **EdgeOne Pages** 从那个分支取——兄弟项目（022-onepage / 002-legend-talk /
+   045-life-guide）全是这个模式，它们的 GitHub Pages 站点一个都不存在。
+   ⚠️ **CNAME 必须跟着分支走**：EdgeOne 是从分支里的 CNAME 文件认出该绑哪个域名的，
+   每次部署覆盖分支时没带上，绑定就掉了（002 的注释记的就是这件事）。
+   ⚠️ 兄弟项目的自定义域名 DNS 指向 `*.pages.dnsoe4.com` / `*.pages.dnsoe5.com`
+   （腾讯 EdgeOne Pages），**不是** `rockbenben.github.io`——要接 gdp.newzone.top
+   就照它们那条指向，别照 GitHub Pages 的老办法。
+   GitHub Pages 那部分**暂时留着**当保底（rockbenben.github.io/gdp-map/ 现在还指着它），
+   托管完全搬走之后连同 `pages: write` / `id-token: write` 两个权限一起删。
    其它静态托管也仍然可用，`dist/` 直接丢。
 6. **玩法后端（可选）**：每日全球榜、好友实时对战；现在只有本地进度 + 静态挑战链接。
 7. **玩法扩展**：每日题历史/回放、护照成就、更多小游戏；数据与 `play.ts` 的出题/计分接口已经分开。
