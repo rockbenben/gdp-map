@@ -28,6 +28,12 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  # ⚠️ **main 上不取消「正在跑」的那次**：它跑的是**已经合进去**的提交，
+  #    取消掉等于那个提交从来没被验过。
+  #    但**排队中的**那次照样会被取消——那是 GitHub 的固定行为
+  #    （同一并发组里，pending 的旧 run 会被后来的挤掉），与这条规则无关。
+  #    后果是：连着推两次时，第一次的提交不会单独有一次 CI，
+  #    而是被第二次那次的 run 一起验掉（提交内容一样，验了就没白验）。
 
 # 这个 workflow 只读代码：不发包、不写 release、不碰 issue。
 # 默认令牌的权限比这大得多，收窄是白拿的。
