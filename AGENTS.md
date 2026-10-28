@@ -81,6 +81,15 @@ gdp-map/
   欧洲 NUTS-1 合计 18.9 万亿美元，日本 47 县合计 4.4 万亿美元（与全国 621.9 兆円差 0.03%）。
 - 跨年比较用的价格基准：美国 GDP 平减指数（世界银行 NY.GDP.DEFL.ZS）随数据发布在
   `meta.priceBasis.deflator`，只有比率有意义（1960 → 2024 差 8.16 倍）。
+- **仓库门面**（2026-10-28 按 `repo-facade` 规范整理过）：
+  - README 结构定式 = **支持范围 → 能做什么 → 看看长什么样 → 怎么用 → 数据从哪来 →
+    限制 → License → 给开发者 → 关于 365 开源计划**，首屏是
+    标题 / 一句话 / 徽章（License + 365 #046）/ 入口行 / 首屏图 / 定位段。
+  - GitHub 元数据已填：description（中文单语，界面没做 i18n 就别写英文那半句）、
+    homepage（现指向 `rockbenben.github.io/gdp-map/`）、11 个 topics
+    （`gdp` `cartogram` `world-map` `infographic` `economic-data` `interactive-map`
+    `map` `data-visualization` `web-app` `chinese` `d3`）。
+  - 改门面后跑一遍规范自带的检查器与渲染探针（命令见第 6 节），别凭源码判断排版。
 
 ## 3. 已确定的事（不要重新讨论）
 
@@ -525,6 +534,16 @@ gdp-map/
   七普后人口被上修（广东 2019：普查前 11,562 万 → 普查后 12,489 万，差 8%），
   旧年份两者能差 9%。页面上「GDP ÷ 人口 = 人均」必须成立，否则三个指标自相矛盾，
   所以人均一律自己算（`build-data.mjs` 的 provinceList）。
+- **日本都道府县是「2023 年度」，国家池里的日本是 WEO 的「2023 自然年」——两者差约 5%。**
+  内阁府《县民经济计算》发布的是**财年**数（2023 年度 = 2023-04～2024-03）：
+  47 县合计 621.7 兆円（按世界银行 2023 年均汇率 140.4911 折算），
+  而国家池里日本的 2023 值是 IMF WEO 的自然年，约 591.9 兆円。
+  ⚠️ 所以拿东京都去跟「WEO 的世界」比，**府县那一侧相当于快了约 5%**
+  （多含了 2024 年初那截涨价）。这不是读数错，是两套口径摆在一起。
+  ⚠️ 第 2 节那条「与全国 621.9 兆円差 0.03%」是**日元对日元**（对内阁府自己的全国数），
+  所以它跟这个 5% 不矛盾——别拿它当「日本的数据没问题」的证据。
+  ⚠️ 页脚现在只写「日本内阁府」，没写财年。要不要在页面上讲清楚、
+  还是把日本的国家值换成财年口径，属于**口径政策**，改之前先定，别顺手改。
 - **经济普查修订会造成口径断点。** 三经普、四经普、五经普都改了历史年份，
   同一年的数在旧版与新版年鉴里不一样（北京 2023：43,760.7 亿 vs 五经普修订后的约 4.7 万亿）。
   本项目照抄各版公布的数，不做跨版推算——于是相邻年份之间可能有断点
@@ -615,6 +634,15 @@ gdp-map/
   就是「管线和产物对不上」。
 - **改了界面就要重跑 `npm run screenshots`。** README 里的预览图是产品的一部分，
   停在旧布局的图比没有图更糟（曾经主图还是改版前的侧栏顺序和按钮文案）。
+- **首屏图要横。** GitHub 的 README 正文栏是 928px 宽，图按比例缩放：
+  1440×900 缩完是 928×580，光这一张就吃掉仓库页首屏（可视区约 470px）的绝大部分，
+  正文第一段被顶到首屏之外。所以 `scripts/screenshots.mjs` 的 `shot()` 有个 `crop` 参数，
+  首屏图裁到 1440×710（约 2:1），用浏览器自带 canvas（不引新依赖）。
+  ⚠️ 裁掉的是底部那几行「数据来源与口径」小字——缩到 0.65 倍后本来就看不清，
+  README 里有完整来源表。改裁剪高度就重跑 `npm run screenshots`。
+  ⚠️ **README 的段落与 bullet 一律写成一行**（GitHub 开着 hard line breaks，
+  源码里手工折的行会变成强制换行，断行位置从此由源码宽度定，窄屏下二次折行成长短锯齿）。
+  2026-10-28 改版前实测 BR=91，改完 BR=0，渲染高度 12,446 → 9,873px。
   脚本会自己起服务器伺服 `dist/`，拍完直接写回 `docs/preview-*.png`。
 - **依赖升级的规矩**：
   - `package.json` 只写**范围**（`^19.3.1`），确切版本由 `package-lock.json` 决定。
@@ -678,10 +706,20 @@ gdp-map/
 2. **省掉图片人工读数**：找一份可机读的分省 GDP 官方来源（年鉴 Excel、统计公报汇总），
    把 `data/provincial-gdp-2024.json` 变成脚本产物。
 3. **PPP 口径**：需要省级 PPP 源，否则保持现状。
-4. **OG 分享图**：已加站点 `public/og.png`（1200×630）与 GitHub 自定义社交预览
-   （`docs/social-preview.png`，1280×640）；后续要做多语言/动态卡片再换。
-5. **部署**：已接 GitHub Pages（`.github/workflows/pages.yml`），自定义域名
-   `gdp.newzone.top`（`public/CNAME`）；DNS 加 CNAME 指向 GitHub Pages 即可。
+4. **OG 分享图**：已加站点 `public/og.png`（1200×630）与自定义社交预览图
+   （`docs/social-preview.png`，1280×640、572 KB）。
+   ⚠️ **这张图还没上传到 GitHub**（`usesCustomOpenGraphImage: false`）：
+   GitHub 没有对应的 API，只能在 Settings → Social preview 上传，
+   上传时选 `docs/social-preview.png` 即可。⚠️ 它左下角印着 `gdp.newzone.top`——
+   域名接管后那行字才对得上，现在印 github.io 地址反而要重画。
+5. **部署**：已接 GitHub Pages（`.github/workflows/pages.yml`），站点现在跑在
+   `https://rockbenben.github.io/gdp-map/`（与仓库 HEAD 逐字节一致）。
+   ⚠️ **自定义域名 `gdp.newzone.top` 在 DNS 上不存在**（2026-10-28 用 DoH 查过，
+   阿里云 DNS 权威应答 NXDOMAIN；Pages 的 `cname` 也是 null）。
+   所以 `index.html` 的 canonical / OG 地址、README 的「在线试用」与 GitHub 的
+   homepage **现在一律指向 github.io 那个地址**——指向一个解析不出来的域名，
+   分享出去的卡片预览图就是 404。`public/CNAME` 保留着，
+   等 DNS 加上 CNAME 记录后它就能接管，届时把上面这几处一起换回 `gdp.newzone.top`。
    其它静态托管也仍然可用，`dist/` 直接丢。
 6. **玩法后端（可选）**：每日全球榜、好友实时对战；现在只有本地进度 + 静态挑战链接。
 7. **玩法扩展**：每日题历史/回放、护照成就、更多小游戏；数据与 `play.ts` 的出题/计分接口已经分开。
@@ -704,3 +742,17 @@ gdp-map/
 CI（`.github/workflows/ci.yml`）跑的就是上面这四条，外加浏览器验收。
 ⚠️ **CI 里不要跑 `npm run data`**：抓数据要访问三个外部源，任何一个挂了都会让 CI
 变红，而红的原因跟代码无关；产物是提交进仓库的，CI 直接用提交里那份。
+
+**改了 README 或仓库元数据，再跑一遍门面检查与渲染探针**（规范住在
+`local/self-skills/skills/repo-facade`，不在本仓库里）：
+
+```bash
+node 'D:\Backup\Libraries\Documents\GitHub\local\self-skills\skills\repo-facade\scripts\check-readme.mjs' . --num 046
+& 'C:\Program Files\Git\bin\bash.exe' -lc 'cd <repo> && MSYS_NO_PATHCONV=1 bash /d/Backup/Libraries/Documents/GitHub/local/self-skills/skills/repo-facade/scripts/render-probe.sh README.md <标签> . rockbenben/gdp-map'
+```
+
+⚠️ 探针用 GitHub 自己的 markdown API 渲染，**网络抖一下就 TLS 超时**（exit 1），重跑即可。
+⚠️ 它的产物默认写在技能目录的 `.probe/` 里，**别的会话也在用**，读完立刻把自己的结果收好。
+⚠️ 判据：`BR=0`（源码里不许手工折行）、`FIRSTP ≤ 470`（正文首段别掉出首屏）、
+`HERO` 高宽比 ≥ 1.6、`OVERFLOW=no`、`BROKEN=0`。2026-10-28 改版后的实测：
+`H=9751 | IMG=15 | BROKEN=0 | SECS=9 | BR=0 | HERO=928x458 | FIRSTP=149`（窄屏 H=13973）。
