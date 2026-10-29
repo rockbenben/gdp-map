@@ -96,7 +96,7 @@ gdp-map/
     限制 → License → 给开发者 → 关于 365 开源计划**，首屏是
     标题 / 一句话 / 徽章（License + 365 #046）/ 入口行 / 首屏图 / 定位段。
   - GitHub 元数据已填：description（中文单语，界面没做 i18n 就别写英文那半句）、
-    homepage（现指向 `rockbenben.github.io/gdp-map/`）、11 个 topics
+    homepage（现指向 `gdp.newzone.top/`）、11 个 topics
     （`gdp` `cartogram` `world-map` `infographic` `economic-data` `interactive-map`
     `map` `data-visualization` `web-app` `chinese` `d3`）。
   - 改门面后跑一遍规范自带的检查器与渲染探针（命令见第 6 节），别凭源码判断排版。
@@ -730,8 +730,7 @@ gdp-map/
    兄弟项目 juflow / markbook / funasr-subtitle / fillduck 都是 `true`）：
    GitHub 没有对应的 API，只能在 Settings → Social preview 上传，
    上传时选 `docs/social-preview.png` 即可。
-   ⚠️ 它左下角印的是 `gdp.newzone.top`——那是**打算用的**域名，DNS 记录加上之后
-   那行字正好对得上；万一最后决定长期就用 github.io 那个地址，这张卡得重画。
+   ⚠️ 它左下角印的是 `gdp.newzone.top`——域名已经上线，那行字正好对得上。
    ⚠️ **设计源没进仓库**（兄弟项目都会把 `social-card.html` 一起提交），
    所以这张图现在改不动、也重新生成不了——要改得先补一份 HTML/CSS 源。
 5. **部署**：托管在 **EdgeOne Pages**（2026-10-28 改成跟兄弟项目一致）。
@@ -750,13 +749,13 @@ gdp-map/
    - ⚠️ **不转发 head commit message**：提交正文里的 shell 元字符（引号、$、!、反引号）
      会破坏动作内部的 `git commit -m`（exit 129）——025-kuafu / 039 都记了这条。
    - 部署前先 `npm test` 当门禁（`npm run build` 里已含 `tsc --noEmit`），坏构建不发布。
-   ⚠️ **自定义域名 `gdp.newzone.top` 目前在 DNS 上还不存在**（2026-10-28 用 DoH 查过，
-   阿里云 DNS 权威应答 NXDOMAIN）。所以 `index.html` 的 canonical / OG 地址、
-   README 的「在线试用」与 GitHub 的 homepage **暂时仍指向 `rockbenben.github.io/gdp-map/`**
-   （那个地址现在是最后一次 GitHub Pages 部署的冻结副本；EdgeOne 接管前它不会更新）。
-   **域名上线后要一次换三处**：`index.html` 的 canonical / og:url / og:image / twitter:image、
-   README 的「在线试用」与 GitHub 的 homepage；顺手把 GitHub Pages 站点删掉
-   （`gh api --method DELETE repos/rockbenben/gdp-map/pages`）。
+   ✅ **自定义域名 `gdp.newzone.top` 已上线**（2026-10-29 核实：DNS 指向 EdgeOne，
+   `https://gdp.newzone.top/` 返 200，且与 `gh-pages` 分支是同一份构建）。
+   `index.html` 的 canonical / og:url / og:image / twitter:image、README 的「在线试用」
+   与 GitHub 的 homepage **都已指向 `gdp.newzone.top`**；
+   `rockbenben.github.io/gdp-map/` 只是同一条分支的镜像，留作备用。
+   想把镜像删掉得人工决定（`gh api --method DELETE repos/rockbenben/gdp-map/pages`）——
+   两份副本会漂移：045 就吃过这个亏（EdgeOne 那边的副本停在旧构建上）。
    其它静态托管也仍然可用，`dist/` 直接丢。
 6. **玩法后端（可选）**：每日全球榜、好友实时对战；现在只有本地进度 + 静态挑战链接。
 7. **玩法扩展**：每日题历史/回放、护照成就、更多小游戏；数据与 `play.ts` 的出题/计分接口已经分开。

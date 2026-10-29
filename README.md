@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![365 开源计划 #046](https://img.shields.io/badge/365%20%E5%BC%80%E6%BA%90%E8%AE%A1%E5%88%92-%23046-1f6feb)](https://github.com/rockbenben/365opensource)
 
-[▶ 在线试用](https://rockbenben.github.io/gdp-map/) · 189 个国家 + 226 个省/州，6 个指标，逐年可回溯 · [本地运行](#给开发者)
+[▶ 在线试用](https://gdp.newzone.top/) · [本地运行](#给开发者)
 
 ![打开就有结论：广东省 ≈ 72 个国家之和](docs/preview-first-screen.png)
 
@@ -123,7 +123,7 @@
 
 ## 怎么用
 
-三步：打开[在线站点](https://rockbenben.github.io/gdp-map/) → 在左边选一个省/州（可直接搜中文、拼音或首字母） → 右边地图立刻高亮出一组等价的国家，左上角给出「≈ N 个国家之和」。
+三步：打开[在线站点](https://gdp.newzone.top/) → 在左边选一个省/州（可直接搜中文、拼音或首字母） → 右边地图立刻高亮出一组等价的国家，左上角给出「≈ N 个国家之和」。
 
 几个常用操作：
 
@@ -201,7 +201,7 @@ node scripts/websearch.mjs "查询词"   # 网页搜索（DeepSeek Search & Fetc
 
 **技术选型**刻意保持轻量：Vite + React 19 + TypeScript，没有 SSR、没有状态库、没有 UI 框架；地图与地球都是**纯 SVG**（没有 WebGL，低端设备与截图导出都能跑），数据管线是 Node 脚本，产物落在 `public/data` 与 `public/geo`。地球不用 three.js 是算过账的：分享卡、高清图、GIF 三种导出都是「克隆当前 SVG → 画进 canvas → 栅格化」，屏幕上的图和导出的图**一定是同一张**；WebGL 画出来的东西没法序列化成 SVG，要接上导出就只能维护两套渲染器。发布的 JSON 按真实精度收口：钱到元、人到人、人均到分、坐标到 5 位小数。
 
-**部署**是纯静态站，没有后端、没有 API 调用，构建产物就是几个 JSON + 一个 JS 包。托管在 **EdgeOne Pages**：推送到 `main` 时，`.github/workflows/deploy.yml` 把构建产物推到 **`gh-pages` 分支**，EdgeOne 从那个分支取——同系列的其他项目都是这个模式。缓存与安全响应头写在 `public/edgeone.json`（`/assets/*` 是内容哈希所以长期缓存，`data/` 与 `geo/` 的 JSON 是固定文件名、内容会变所以不缓存）。自定义域名 `gdp.newzone.top` 的 DNS 记录还没加（要指向 EdgeOne 的 `*.pages.dnsoe4/5.com`，不是 `rockbenben.github.io`），在那之前本文的「在线试用」先指向 <https://rockbenben.github.io/gdp-map/>；域名上线后把 `index.html` 里的 canonical / OG 地址和本文的链接一起换过去即可。`dist/` 也可以直接丢到任何静态托管（`vite.config.ts` 里 `base: './'` 用的是相对路径，放子目录也能跑）。数据是构建期抓取好的静态 JSON，运行时不再访问外部接口。首屏只下载 `public/data/regions.json`（每对象的默认年，约 35 KB gzip），其余年份在 `public/data/regions-history.json`（1,038 KB，gzip 332 KB）里，页面加载后才合并——**两个文件都要部署**。
+**部署**是纯静态站，没有后端、没有 API 调用，构建产物就是几个 JSON + 一个 JS 包。托管在 **EdgeOne Pages**：推送到 `main` 时，`.github/workflows/deploy.yml` 把构建产物推到 **`gh-pages` 分支**，EdgeOne 从那个分支取——同系列的其他项目都是这个模式。缓存与安全响应头写在 `public/edgeone.json`（`/assets/*` 是内容哈希所以长期缓存，`data/` 与 `geo/` 的 JSON 是固定文件名、内容会变所以不缓存）。自定义域名 `gdp.newzone.top` 已上线（DNS 指向 EdgeOne 的 `*.pages.dnsoe4/5.com`），本文的「在线试用」与 `index.html` 里的 canonical / OG 地址都指向它；`rockbenben.github.io/gdp-map/` 是同一条 `gh-pages` 分支的镜像，留作备用。`dist/` 也可以直接丢到任何静态托管（`vite.config.ts` 里 `base: './'` 用的是相对路径，放子目录也能跑）。数据是构建期抓取好的静态 JSON，运行时不再访问外部接口。首屏只下载 `public/data/regions.json`（每对象的默认年，约 35 KB gzip），其余年份在 `public/data/regions-history.json`（1,038 KB，gzip 332 KB）里，页面加载后才合并——**两个文件都要部署**。
 
 > 锁文件里的依赖指向官方源 `registry.npmjs.org`（不是国内镜像）——CI 跑在 GitHub runner 上，把一个第三方镜像放在构建关键路径上既慢又多一份可用性风险。本地想用镜像加速，临时改 npm registry 就行，**别把镜像写进锁文件**。要跟 CI 完全一致（按锁文件装），用 `npm ci`。
 

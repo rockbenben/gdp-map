@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "GDP 等价地图：随手选一个省/州/国家，看它相当于多少个国家之和",
-  "homepage": "https://rockbenben.github.io/gdp-map/",
+  "homepage": "https://gdp.newzone.top/",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
