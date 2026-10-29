@@ -1356,13 +1356,26 @@ try {
   await page.waitForTimeout(900);
   const quickHeadline = (await page.locator('.result-headline h1').innerText()).replace(/\s+/g, ' ');
   const quickYear = (await page.locator('.year-now').innerText()).trim();
+  // 地图上当前选中的指标：「同一道题」不只看地区，还要看指标
+  const quickMetric = (await page.locator('.metric-btn.active').innerText()).trim();
   await page.locator('.segmented button', { hasText: '玩法' }).click();
   await page.waitForSelector('.play-hub', { timeout: 15000 });
   await page.waitForTimeout(500);
   const dailyQuestion = (await page.locator('.play-card.daily h3').innerText()).replace(/\s+/g, ' ');
   const dailySub = (await page.locator('.play-card.daily .play-card-sub').innerText()).replace(/\s+/g, ' ');
-  const dailyRegion = dailyQuestion.split('的')[0];
-  check('「今日一地」和每日挑战指向同一道题', quickHeadline.startsWith(dailyRegion) && quickYear === dailySub.split(' ')[0], `${quickHeadline.slice(0, 40)}｜${dailyQuestion}｜${dailySub}`);
+  // 每日题是「地区 + 指标 + 年份」，标题形如「静冈县的面积」
+  const dailyParts = dailyQuestion.match(/^(.+?)的(.+)$/);
+  const dailyRegion = dailyParts?.[1] ?? '';
+  const dailyMetric = dailyParts?.[2] ?? '';
+  // ⚠️ 年份只有「随年份变的指标」才有：面积不随年份变，卡片上就不写年份，
+  //    这时地图停在默认年，两边不能说成两个不同的年份。
+  const dailyYear = /(\d{4})\s*年/.exec(dailySub)?.[1] ?? '';
+  const sameYear = dailyYear ? quickYear === dailyYear : true;
+  check(
+    '「今日一地」和每日挑战指向同一道题',
+    dailyRegion.length > 0 && quickHeadline.includes(dailyRegion) && dailyMetric === quickMetric && sameYear,
+    `${quickHeadline.slice(0, 40)}｜${dailyQuestion}｜${dailySub}｜地图 ${quickMetric} ${quickYear}`
+  );
 
   // 25.12 普通拼图结束 → 回到开玩前的地方；每日挑战返回玩法也不覆盖原对照
   await page.goto(`${BASE}/?sel=CN-410000`, { waitUntil: 'networkidle' });

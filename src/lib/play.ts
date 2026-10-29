@@ -1,3 +1,4 @@
+import { METRICS } from './metrics';
 import type { MetricId } from './metrics';
 import type { Region } from './types';
 
@@ -74,6 +75,20 @@ export function dailyTargetFor(dateKey: string, regions: Region[]): DailyTarget 
     year: region.year,
     value: metricValueOf(region, metric)
   };
+}
+
+/**
+ * 每日挑战卡片上那行小字：年份 + 目标值。
+ *
+ * ⚠️ **不随年份变的指标不写年份**（面积）。
+ *    「今日一地」和「每日挑战」必须指着同一道题：面积口径下地图的年份固定为默认年，
+ *    卡片上再写一个地区自己的数据年（日本府县是 2023）就会两边对不上，
+ *    读的人会以为这是两道题。
+ */
+export function dailyTargetLine(target: DailyTarget | null): string {
+  if (!target) return '正在准备今天的题';
+  const value = METRICS[target.metric].format(target.value);
+  return METRICS[target.metric].variesByYear ? `${target.year} 年 · 目标 ${value}` : `目标 ${value}`;
 }
 
 // ---------- 得分 ----------

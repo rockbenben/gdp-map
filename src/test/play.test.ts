@@ -8,6 +8,7 @@ import {
   clampScore,
   dailyShareText,
   dailyTargetFor,
+  dailyTargetLine,
   higherLowerPair,
   loadProgress,
   previousDayKey,
@@ -18,7 +19,7 @@ import {
   scoreSquares,
   todayKey
 } from '../lib/play';
-import type { BlindItem, HigherItem, PlayProgress } from '../lib/play';
+import type { BlindItem, DailyTarget, HigherItem, PlayProgress } from '../lib/play';
 import type { Region } from '../lib/types';
 
 function region(over: Partial<Region> = {}): Region {
@@ -81,6 +82,34 @@ describe('dailyTargetFor', () => {
 
   it('空池返回 null', () => {
     expect(dailyTargetFor('2026-10-25', [])).toBeNull();
+  });
+});
+
+describe('每日挑战那行小字', () => {
+  const target = (over: Partial<DailyTarget> = {}): DailyTarget => ({
+    date: '2026-10-29',
+    regionId: 'JP-22',
+    regionZh: '静冈县',
+    metric: 'gdp',
+    year: '2023',
+    value: 136_080_869_119,
+    ...over
+  });
+
+  it('随年份变的指标写上那一年', () => {
+    expect(dailyTargetLine(target())).toBe('2023 年 · 目标 1,361 亿美元');
+  });
+
+  it('面积不随年份变，卡片上就不写年份', () => {
+    // 面积口径下地图的年份固定为默认年（2024）。
+    // 卡片上再写「2023 年」就跟「今日一地」对不上了——读的人会以为是两道题。
+    const line = dailyTargetLine(target({ metric: 'area', value: 7669 }));
+    expect(line).toBe('目标 7,669 km²');
+    expect(line).not.toMatch(/\d{4}\s*年/);
+  });
+
+  it('没抽到题时给一句准备中的话', () => {
+    expect(dailyTargetLine(null)).toBe('正在准备今天的题');
   });
 });
 

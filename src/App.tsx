@@ -654,7 +654,7 @@ export default function App() {
     if (!sourceSelected.length) return playableYears;
     // 面积不随年份变：年份只影响对照池的成员，选它只会让标题写出
     // 「广东省的面积 ≈ 2000 年的柬埔寨」这种像在说面积有年份的话。
-    if (metric === 'area') {
+    if (!metricDef.variesByYear) {
       const fallback = Number(dataset?.meta.defaultYear ?? yearToText);
       return playableYears.includes(fallback) ? [fallback] : [playableYears[playableYears.length - 1]];
     }
@@ -2709,8 +2709,10 @@ export default function App() {
               <p className="picker-hint">拼一局时年份固定，结束这一局再拨年份。</p>
             ) : null}
             <p className="picker-hint">
-              {metric === 'area' ? (
-                <>面积不随年份变化，年份固定为 {dataset?.meta.defaultYear ?? '2024'} 年。</>
+              {!metricDef.variesByYear ? (
+                <>
+                  {metricDef.label}不随年份变化，年份固定为 {dataset?.meta.defaultYear ?? '2024'} 年。
+                </>
               ) : yearRangeNote ? (
                 <>
                   {yearRangeNote}
@@ -3083,7 +3085,7 @@ export default function App() {
                 metricId={metric}
                 year={worldYear}
                 playYears={playableYears}
-                forecastYear={metric === 'area' ? undefined : Number(yearToText)}
+                forecastYear={metricDef.variesByYear ? Number(yearToText) : undefined}
                 onYearChange={setPlayYear}
                 yearLocked={Boolean(puzzle)}
                 higherItems={higherItems}

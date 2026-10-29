@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { METRICS } from '../lib/metrics';
 import type { Metric, MetricId } from '../lib/metrics';
-import { challengeUrlFor, dailyShareText, resetPassport } from '../lib/play';
+import { challengeUrlFor, dailyShareText, dailyTargetLine, resetPassport } from '../lib/play';
 import type { BlindItem, DailyTarget, HigherItem, PlayProgress } from '../lib/play';
 import type { GeoFeature } from '../lib/types';
 import { BlindGuess } from './BlindGuess';
@@ -171,7 +171,9 @@ export function PlayView({
   const dailyLabel = dailyTarget
     ? `${dailyTarget.regionZh}的${METRICS[dailyTarget.metric].label}`
     : '今日题目准备中';
-  const dailyValue = dailyTarget ? METRICS[dailyTarget.metric].format(dailyTarget.value) : '';
+  // ⚠️ 那行小字里的年份由 dailyTargetLine 决定：不随年份变的指标（面积）不写年份，
+  //    否则卡片上的年份会跟「今日一地」停在地图上的那一年对不上。
+  const dailySub = dailyTargetLine(dailyTarget);
   const dailyBusy = !historyReady || !dailyTarget;
 
   return (
@@ -189,9 +191,7 @@ export function PlayView({
             {dailyDone ? <span className="play-badge">已完成</span> : null}
           </div>
           <h3>{dailyLabel}</h3>
-          <p className="play-card-sub">
-            {dailyTarget ? `${dailyTarget.year} 年 · 目标 ${dailyValue}` : '正在准备今天的题'}
-          </p>
+          <p className="play-card-sub">{dailySub}</p>
           {dailyDone ? (
             <>
               <div className="play-scoreline">

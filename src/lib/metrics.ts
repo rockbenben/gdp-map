@@ -66,6 +66,18 @@ export interface Metric {
   valueLabel: string;
   /** 能不能累加 */
   additive: boolean;
+  /**
+   * 这个指标会不会随年份变。
+   *
+   * 面积是唯一不变的：国土面积不随年份变，所以面积口径的年份控件固定为默认年，
+   * 标题与图注都不写年份（否则会写出「广东省的面积 ≈ 2000 年的柬埔寨」这种话）。
+   *
+   * ⚠️ 「这个指标有没有年份」这件事只在这里定义一次。
+   *    以前散在 App.tsx 里比 `metric === 'area'`：每日挑战的卡片就会跟地图对不上
+   *    （卡片写「2023 年」，地图上停在 2024 年），「今日一地」和「每日挑战」
+   *    看上去像两道题。加指标时也在这里补上，别再写死指标 id。
+   */
+  variesByYear: boolean;
   /** 这个指标的自然比较单位 */
   unitName: string;
   /** 数值格式化 */
@@ -99,6 +111,7 @@ export const METRICS: Record<MetricId, Metric> = {
     label: '总 GDP',
     valueLabel: '名义 GDP（现价美元）',
     additive: true,
+    variesByYear: true,
     unitName: '经济体量',
     format: (v) => fmtYi(v, '美元'),
     short: (v) => fmtYi(v),
@@ -119,6 +132,7 @@ export const METRICS: Record<MetricId, Metric> = {
     label: '平价 GDP',
     valueLabel: '购买力平价 GDP（现价国际元）',
     additive: true,
+    variesByYear: true,
     unitName: '平价经济体量',
     format: (v) => fmtYi(v, '美元', '（平价）'),
     short: (v) => fmtYi(v),
@@ -139,6 +153,7 @@ export const METRICS: Record<MetricId, Metric> = {
     label: '人均 GDP',
     valueLabel: '人均 GDP（现价美元）',
     additive: false,
+    variesByYear: true,
     unitName: '人均水平',
     format: (v) => `${fmtInt(v)} 美元/人`,
     short: (v) => `${fmtInt(v)} 美元`,
@@ -156,6 +171,7 @@ export const METRICS: Record<MetricId, Metric> = {
     label: 'GDP 密度',
     valueLabel: '每平方公里产出（现价美元）',
     additive: false,
+    variesByYear: true,
     unitName: '产出密度',
     format: (v) =>
       Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万美元/km²` : `${fmtInt(v)} 美元/km²`,
@@ -174,6 +190,8 @@ export const METRICS: Record<MetricId, Metric> = {
     label: '面积',
     valueLabel: '面积（平方公里）',
     additive: true,
+    /** ⚠️ 面积不随年份变：这里是唯一写 false 的指标 */
+    variesByYear: false,
     unitName: '国土面积',
     format: (v) => (Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万 km²` : `${fmtInt(v)} km²`),
     short: (v) => (Math.abs(v) >= 1e4 ? `${(v / 1e4).toFixed(1)} 万` : fmtInt(v)),
@@ -194,6 +212,7 @@ export const METRICS: Record<MetricId, Metric> = {
     label: '人口',
     valueLabel: '人口',
     additive: true,
+    variesByYear: true,
     unitName: '人口',
     format: (v) => (Math.abs(v) >= 1e8 ? `${(v / 1e8).toFixed(2)} 亿人` : `${fmtInt(v / 1e4)} 万人`),
     short: (v) => (Math.abs(v) >= 1e8 ? `${(v / 1e8).toFixed(2)} 亿` : `${fmtInt(v / 1e4)} 万`),
